@@ -29,7 +29,7 @@ implemented, tested, and documented.
 **Dependencies Added:**
 - `github.com/mark3labs/mcp-go v0.43.2` - MCP protocol implementation
 - `github.com/NVIDIA/go-nvml v0.13.0-1` - NVML bindings (for M2)
-- `github.com/stretchr/testify v1.11.1` - Testing framework
+- `github.com/stretchr/testify v1.9.0` - Testing framework
 
 **Verification:**
 ```bash
@@ -256,7 +256,7 @@ github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml   13    13     0
 |---------|---------|---------|
 | mark3labs/mcp-go | v0.43.2 | MCP protocol |
 | NVIDIA/go-nvml | v0.13.0-1 | NVML bindings |
-| stretchr/testify | v1.11.1 | Testing |
+| stretchr/testify | v1.9.0 | Testing |
 
 **Total Dependencies:** 3 direct, 15 indirect  
 **Security Vulnerabilities:** 0 critical, 0 high

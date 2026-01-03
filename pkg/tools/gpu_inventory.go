@@ -45,6 +45,15 @@ func (h *GPUInventoryHandler) Handle(
 	// Collect information for all devices
 	gpus := make([]nvml.GPUInfo, 0, count)
 	for i := 0; i < count; i++ {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf(`{"level":"info","msg":"context cancelled during GPU enumeration"}`)
+			return mcp.NewToolResultError(
+				fmt.Sprintf("operation cancelled: %s", ctx.Err())), nil
+		default:
+		}
+
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
 			log.Printf(`{"level":"error","msg":"failed to get device",`+
