@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "echo_test",
+    "arguments": {
+      "message": "Hello from k8s-mcp-agent!"
+    }
+  },
+  "id": 1
+}
+

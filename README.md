@@ -87,7 +87,7 @@ kubectl debug node/gpu-node-5 \
 ### Current Milestone: [M1: Foundation & API](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestone/1)
 **Due:** Jan 10, 2026
 
-**Progress:** 0/4 issues complete
+**Progress:** ✅ 3/3 core issues complete (Scaffolding, MCP Server, CI)
 
 **Upcoming:**
 - [M2: Hardware Introspection](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestone/2) - Due Jan 17
@@ -153,6 +153,50 @@ make coverage-html          # Generate HTML coverage report
 go test ./... -count=1
 go test ./... -race
 go test ./... -tags=integration
+```
+
+### Testing MCP Protocol Locally
+
+The agent includes a mock NVML implementation for testing without GPU hardware:
+
+```bash
+# Build the agent
+make agent
+
+# Test echo tool (validates JSON-RPC round-trip)
+cat examples/echo_test.json | ./bin/agent
+
+# Test GPU inventory tool (returns mock GPU data)
+cat examples/gpu_inventory.json | ./bin/agent
+
+# Initialize MCP session
+cat examples/initialize.json | ./bin/agent
+```
+
+Expected output for `echo_test`:
+```json
+{
+  "echo": "Hello from k8s-mcp-agent!",
+  "timestamp": "2026-01-03T12:00:00Z",
+  "mode": "read-only"
+}
+```
+
+Expected output for `get_gpu_inventory`:
+```json
+{
+  "status": "success",
+  "device_count": 2,
+  "devices": [
+    {
+      "Index": 0,
+      "Name": "NVIDIA A100-SXM4-40GB (Mock 0)",
+      "UUID": "GPU-00000000-0000-0000-0000-000000000000",
+      "BusID": "0000:01:00.0",
+      ...
+    }
+  ]
+}
 ```
 
 ## Contributing
