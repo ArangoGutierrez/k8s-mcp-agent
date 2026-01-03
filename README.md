@@ -124,26 +124,34 @@ k8s-mcp-agent/
 ### Build
 
 ```bash
-# Local build
-go build -o bin/agent ./cmd/agent
+# Using Makefile (recommended)
+make agent                  # Build agent binary
+make all                    # Run checks, tests, and build
+make image                  # Build container image
 
-# Container image
-docker build -t k8s-mcp-agent:dev .
+# Direct Go build
+go build -o bin/agent ./cmd/agent
 
 # Release build (stripped, optimized)
 go build -ldflags="-s -w" -o bin/agent ./cmd/agent
+
+# View all available targets
+make help
 ```
 
 ### Testing
 
 ```bash
-# Unit tests
+# Using Makefile (recommended)
+make test                   # Run tests with race detector
+make test-short             # Run tests without race detector
+make test-integration       # Run integration tests (requires GPU)
+make coverage               # Generate coverage report
+make coverage-html          # Generate HTML coverage report
+
+# Direct Go commands
 go test ./... -count=1
-
-# With race detector
 go test ./... -race
-
-# Integration tests (requires GPU)
 go test ./... -tags=integration
 ```
 
