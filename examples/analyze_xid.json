@@ -1,0 +1,10 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "analyze_xid_errors",
+    "arguments": {}
+  },
+  "id": 3
+}
+

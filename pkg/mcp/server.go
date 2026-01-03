@@ -73,6 +73,10 @@ func New(cfg Config) (*Server, error) {
 	mcpServer.AddTool(tools.GetGPUInventoryTool(),
 		gpuInventoryHandler.Handle)
 
+	// Register XID analysis tool
+	xidHandler := tools.NewAnalyzeXIDHandler(cfg.NVMLClient)
+	mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
+
 	s.mcpServer = mcpServer
 
 	log.Printf(`{"level":"info","msg":"MCP server initialized",`+
