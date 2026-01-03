@@ -120,8 +120,8 @@ func (p *Parser) parseXIDLine(line string) *XIDEvent {
 	}
 
 	pciBusID := matches[1]
-	xidCode := parseInt(matches[2])
-	if xidCode == 0 {
+	xidCode, err := strconv.Atoi(matches[2])
+	if err != nil {
 		return nil
 	}
 
@@ -157,6 +157,8 @@ func (p *Parser) parseXIDLine(line string) *XIDEvent {
 }
 
 // parseInt safely parses an integer string, returning 0 on error.
+// This is suitable for optional fields like PID where 0 is an acceptable
+// default (PIDs start at 1, so 0 is never a valid PID).
 func parseInt(s string) int {
 	val, err := strconv.Atoi(s)
 	if err != nil {

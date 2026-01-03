@@ -205,6 +205,12 @@ func (h *AnalyzeXIDHandler) findGPUByPCI(
 
 	// Iterate through all devices to find matching PCI bus ID
 	for i := 0; i < count; i++ {
+		// Check for context cancellation
+		if err := ctx.Err(); err != nil {
+			log.Printf(`{"level":"debug","msg":"context cancelled during GPU lookup"}`)
+			return -1, gpuLookupResult{}
+		}
+
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
 			continue
