@@ -2,7 +2,7 @@
 
 **Just-in-Time SRE Diagnostic Agent for NVIDIA GPU Clusters on Kubernetes**
 
-[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/ArangoGutierrez/k8s-mcp-agent)](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
 
@@ -101,7 +101,7 @@ and [Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues) for detail
 
 ### Prerequisites
 
-- Go 1.23+
+- Go 1.25+
 - Docker or Podman
 - `golangci-lint` (optional, for linting)
 - Access to NVIDIA GPU for integration tests

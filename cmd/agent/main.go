@@ -29,6 +29,7 @@ func main() {
 	// Parse command-line flags
 	var (
 		mode     = flag.String("mode", ModeReadOnly, "Operation mode: read-only or operator")
+		nvmlMode = flag.String("nvml-mode", "mock", "NVML mode: mock or real (requires GPU hardware)")
 		showVer  = flag.Bool("version", false, "Show version information and exit")
 		logLevel = flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	)
@@ -47,9 +48,14 @@ func main() {
 		log.Fatalf(`{"level":"fatal","msg":"invalid mode","mode":"%s","valid":["read-only","operator"]}`, *mode)
 	}
 
+	// Validate nvml-mode flag
+	if *nvmlMode != "mock" && *nvmlMode != "real" {
+		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode","nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
+	}
+
 	// Log startup information to stderr (structured JSON)
-	log.Printf(`{"level":"info","msg":"starting k8s-mcp-agent","version":"%s","commit":"%s","mode":"%s","log_level":"%s"}`,
-		info.Version(), info.GitCommit(), *mode, *logLevel)
+	log.Printf(`{"level":"info","msg":"starting k8s-mcp-agent","version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s","log_level":"%s"}`,
+		info.Version(), info.GitCommit(), *mode, *nvmlMode, *logLevel)
 
 	// Setup context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,11 +68,18 @@ func main() {
 	// Channel to coordinate shutdown
 	done := make(chan error, 1)
 
-	// Initialize NVML client (mock for M1)
-	// TODO: Add flag to switch between mock and real NVML in M2
-	nvmlClient := nvml.NewMock(2) // 2 fake GPUs
+	// Initialize NVML client based on mode
+	var nvmlClient nvml.Interface
+	if *nvmlMode == "real" {
+		log.Printf(`{"level":"info","msg":"initializing real NVML (requires GPU hardware)"}`)
+		nvmlClient = nvml.NewReal()
+	} else {
+		log.Printf(`{"level":"info","msg":"initializing mock NVML","fake_gpus":2}`)
+		nvmlClient = nvml.NewMock(2)
+	}
+
 	if err := nvmlClient.Init(ctx); err != nil {
-		log.Printf(`{"level":"fatal","msg":"failed to initialize NVML","error":"%s"}`, err)
+		log.Printf(`{"level":"fatal","msg":"failed to initialize NVML","nvml_mode":"%s","error":"%s"}`, *nvmlMode, err)
 		os.Exit(1)
 	}
 	defer func() {
