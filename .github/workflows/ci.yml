@@ -93,7 +93,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 1
+          # CGO disabled for cross-compilation in M1 (mock NVML)
+          # Will enable with proper cross-compilation toolchain in M2
+          CGO_ENABLED: 0
         run: |
           go build -v -ldflags="-s -w" -o bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/agent
           ls -lh bin/
@@ -143,6 +145,11 @@ jobs:
       - name: Check DCO signoff
         run: |
           git log origin/${{ github.base_ref }}..${{ github.sha }} --format='%H %s %ae' | while read hash subject email; do
+            # Skip merge commits (GitHub creates these automatically)
+            if git log -1 --format='%P' $hash | grep -q ' '; then
+              echo "Skipping merge commit $hash"
+              continue
+            fi
             if ! git log -1 --format='%B' $hash | grep -q "Signed-off-by:"; then
               echo "::error::Commit $hash is missing DCO signoff (Signed-off-by)"
               exit 1
