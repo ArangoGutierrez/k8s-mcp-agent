@@ -1,0 +1,74 @@
+---
+description: MCP Protocol and transport layer standards
+globs:
+  - "**/{server,mcp}/**"
+---
+
+# MCP Server Development Standards
+
+## Library & Protocol
+- **Library:** Use `github.com/mark3labs/mcp-go` exclusively
+- **Protocol:** JSON-RPC 2.0 over Standard I/O (Stdio)
+- **NO HTTP/WebSocket listeners** - violates ephemeral design
+- Transport must work through `kubectl debug` SPDY tunneling
+
+## I/O Separation (CRITICAL)
+- **stdout:** MCP protocol ONLY (JSON-RPC messages)
+- **stderr:** Structured logging, debug output, diagnostics
+- **NEVER** write logs/debug to stdout - breaks protocol parsing
+- **NEVER** read from stdin except for MCP messages
+
+## Logging
+- Use structured JSON logging to `stderr` only
+- Format: `{"level":"info","msg":"...", "component":"mcp-server"}`
+- Log levels: `debug`, `info`, `warn`, `error`, `fatal`
+- Include timestamps (ISO 8601) and request IDs when available
+- Example:
+  ```go
+  log.Printf(`{"level":"info","msg":"tool invoked","tool":"get_gpu_health"}`)
+  ```
+
+## Tool Implementation
+- Each tool returns `application/json` string for complex data
+- Use structured responses:
+  ```go
+  type ToolResponse struct {
+      Status  string      `json:"status"`
+      Data    interface{} `json:"data,omitempty"`
+      Error   string      `json:"error,omitempty"`
+  }
+  ```
+- Validate all inputs before processing
+- Return errors as JSON, not Go error strings
+- Include helpful context in error messages
+
+## Schema Definition
+- Define tool schemas explicitly in server registration
+- Document parameter types, constraints, and examples
+- Mark required vs optional parameters clearly
+- Provide default values where sensible
+
+## Server Lifecycle
+1. **Init:** Parse flags, setup logging (stderr), init NVML
+2. **Run:** Start MCP stdio server, block on transport
+3. **Shutdown:** Cleanup NVML, flush logs, exit 0
+
+## Error Handling
+- Catch panics in tool handlers (recover to JSON error)
+- Distinguish between:
+  - **Protocol errors** (malformed JSON-RPC)
+  - **Application errors** (tool execution failures)
+  - **System errors** (hardware unavailable)
+- Return appropriate JSON-RPC error codes
+
+## Testing
+- Mock stdio transport for unit tests
+- Test JSON-RPC message parsing separately
+- Validate tool schemas programmatically
+- Integration tests: full stdio round-trip
+
+## Security
+- Sanitize all tool inputs (PIDs, counts, paths)
+- No shell execution from tool parameters
+- Validate numeric ranges (e.g., GPU index bounds)
+- Reject unexpected parameters
