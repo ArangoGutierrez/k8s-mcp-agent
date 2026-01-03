@@ -3,6 +3,10 @@
 This guide provides detailed information for developers working on
 `k8s-mcp-agent`.
 
+> 📖 **Also see:** [Architecture Documentation](docs/architecture.md) for
+> system design details and [MCP Usage Guide](docs/mcp-usage.md) for protocol
+> examples.
+
 ## Prerequisites
 
 - **Go 1.23+**: Required for building the agent
