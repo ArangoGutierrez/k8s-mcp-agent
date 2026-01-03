@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Run gofmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted. Run: gofmt -s -w ."
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
+            sh -s -- -b $(go env GOPATH)/bin v2.7.2
+
+      - name: Run golangci-lint
+        run: $(go env GOPATH)/bin/golangci-lint run --timeout=5m
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test ./... -v -count=1 -race -coverprofile=coverage.out
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: |
+          go build -v -ldflags="-s -w" -o bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/agent
+          ls -lh bin/
+
+      - name: Check binary size
+        run: |
+          SIZE=$(stat -f%z bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} 2>/dev/null || stat -c%s bin/agent-${{ matrix.goos }}-${{ matrix.goarch }})
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Binary size: ${SIZE_MB}MB"
+          if [ $SIZE_MB -gt 50 ]; then
+            echo "::warning::Binary size ${SIZE_MB}MB exceeds 50MB target"
+          fi
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  verify-commits:
+    name: Verify Git Protocol
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check DCO signoff
+        run: |
+          git log origin/${{ github.base_ref }}..${{ github.sha }} --format='%H %s %ae' | while read hash subject email; do
+            if ! git log -1 --format='%B' $hash | grep -q "Signed-off-by:"; then
+              echo "::error::Commit $hash is missing DCO signoff (Signed-off-by)"
+              exit 1
+            fi
+          done
+
+      - name: Check commit message format
+        run: |
+          git log origin/${{ github.base_ref }}..${{ github.sha }} --format='%H %s' | while read hash subject; do
+            if ! echo "$subject" | grep -qE '^(feat|fix|chore|docs|refactor|test|ci|security|perf)\([a-z-]+\): .+'; then
+              echo "::warning::Commit $hash does not follow format: type(scope): description"
+            fi
+          done
+

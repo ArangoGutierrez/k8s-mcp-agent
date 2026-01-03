@@ -1,0 +1,135 @@
+name: Security Vulnerability
+description: Report a security vulnerability (will be handled privately)
+title: "[Security]: "
+labels: ["ops/security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Security Vulnerability Report
+        
+        **⚠️ IMPORTANT:** For critical security vulnerabilities, please consider 
+        reporting privately via GitHub Security Advisories instead of creating 
+        a public issue:
+        
+        https://github.com/ArangoGutierrez/k8s-mcp-agent/security/advisories/new
+        
+        Use this template only for lower-severity security concerns or design 
+        issues that don't pose immediate exploit risk.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Vulnerability Summary
+      description: Brief, non-sensitive description of the security concern.
+      placeholder: Insufficient input validation in GPU index parameter...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Assessment
+      description: Your assessment of the vulnerability's severity.
+      options:
+        - Critical - Remote code execution, privilege escalation
+        - High - Data exposure, denial of service
+        - Medium - Information disclosure, configuration weakness
+        - Low - Design concern, hardening opportunity
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected Components
+      description: Which parts of the system are vulnerable?
+      placeholder: |
+        - MCP tool: kill_gpu_process
+        - Function: pkg/tools/remediation.go:KillProcess()
+        - Versions: All versions <= v0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Explain the vulnerability without providing a public exploit.
+      placeholder: |
+        The kill_gpu_process tool accepts a PID parameter without proper 
+        validation. An attacker with MCP access could potentially terminate 
+        arbitrary processes by crafting malicious input...
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could an attacker achieve by exploiting this?
+      placeholder: |
+        - Denial of service (killing critical system processes)
+        - Disruption of GPU workloads
+        - Privilege escalation if combined with other vulnerabilities
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested Mitigation
+      description: How could this be fixed? (without revealing exploits)
+      placeholder: |
+        - Validate PID belongs to GPU process before kill
+        - Implement allowlist of killable process paths
+        - Add operator-mode confirmation prompt
+    validations:
+      required: true
+
+  - type: dropdown
+    id: context
+    attributes:
+      label: Attack Context
+      description: What access is required to exploit this?
+      options:
+        - No authentication required (remote exploit)
+        - Requires MCP client access (kubectl debug)
+        - Requires operator mode enabled
+        - Requires privileged pod context
+        - Other (explain below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: High-level steps (avoid publishing working exploits).
+      placeholder: |
+        1. Launch agent with --mode=operator
+        2. Call kill_gpu_process with PID=1
+        3. Agent attempts to kill init process
+      render: markdown
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: CVEs, security advisories, or related issues.
+      placeholder: |
+        - Similar issue in other projects: CVE-XXXX-XXXX
+        - OWASP reference: https://...
+
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: Responsible Disclosure
+      options:
+        - label: I have not publicly disclosed details of this vulnerability
+          required: true
+        - label: I will allow 90 days for a fix before full disclosure
+          required: false
+        - label: I am available to assist with testing a fix
+          required: false
+

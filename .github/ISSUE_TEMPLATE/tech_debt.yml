@@ -1,0 +1,121 @@
+name: Technical Debt
+description: Report technical debt, refactoring needs, or code quality issues
+title: "[Tech Debt]: "
+labels: ["kind/tech-debt"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Technical Debt
+        Use this template to track technical debt, refactoring opportunities, or code quality improvements.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the technical debt.
+      placeholder: Refactor NVML wrapper to use proper error types...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current State
+      description: Describe the current problematic implementation.
+      placeholder: |
+        The NVML wrapper currently returns string errors instead of 
+        typed errors, making it hard to handle specific failure modes...
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired
+    attributes:
+      label: Desired State
+      description: What should the code look like after addressing this debt?
+      placeholder: |
+        Implement typed errors:
+        - ErrDeviceNotFound
+        - ErrInsufficientPermissions
+        - ErrDriverVersionMismatch
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component Area
+      description: Which component is affected?
+      options:
+        - MCP Server
+        - NVML Binding
+        - Tool Implementation
+        - Testing Infrastructure
+        - Build System
+        - Documentation
+        - CI/CD
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How much does this impact development/maintenance?
+      options:
+        - Critical - Blocking new features or causing bugs
+        - High - Making development significantly harder
+        - Medium - Noticeable but manageable
+        - Low - Minor quality improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Why is this important? What are the consequences of not fixing it?
+      placeholder: |
+        - Error handling is inconsistent across the codebase
+        - Makes testing harder (can't mock specific errors)
+        - Logs are less actionable for users
+    validations:
+      required: true
+
+  - type: textarea
+    id: effort
+    attributes:
+      label: Estimated Effort
+      description: Rough estimate of work required (hours/days/LOC changed).
+      placeholder: |
+        - 2-3 days
+        - ~500 LOC across pkg/nvml and pkg/tools
+        - Requires updating unit tests
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers or Dependencies
+      description: What needs to happen before this can be fixed?
+      placeholder: Should wait until M2 is complete to avoid conflicts...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Related issues, PRs, or external references.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I searched existing tech debt issues
+          required: true
+        - label: This is not a bug report (use bug template instead)
+          required: true
+        - label: I provided enough context for prioritization
+          required: true
+
