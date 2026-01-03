@@ -1,0 +1,107 @@
+---
+description: Kubernetes deployment and operational constraints
+globs:
+  - "deploy/**"
+  - "hack/**"
+---
+
+# Kubernetes Deployment Standards
+
+## Security Constraints
+- **Run as non-root where possible**
+- NVML operations may require elevated privileges - minimize scope
+- Use security contexts in pod specs:
+  ```yaml
+  securityContext:
+    capabilities:
+      add: ["SYS_ADMIN"]  # Only if needed for GPU reset
+      drop: ["ALL"]
+    readOnlyRootFilesystem: true
+  ```
+- No persistent storage mounts (ephemeral pattern)
+- No network listeners (stdio transport only)
+
+## Binary Constraints
+- **Target size: < 50MB** (stripped binary)
+- Static linking where possible (reduce runtime deps)
+- CGO enabled for NVML (libnvidia-ml.so)
+- Strip debug symbols for production: `go build -ldflags="-s -w"`
+- Compress with UPX if size exceeds target (test compatibility)
+
+## Container Image
+- **Base:** `gcr.io/distroless/base-debian12`
+- Must contain mount points for:
+  - `/usr/lib/x86_64-linux-gnu/libnvidia-ml.so` (NVML library)
+  - `/dev/nvidia*` (device nodes, via hostPath)
+- Minimal layers (single COPY for binary)
+- Scan images with Trivy before release
+- Tag with git SHA and semantic version
+
+## Logging Standards
+- **JSON format only** to stderr
+- Required fields:
+  ```json
+  {
+    "timestamp": "2026-01-03T07:37:39Z",
+    "level": "info",
+    "component": "mcp-agent",
+    "msg": "...",
+    "node": "${NODE_NAME}"
+  }
+  ```
+- Include Kubernetes context when available:
+  - Node name (from downward API)
+  - Namespace (if applicable)
+  - Pod UID
+- No sensitive data in logs (PIDs ok, process names sanitized)
+
+## Deployment Pattern
+- **NO DaemonSets** - ephemeral injection only
+- Launch via `kubectl debug node/${NODE} --image=...`
+- Pass environment variables:
+  - `--mode=read-only` (default)
+  - `--mode=operator` (dangerous operations enabled)
+  - `--log-level=info`
+- Example launch command:
+  ```bash
+  kubectl debug node/gpu-node-5 \
+    --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
+    --profile=sysadmin \
+    -- /agent --mode=read-only
+  ```
+
+## Resource Limits
+- No CPU/memory limits needed (short-lived)
+- Document expected resource usage in README
+- Typical: <100MB RAM, <0.1 CPU
+
+## Health & Readiness
+- **No probes needed** (ephemeral, stdio-based)
+- Agent exits on stdio close (kubectl debug disconnect)
+- Cleanup NVML resources on SIGTERM
+
+## Build & Release
+- Use `goreleaser` for multi-arch builds
+- Supported architectures:
+  - `linux/amd64` (primary)
+  - `linux/arm64` (if NVIDIA ARM support)
+- GitHub Actions for CI/CD
+- Automated releases on git tags
+
+## Testing in K8s
+- E2E tests in kind cluster with GPU operator
+- Test scenarios:
+  - Launch via kubectl debug
+  - Stdio transport validation
+  - NVML library detection
+  - Graceful degradation (no GPUs)
+- Document prerequisites in `hack/e2e-test.sh`
+
+## Documentation Requirements
+- README must include:
+  - Launch command examples
+  - Required RBAC permissions (if any)
+  - Image pull instructions
+  - Troubleshooting section
+- Provide `hack/launch.sh` wrapper script
+- Document security implications clearly
