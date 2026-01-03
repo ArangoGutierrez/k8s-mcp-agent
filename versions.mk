@@ -6,7 +6,7 @@ LIB_VERSION := 0.1.0
 LIB_TAG ?= alpha
 
 # Go toolchain
-GOLANG_VERSION ?= 1.23
+GOLANG_VERSION ?= 1.25
 
 # Git information
 GIT_COMMIT ?= $(shell git describe --match="" --dirty --long --always --abbrev=40 2> /dev/null || echo "")
