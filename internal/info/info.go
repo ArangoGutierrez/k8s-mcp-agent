@@ -1,4 +1,4 @@
-// Copyright 2024 k8s-mcp-agent contributors
+// Copyright 2026 k8s-mcp-agent contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package info provides build-time version information for the agent.
