@@ -39,4 +39,3 @@ func (r *Real) GetDeviceCount(ctx context.Context) (int, error) {
 func (r *Real) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	return nil, fmt.Errorf("real NVML requires CGO")
 }
-
