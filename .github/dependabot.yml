@@ -1,0 +1,75 @@
+version: 2
+updates:
+  # Go modules dependency updates
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    assignees:
+      - "ArangoGutierrez"
+    labels:
+      - "dependencies"
+      - "kind/tech-debt"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Group all patch and minor updates together
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Allow only security updates for major version bumps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    # Enable version updates for critical dependencies
+    allow:
+      - dependency-name: "github.com/NVIDIA/go-nvml"
+      - dependency-name: "github.com/mark3labs/mcp-go"
+      - dependency-name: "k8s.io/*"
+
+  # GitHub Actions workflow dependency updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    assignees:
+      - "ArangoGutierrez"
+    labels:
+      - "dependencies"
+      - "ops/ci-cd"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    # Group all action updates together
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Docker base image updates (if Dockerfile present)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 2
+    assignees:
+      - "ArangoGutierrez"
+    labels:
+      - "dependencies"
+      - "area/k8s-ephemeral"
+    commit-message:
+      prefix: "chore(container)"
+      include: "scope"
+
