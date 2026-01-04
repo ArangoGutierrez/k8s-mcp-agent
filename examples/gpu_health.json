@@ -1,0 +1,10 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_gpu_health",
+    "arguments": {}
+  },
+  "id": 4
+}
+
