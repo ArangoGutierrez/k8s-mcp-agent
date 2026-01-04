@@ -742,6 +742,30 @@ func (d *mockDeviceWithTemp) GetPowerUsage(ctx context.Context) (uint32, error) 
 func (d *mockDeviceWithTemp) GetUtilizationRates(ctx context.Context) (*nvml.Utilization, error) {
 	return &nvml.Utilization{GPU: 30, Memory: 20}, nil
 }
+func (d *mockDeviceWithTemp) GetPowerManagementLimit(ctx context.Context) (uint32, error) {
+	return 70000, nil
+}
+func (d *mockDeviceWithTemp) GetEccMode(ctx context.Context) (bool, bool, error) {
+	return false, false, nil
+}
+func (d *mockDeviceWithTemp) GetTotalEccErrors(ctx context.Context, _ int) (uint64, error) {
+	return 0, nil
+}
+func (d *mockDeviceWithTemp) GetCurrentClocksThrottleReasons(ctx context.Context) (uint64, error) {
+	return 0, nil
+}
+func (d *mockDeviceWithTemp) GetClockInfo(ctx context.Context, clockType int) (uint32, error) {
+	if clockType == nvml.ClockGraphics {
+		return 1590, nil
+	}
+	return 5001, nil
+}
+func (d *mockDeviceWithTemp) GetTemperatureThreshold(ctx context.Context, thresholdType int) (uint32, error) {
+	if thresholdType == nvml.TempThresholdShutdown {
+		return 90, nil
+	}
+	return 82, nil
+}
 
 type mockDeviceWithMemory struct {
 	nvml.Device
@@ -764,6 +788,12 @@ type mockDeviceWithPower struct {
 
 func (d *mockDeviceWithPower) GetPowerUsage(ctx context.Context) (uint32, error) {
 	return d.power, nil
+}
+
+func (d *mockDeviceWithPower) GetPowerManagementLimit(
+	ctx context.Context,
+) (uint32, error) {
+	return 70000, nil // 70W TDP for T4
 }
 
 // mockHealthyNVML returns a single GPU with healthy values
@@ -809,6 +839,45 @@ func (d *mockHealthyDevice) GetUtilizationRates(
 	ctx context.Context,
 ) (*nvml.Utilization, error) {
 	return &nvml.Utilization{GPU: 10, Memory: 5}, nil
+}
+func (d *mockHealthyDevice) GetPowerManagementLimit(
+	ctx context.Context,
+) (uint32, error) {
+	return 70000, nil // 70W TDP for T4
+}
+func (d *mockHealthyDevice) GetEccMode(
+	ctx context.Context,
+) (current, pending bool, err error) {
+	return false, false, nil // T4 doesn't have ECC
+}
+func (d *mockHealthyDevice) GetTotalEccErrors(
+	ctx context.Context,
+	errorType int,
+) (uint64, error) {
+	return 0, nil
+}
+func (d *mockHealthyDevice) GetCurrentClocksThrottleReasons(
+	ctx context.Context,
+) (uint64, error) {
+	return 0, nil // No throttling
+}
+func (d *mockHealthyDevice) GetClockInfo(
+	ctx context.Context,
+	clockType int,
+) (uint32, error) {
+	if clockType == nvml.ClockGraphics {
+		return 1590, nil
+	}
+	return 5001, nil // Memory clock
+}
+func (d *mockHealthyDevice) GetTemperatureThreshold(
+	ctx context.Context,
+	thresholdType int,
+) (uint32, error) {
+	if thresholdType == nvml.TempThresholdShutdown {
+		return 90, nil
+	}
+	return 82, nil // Slowdown
 }
 
 // mockEmptyNVML returns 0 devices

@@ -43,6 +43,17 @@ func NewMock(deviceCount int) *Mock {
 			powerUsage:  150000 + uint32(i*10000), // milliwatts
 			gpuUtil:     30 + uint32(i*10),
 			memoryUtil:  20 + uint32(i*5),
+
+			// Extended health monitoring defaults (A100 profile)
+			powerLimit:       400000, // 400W TDP for A100
+			eccEnabled:       true,
+			eccCorrectable:   0,
+			eccUncorrectable: 0,
+			throttleReasons:  0, // No throttling
+			smClock:          1410,
+			memClock:         1215,
+			tempShutdown:     90,
+			tempSlowdown:     82,
 		}
 	}
 
@@ -88,6 +99,17 @@ type MockDevice struct {
 	powerUsage  uint32
 	gpuUtil     uint32
 	memoryUtil  uint32
+
+	// Extended health monitoring fields
+	powerLimit       uint32
+	eccEnabled       bool
+	eccCorrectable   uint64
+	eccUncorrectable uint64
+	throttleReasons  uint64
+	smClock          uint32
+	memClock         uint32
+	tempShutdown     uint32
+	tempSlowdown     uint32
 }
 
 // GetName returns the mock device name.
@@ -137,4 +159,58 @@ func (d *MockDevice) GetUtilizationRates(
 		GPU:    d.gpuUtil,
 		Memory: d.memoryUtil,
 	}, nil
+}
+
+// GetPowerManagementLimit returns the mock power management limit.
+func (d *MockDevice) GetPowerManagementLimit(
+	ctx context.Context,
+) (uint32, error) {
+	return d.powerLimit, nil
+}
+
+// GetEccMode returns mock ECC mode status.
+func (d *MockDevice) GetEccMode(
+	ctx context.Context,
+) (current, pending bool, err error) {
+	return d.eccEnabled, d.eccEnabled, nil
+}
+
+// GetTotalEccErrors returns mock ECC error counts.
+func (d *MockDevice) GetTotalEccErrors(
+	ctx context.Context,
+	errorType int,
+) (uint64, error) {
+	if errorType == EccErrorCorrectable {
+		return d.eccCorrectable, nil
+	}
+	return d.eccUncorrectable, nil
+}
+
+// GetCurrentClocksThrottleReasons returns mock throttle reason bitmask.
+func (d *MockDevice) GetCurrentClocksThrottleReasons(
+	ctx context.Context,
+) (uint64, error) {
+	return d.throttleReasons, nil
+}
+
+// GetClockInfo returns mock clock frequency for the given type.
+func (d *MockDevice) GetClockInfo(
+	ctx context.Context,
+	clockType int,
+) (uint32, error) {
+	if clockType == ClockGraphics {
+		return d.smClock, nil
+	}
+	return d.memClock, nil
+}
+
+// GetTemperatureThreshold returns mock temperature threshold.
+func (d *MockDevice) GetTemperatureThreshold(
+	ctx context.Context,
+	thresholdType int,
+) (uint32, error) {
+	if thresholdType == TempThresholdShutdown {
+		return d.tempShutdown, nil
+	}
+	return d.tempSlowdown, nil
 }

@@ -263,15 +263,28 @@ func (h *GPUHealthHandler) checkTemperature(
 		}
 	}
 
-	margin := int(defaultTempThreshold) - int(temp)
+	// Get real thresholds from device, fallback to defaults
+	threshold := defaultTempThreshold
+	maxTemp := defaultTempMax
+
+	if slowdown, err := device.GetTemperatureThreshold(
+		ctx, nvml.TempThresholdSlowdown); err == nil && slowdown > 0 {
+		threshold = slowdown
+	}
+	if shutdown, err := device.GetTemperatureThreshold(
+		ctx, nvml.TempThresholdShutdown); err == nil && shutdown > 0 {
+		maxTemp = shutdown
+	}
+
+	margin := int(threshold) - int(temp)
 
 	var status string
 	switch {
-	case temp >= defaultTempMax:
+	case temp >= maxTemp:
 		status = "critical"
-	case temp >= defaultTempThreshold:
+	case temp >= threshold:
 		status = "high"
-	case temp >= defaultTempThreshold-tempElevatedMargin:
+	case temp >= threshold-tempElevatedMargin:
 		status = "elevated"
 	default:
 		status = "normal"
@@ -279,8 +292,8 @@ func (h *GPUHealthHandler) checkTemperature(
 
 	return TemperatureHealth{
 		Current:   temp,
-		Threshold: defaultTempThreshold,
-		Max:       defaultTempMax,
+		Threshold: threshold,
+		Max:       maxTemp,
 		Status:    status,
 		Margin:    margin,
 	}
@@ -339,6 +352,12 @@ func (h *GPUHealthHandler) checkMemory(
 // TODO: Query actual device power management limit from NVML when available.
 const defaultPowerLimit uint32 = 70000
 
+// eccCorrectableThreshold is the lifetime count of single-bit ECC errors
+// that triggers a warning. This threshold is based on industry practice:
+// occasional correctable errors are normal, but high counts may indicate
+// memory degradation. Value represents total lifetime errors, not rate.
+const eccCorrectableThreshold uint64 = 1000
+
 // checkPower evaluates GPU power consumption.
 func (h *GPUHealthHandler) checkPower(
 	ctx context.Context,
@@ -353,9 +372,16 @@ func (h *GPUHealthHandler) checkPower(
 		}
 	}
 
+	// Get real power limit from device, fallback to default
+	limit := defaultPowerLimit
+	if realLimit, err := device.GetPowerManagementLimit(ctx); err == nil &&
+		realLimit > 0 {
+		limit = realLimit
+	}
+
 	var usedPercent float64
-	if defaultPowerLimit > 0 {
-		usedPercent = float64(power) / float64(defaultPowerLimit) * 100
+	if limit > 0 {
+		usedPercent = float64(power) / float64(limit) * 100
 	}
 
 	var status string
@@ -372,7 +398,7 @@ func (h *GPUHealthHandler) checkPower(
 
 	return PowerHealth{
 		Current:     power,
-		Limit:       defaultPowerLimit,
+		Limit:       limit,
 		Default:     defaultPowerLimit,
 		UsedPercent: usedPercent,
 		Status:      status,
@@ -380,51 +406,129 @@ func (h *GPUHealthHandler) checkPower(
 }
 
 // checkThrottling evaluates GPU clock throttling status.
-// Note: Mock NVML doesn't implement throttling methods.
-// Real implementation would use device.GetCurrentClocksThrottleReasons().
 func (h *GPUHealthHandler) checkThrottling(
 	ctx context.Context,
 	device nvml.Device,
 ) ThrottlingStatus {
-	// TODO: Implement when throttle reasons are added to nvml.Interface
-	// Throttle reasons bitmask:
-	// 0x0001 - GPU idle
-	// 0x0002 - Applications clocks setting
-	// 0x0004 - SW power cap
-	// 0x0008 - HW slowdown (thermal)
-	// 0x0010 - Sync boost
-	// 0x0020 - SW thermal slowdown
-	// 0x0040 - HW thermal slowdown
-	// 0x0080 - HW power brake slowdown
+	reasons, err := device.GetCurrentClocksThrottleReasons(ctx)
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get throttle reasons",`+
+			`"error":"%s"}`, err)
+		return ThrottlingStatus{
+			Active:  false,
+			Reasons: []string{},
+			Status:  "unknown",
+		}
+	}
+
+	// Ignore idle throttling (normal when GPU is not in use)
+	activeReasons := reasons &^ nvml.ThrottleReasonGpuIdle
+
+	if activeReasons == 0 {
+		return ThrottlingStatus{
+			Active:  false,
+			Reasons: []string{},
+			Status:  "none",
+		}
+	}
+
+	// Parse throttle reasons into human-readable strings
+	var reasonStrings []string
+	if activeReasons&nvml.ThrottleReasonHwThermalSlowdown != 0 {
+		reasonStrings = append(reasonStrings, "hw_thermal")
+	}
+	if activeReasons&nvml.ThrottleReasonSwThermalSlowdown != 0 {
+		reasonStrings = append(reasonStrings, "sw_thermal")
+	}
+	if activeReasons&nvml.ThrottleReasonHwSlowdown != 0 {
+		reasonStrings = append(reasonStrings, "hw_slowdown")
+	}
+	if activeReasons&nvml.ThrottleReasonSwPowerCap != 0 {
+		reasonStrings = append(reasonStrings, "power_cap")
+	}
+	if activeReasons&nvml.ThrottleReasonHwPowerBrake != 0 {
+		reasonStrings = append(reasonStrings, "power_brake")
+	}
+	if activeReasons&nvml.ThrottleReasonApplicationsClocks != 0 {
+		reasonStrings = append(reasonStrings, "app_clocks")
+	}
+	if activeReasons&nvml.ThrottleReasonSyncBoost != 0 {
+		reasonStrings = append(reasonStrings, "sync_boost")
+	}
+
+	// Determine severity based on reason count and type
+	var status string
+	hasThermal := activeReasons&(nvml.ThrottleReasonHwThermalSlowdown|
+		nvml.ThrottleReasonSwThermalSlowdown) != 0
+
+	if hasThermal || len(reasonStrings) >= 2 {
+		status = "severe"
+	} else {
+		status = "minor"
+	}
 
 	return ThrottlingStatus{
-		Active:  false,
-		Reasons: []string{},
-		Status:  "none",
+		Active:  true,
+		Reasons: reasonStrings,
+		Status:  status,
 	}
 }
 
 // checkECCErrors evaluates ECC memory error status.
-// Note: Mock NVML doesn't implement ECC methods.
-// Real implementation would use device.GetTotalEccErrors().
 func (h *GPUHealthHandler) checkECCErrors(
 	ctx context.Context,
 	device nvml.Device,
 ) ECCHealth {
-	// TODO: Implement when ECC methods are added to nvml.Interface
-	// Would aggregate:
-	// - NVML_MEMORY_ERROR_TYPE_CORRECTED (single-bit)
-	// - NVML_MEMORY_ERROR_TYPE_UNCORRECTED (double-bit)
-	//
-	// Until ECC capabilities are exposed via nvml.Interface, report ECC
-	// status as disabled/unknown to avoid misreporting on non-ECC GPUs
-	// (e.g., GeForce consumer cards do not have ECC memory).
+	enabled, _, err := device.GetEccMode(ctx)
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get ECC mode",`+
+			`"error":"%s"}`, err)
+		return ECCHealth{
+			Enabled: false,
+			Status:  "unknown",
+		}
+	}
+
+	if !enabled {
+		return ECCHealth{
+			Enabled: false,
+			Status:  "disabled",
+		}
+	}
+
+	// Get error counts; log errors, use 0 as fallback
+	var correctable, uncorrectable uint64
+	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorCorrectable); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get correctable ECC errors",`+
+			`"error":"%s"}`, err)
+	} else {
+		correctable = val
+	}
+	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorUncorrectable); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get uncorrectable ECC errors",`+
+			`"error":"%s"}`, err)
+	} else {
+		uncorrectable = val
+	}
+
+	// Determine status based on error counts
+	var status string
+	switch {
+	case uncorrectable > 0:
+		status = "critical"
+	case correctable > eccCorrectableThreshold:
+		status = "warning"
+	case correctable > 0:
+		status = "degraded"
+	default:
+		status = "healthy"
+	}
 
 	return ECCHealth{
-		Enabled:                  false,
-		TotalCorrectableErrors:   0,
-		TotalUncorrectableErrors: 0,
-		Status:                   "unknown",
+		Enabled:                  true,
+		TotalCorrectableErrors:   correctable,
+		TotalUncorrectableErrors: uncorrectable,
+		Status:                   status,
 	}
 }
 
@@ -442,6 +546,19 @@ func (h *GPUHealthHandler) checkPerformance(
 		}
 	}
 
+	// Get clock frequencies; log errors, use 0 as fallback
+	var smClock, memClock uint32
+	if val, err := device.GetClockInfo(ctx, nvml.ClockGraphics); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get SM clock","error":"%s"}`, err)
+	} else {
+		smClock = val
+	}
+	if val, err := device.GetClockInfo(ctx, nvml.ClockMemory); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get memory clock","error":"%s"}`, err)
+	} else {
+		memClock = val
+	}
+
 	var status string
 	switch {
 	case util.GPU >= 95:
@@ -452,12 +569,11 @@ func (h *GPUHealthHandler) checkPerformance(
 		status = "idle"
 	}
 
-	// TODO: Add clock frequency when methods are available in nvml.Interface
 	return PerformanceHealth{
 		GPUUtil:     util.GPU,
 		MemoryUtil:  util.Memory,
-		SMClock:     0, // Not yet available in interface
-		MemoryClock: 0, // Not yet available in interface
+		SMClock:     smClock,
+		MemoryClock: memClock,
 		Status:      status,
 	}
 }
@@ -547,12 +663,6 @@ func (h *GPUHealthHandler) calculateHealthScore(health *GPUHealthStatus) int {
 	}
 
 	// ECC errors impact (max -30 points)
-	// eccCorrectableThreshold is the lifetime count of single-bit ECC errors
-	// that triggers a warning. This threshold is based on industry practice:
-	// occasional correctable errors are normal, but high counts may indicate
-	// memory degradation. Value represents total lifetime errors, not rate.
-	const eccCorrectableThreshold uint64 = 1000
-
 	if health.ECCErrors.TotalUncorrectableErrors > 0 {
 		score -= 30
 		health.Issues = append(health.Issues, HealthIssue{
