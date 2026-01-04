@@ -84,6 +84,16 @@ func (m *Mock) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	return m.devices[idx], nil
 }
 
+// GetDriverVersion returns the mock NVIDIA driver version.
+func (m *Mock) GetDriverVersion(ctx context.Context) (string, error) {
+	return "575.57.08", nil
+}
+
+// GetCudaDriverVersion returns the mock CUDA driver version.
+func (m *Mock) GetCudaDriverVersion(ctx context.Context) (string, error) {
+	return "12.9", nil
+}
+
 // MockDevice is a mock implementation of the Device interface.
 type MockDevice struct {
 	index       int
@@ -213,4 +223,12 @@ func (d *MockDevice) GetTemperatureThreshold(
 		return d.tempShutdown, nil
 	}
 	return d.tempSlowdown, nil
+}
+
+// GetCudaComputeCapability returns the mock CUDA compute capability.
+// Returns "8.0" for mock A100 GPUs.
+func (d *MockDevice) GetCudaComputeCapability(
+	ctx context.Context,
+) (string, error) {
+	return "8.0", nil // A100 compute capability
 }

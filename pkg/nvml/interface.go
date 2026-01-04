@@ -27,6 +27,13 @@ type Interface interface {
 
 	// GetDeviceByIndex returns a Device handle for the given index.
 	GetDeviceByIndex(ctx context.Context, idx int) (Device, error)
+
+	// GetDriverVersion returns the NVIDIA driver version string.
+	GetDriverVersion(ctx context.Context) (string, error)
+
+	// GetCudaDriverVersion returns the CUDA driver version as a string
+	// (e.g., "12.9"). The raw version is major*1000 + minor*10.
+	GetCudaDriverVersion(ctx context.Context) (string, error)
 }
 
 // Device represents a single GPU device.
@@ -79,6 +86,10 @@ type Device interface {
 	// thresholdType: TempThresholdShutdown (0) or TempThresholdSlowdown (1).
 	// If not supported, returns 0 with no error.
 	GetTemperatureThreshold(ctx context.Context, thresholdType int) (uint32, error)
+
+	// GetCudaComputeCapability returns the CUDA compute capability as a
+	// string (e.g., "7.5" for Turing, "8.0" for Ampere).
+	GetCudaComputeCapability(ctx context.Context) (string, error)
 }
 
 // PCIInfo contains PCI bus information for a device.
@@ -113,10 +124,11 @@ type Utilization struct {
 
 // GPUInfo is a consolidated view of GPU device information.
 type GPUInfo struct {
-	Index int    `json:"index"`
-	Name  string `json:"name"`
-	UUID  string `json:"uuid"`
-	BusID string `json:"bus_id"`
+	Index             int    `json:"index"`
+	Name              string `json:"name"`
+	UUID              string `json:"uuid"`
+	BusID             string `json:"bus_id"`
+	ComputeCapability string `json:"compute_capability,omitempty"`
 
 	// Memory information
 	Memory MemorySpec `json:"memory"`
