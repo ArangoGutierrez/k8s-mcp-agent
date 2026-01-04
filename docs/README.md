@@ -43,7 +43,14 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 
 - **[Main README](../README.md)** - Project overview
 - **[License](../LICENSE)** - Apache 2.0
-- **[Changelog](../M1_COMPLETION_REPORT.md)** - Milestone reports
+- **[Milestone Reports](reports/)** - Completion reports
+  - [M1 Completion](reports/m1-completion.md)
+
+### Internal Resources
+
+- **[Implementation Prompts](prompts/)** - AI-assisted development prompts
+  - [GPU Health Monitoring](prompts/gpu-health-monitoring.md)
+  - [XID Error Analysis](prompts/xid-error-analysis.md)
 
 ## 🎯 Quick Links
 
@@ -77,6 +84,8 @@ All code examples are available in the [`examples/`](../examples/) directory:
 - `initialize.json` - MCP session initialization
 - `echo_test.json` - Protocol validation
 - `gpu_inventory.json` - GPU inventory request
+- `gpu_health.json` - GPU health check request
+- `analyze_xid.json` - XID error analysis request
 - `test_mcp.sh` - Automated testing script
 
 ## 🤝 Getting Help

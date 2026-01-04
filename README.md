@@ -28,7 +28,7 @@ Kubernetes APIs cannot detect.
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts
 - 🔒 **Secure by Default** - Read-only operations with explicit operator mode
-- ⚡ **Production Ready** - Real Tesla T4 testing, 39/39 tests passing
+- ⚡ **Production Ready** - Real Tesla T4 testing, 74/74 tests passing
 
 ---
 
@@ -114,11 +114,12 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
 |------|-------------|--------|
 | `echo_test` | MCP protocol validation | ✅ Available |
 | `get_gpu_inventory` | Hardware inventory + telemetry | ✅ Available |
-| `analyze_xid_errors` | Parse GPU error codes | 🚧 M2 Phase 2 |
+| `analyze_xid_errors` | Parse GPU XID error codes from kernel logs | ✅ Available |
+| `get_gpu_health` | GPU health monitoring with scoring | ✅ Available |
 | `get_gpu_telemetry` | Real-time metrics | 🚧 M2 Phase 3 |
 | `inspect_topology` | NVLink/PCIe topology | 🚧 M2 Phase 4 |
-| `kill_gpu_process` | Terminate GPU process | 🚧 M2 Phase 5 (Operator) |
-| `reset_gpu` | GPU reset | 🚧 M2 Phase 5 (Operator) |
+| `kill_gpu_process` | Terminate GPU process | 🚧 M3 (Operator) |
+| `reset_gpu` | GPU reset | 🚧 M3 (Operator) |
 
 📖 **[MCP Usage Guide →](docs/mcp-usage.md)**
 
@@ -138,9 +139,10 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
   - Comprehensive CI/CD
 
 ### Recent Updates
+- **Jan 4, 2026**: GPU health monitoring tool (`get_gpu_health`) merged
+- **Jan 3, 2026**: XID error analysis tool (`analyze_xid_errors`) merged
 - **Jan 3, 2026**: Real NVML integration complete, tested on Tesla T4
-- **Jan 3, 2026**: Go 1.25 upgrade, MCP protocol 2025-06-18
-- **Jan 3, 2026**: 39/39 tests passing, 5/5 integration tests on real GPU
+- **Jan 3, 2026**: 74/74 tests passing, 5/5 integration tests on real GPU
 
 📊 **[View All Milestones →](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestones)**
 
@@ -151,7 +153,7 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
 ### Unit Tests (No GPU Required)
 
 ```bash
-make test                   # Run all unit tests (39/39 passing)
+make test                   # Run all unit tests (74/74 passing)
 make coverage               # Generate coverage report
 make coverage-html          # View coverage in browser
 ```
@@ -173,7 +175,7 @@ go test -tags=integration -v ./pkg/nvml/
   - Utilization: 0% (idle)
 
 ✓ 5/5 integration tests passing
-✓ 39/39 total tests passing
+✓ 74/74 total tests passing
 ```
 
 ---
@@ -303,7 +305,7 @@ Claude: "Found zombie process PID 12345 using 8GB. Kill it?"
 
 - ✅ **Go 1.25** - Latest Go version
 - ✅ **Real NVML** - Tested on Tesla T4
-- ✅ **39/39 Tests** - 100% passing with race detector
+- ✅ **74/74 Tests** - 100% passing with race detector
 - ✅ **Zero Lint Issues** - Clean codebase
 - ✅ **7.9MB Binary** - 84% under 50MB target
 - ✅ **MCP 2025-06-18** - Latest protocol version
