@@ -113,17 +113,67 @@ type Utilization struct {
 
 // GPUInfo is a consolidated view of GPU device information.
 type GPUInfo struct {
-	Index       int
-	Name        string
-	UUID        string
-	BusID       string
-	MemoryTotal uint64
-	MemoryUsed  uint64
-	MemoryFree  uint64
-	Temperature uint32
-	PowerUsage  uint32
-	GPUUtil     uint32
-	MemoryUtil  uint32
+	Index int    `json:"index"`
+	Name  string `json:"name"`
+	UUID  string `json:"uuid"`
+	BusID string `json:"bus_id"`
+
+	// Memory information
+	Memory MemorySpec `json:"memory"`
+
+	// Temperature with thresholds
+	Temperature TempSpec `json:"temperature"`
+
+	// Power with limits
+	Power PowerSpec `json:"power"`
+
+	// Clock frequencies
+	Clocks ClockSpec `json:"clocks"`
+
+	// Utilization rates
+	Utilization UtilSpec `json:"utilization"`
+
+	// ECC status (nil if not supported)
+	ECC *ECCSpec `json:"ecc,omitempty"`
+}
+
+// MemorySpec contains memory capacity information.
+type MemorySpec struct {
+	TotalBytes uint64 `json:"total_bytes"`
+	UsedBytes  uint64 `json:"used_bytes"`
+	FreeBytes  uint64 `json:"free_bytes"`
+}
+
+// TempSpec contains temperature with thresholds.
+type TempSpec struct {
+	CurrentCelsius  uint32 `json:"current_celsius"`
+	SlowdownCelsius uint32 `json:"slowdown_celsius"`
+	ShutdownCelsius uint32 `json:"shutdown_celsius"`
+}
+
+// PowerSpec contains power usage and limits.
+type PowerSpec struct {
+	CurrentMW uint32 `json:"current_mw"`
+	LimitMW   uint32 `json:"limit_mw"`
+}
+
+// ClockSpec contains clock frequencies.
+type ClockSpec struct {
+	SMMHZ     uint32 `json:"sm_mhz"`
+	MemoryMHZ uint32 `json:"memory_mhz"`
+}
+
+// UtilSpec contains utilization rates.
+type UtilSpec struct {
+	GPUPercent    uint32 `json:"gpu_percent"`
+	MemoryPercent uint32 `json:"memory_percent"`
+}
+
+// ECCSpec contains ECC memory status.
+type ECCSpec struct {
+	Enabled             bool   `json:"enabled"`
+	CorrectableErrors   uint64 `json:"correctable_errors"`
+	UncorrectableErrors uint64 `json:"uncorrectable_errors"`
 }
 
 // ThrottleReason constants for interpreting GetCurrentClocksThrottleReasons.
