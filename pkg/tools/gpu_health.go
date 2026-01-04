@@ -31,6 +31,7 @@ type GPUHealthResponse struct {
 	OverallScore   int               `json:"overall_score"`
 	DeviceCount    int               `json:"device_count"`
 	HealthyCount   int               `json:"healthy_count"`
+	WarningCount   int               `json:"warning_count"`
 	DegradedCount  int               `json:"degraded_count"`
 	CriticalCount  int               `json:"critical_count"`
 	GPUs           []GPUHealthStatus `json:"gpus"`
@@ -180,12 +181,38 @@ func (h *GPUHealthHandler) collectGPUHealth(
 		Issues: make([]HealthIssue, 0),
 	}
 
-	// Get basic info
-	health.Name, _ = device.GetName(ctx)
-	health.UUID, _ = device.GetUUID(ctx)
+	// Get basic info with warning logs on failure
+	name, err := device.GetName(ctx)
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get GPU name",`+
+			`"index":%d,"error":"%s"}`, index, err)
+		health.Name = "Unknown"
+	} else {
+		health.Name = name
+	}
+
+	uuid, err := device.GetUUID(ctx)
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get GPU UUID",`+
+			`"index":%d,"error":"%s"}`, index, err)
+		health.UUID = "unknown"
+	} else {
+		health.UUID = uuid
+	}
+
 	pciInfo, err := device.GetPCIInfo(ctx)
-	if err == nil {
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get PCI info",`+
+			`"index":%d,"error":"%s"}`, index, err)
+	} else {
 		health.PCIBusID = pciInfo.BusID
+	}
+
+	// Check context before collecting metrics
+	if err := ctx.Err(); err != nil {
+		log.Printf(`{"level":"debug","msg":"context cancelled during health collection"}`)
+		health.Status = "unknown"
+		return health
 	}
 
 	// Collect metrics from each subsystem
@@ -205,15 +232,28 @@ func (h *GPUHealthHandler) collectGPUHealth(
 	return health
 }
 
+// Temperature threshold constants.
+// NOTE: These values are calibrated for NVIDIA Tesla T4 GPUs.
+// Different GPU models have different thermal specifications:
+// - Tesla T4: slowdown ~82°C, shutdown ~90°C
+// - A100: slowdown ~83°C, shutdown ~92°C
+// - V100: slowdown ~83°C, shutdown ~90°C
+// TODO: Add model-specific threshold detection via NVML when available.
+const (
+	// defaultTempThreshold is the temperature at which throttling begins.
+	defaultTempThreshold uint32 = 82
+	// defaultTempMax is the critical temperature limit.
+	defaultTempMax uint32 = 90
+	// tempElevatedMargin is the degrees below threshold for "elevated" status.
+	// This provides early warning before thermal throttling occurs.
+	tempElevatedMargin uint32 = 10
+)
+
 // checkTemperature evaluates GPU thermal status.
 func (h *GPUHealthHandler) checkTemperature(
 	ctx context.Context,
 	device nvml.Device,
 ) TemperatureHealth {
-	// Tesla T4 defaults: threshold ~82°C, max ~90°C
-	const defaultThreshold uint32 = 82
-	const defaultMax uint32 = 90
-
 	temp, err := device.GetTemperature(ctx)
 	if err != nil {
 		log.Printf(`{"level":"warn","msg":"failed to get temperature",`+
@@ -223,15 +263,15 @@ func (h *GPUHealthHandler) checkTemperature(
 		}
 	}
 
-	margin := int(defaultThreshold) - int(temp)
+	margin := int(defaultTempThreshold) - int(temp)
 
 	var status string
 	switch {
-	case temp >= defaultMax:
+	case temp >= defaultTempMax:
 		status = "critical"
-	case temp >= defaultThreshold:
+	case temp >= defaultTempThreshold:
 		status = "high"
-	case temp >= defaultThreshold-10:
+	case temp >= defaultTempThreshold-tempElevatedMargin:
 		status = "elevated"
 	default:
 		status = "normal"
@@ -239,8 +279,8 @@ func (h *GPUHealthHandler) checkTemperature(
 
 	return TemperatureHealth{
 		Current:   temp,
-		Threshold: defaultThreshold,
-		Max:       defaultMax,
+		Threshold: defaultTempThreshold,
+		Max:       defaultTempMax,
 		Status:    status,
 		Margin:    margin,
 	}
@@ -286,14 +326,24 @@ func (h *GPUHealthHandler) checkMemory(
 	}
 }
 
+// Power limit constants.
+// NOTE: This default power limit (70W = 70000mW) is specific to NVIDIA Tesla
+// T4 GPUs and is used here as a heuristic fallback only. For non-T4 GPUs,
+// actual TDP and power limits can differ significantly:
+// - Tesla T4: 70W TDP
+// - A100 SXM: 400W TDP
+// - V100 SXM2: 300W TDP
+// - H100 SXM: 700W TDP
+// The computed UsedPercent and Status values may not accurately reflect true
+// power utilization for non-T4 GPUs.
+// TODO: Query actual device power management limit from NVML when available.
+const defaultPowerLimit uint32 = 70000
+
 // checkPower evaluates GPU power consumption.
 func (h *GPUHealthHandler) checkPower(
 	ctx context.Context,
 	device nvml.Device,
 ) PowerHealth {
-	// Tesla T4 TDP: 70W = 70000mW
-	const defaultLimit uint32 = 70000
-
 	power, err := device.GetPowerUsage(ctx)
 	if err != nil {
 		log.Printf(`{"level":"warn","msg":"failed to get power usage",`+
@@ -304,8 +354,8 @@ func (h *GPUHealthHandler) checkPower(
 	}
 
 	var usedPercent float64
-	if defaultLimit > 0 {
-		usedPercent = float64(power) / float64(defaultLimit) * 100
+	if defaultPowerLimit > 0 {
+		usedPercent = float64(power) / float64(defaultPowerLimit) * 100
 	}
 
 	var status string
@@ -322,8 +372,8 @@ func (h *GPUHealthHandler) checkPower(
 
 	return PowerHealth{
 		Current:     power,
-		Limit:       defaultLimit,
-		Default:     defaultLimit,
+		Limit:       defaultPowerLimit,
+		Default:     defaultPowerLimit,
 		UsedPercent: usedPercent,
 		Status:      status,
 	}
@@ -365,12 +415,16 @@ func (h *GPUHealthHandler) checkECCErrors(
 	// Would aggregate:
 	// - NVML_MEMORY_ERROR_TYPE_CORRECTED (single-bit)
 	// - NVML_MEMORY_ERROR_TYPE_UNCORRECTED (double-bit)
+	//
+	// Until ECC capabilities are exposed via nvml.Interface, report ECC
+	// status as disabled/unknown to avoid misreporting on non-ECC GPUs
+	// (e.g., GeForce consumer cards do not have ECC memory).
 
 	return ECCHealth{
-		Enabled:                  true, // Tesla T4 has ECC
+		Enabled:                  false,
 		TotalCorrectableErrors:   0,
 		TotalUncorrectableErrors: 0,
-		Status:                   "healthy",
+		Status:                   "unknown",
 	}
 }
 
@@ -493,6 +547,12 @@ func (h *GPUHealthHandler) calculateHealthScore(health *GPUHealthStatus) int {
 	}
 
 	// ECC errors impact (max -30 points)
+	// eccCorrectableThreshold is the lifetime count of single-bit ECC errors
+	// that triggers a warning. This threshold is based on industry practice:
+	// occasional correctable errors are normal, but high counts may indicate
+	// memory degradation. Value represents total lifetime errors, not rate.
+	const eccCorrectableThreshold uint64 = 1000
+
 	if health.ECCErrors.TotalUncorrectableErrors > 0 {
 		score -= 30
 		health.Issues = append(health.Issues, HealthIssue{
@@ -502,7 +562,7 @@ func (h *GPUHealthHandler) calculateHealthScore(health *GPUHealthStatus) int {
 				health.ECCErrors.TotalUncorrectableErrors),
 			Suggestion: "GPU may have hardware failure, drain node",
 		})
-	} else if health.ECCErrors.TotalCorrectableErrors > 1000 {
+	} else if health.ECCErrors.TotalCorrectableErrors > eccCorrectableThreshold {
 		score -= 10
 		health.Issues = append(health.Issues, HealthIssue{
 			Severity:  "warning",
@@ -566,7 +626,9 @@ func (h *GPUHealthHandler) calculateOverallHealth(
 		switch gpu.Status {
 		case "healthy":
 			response.HealthyCount++
-		case "warning", "degraded":
+		case "warning":
+			response.WarningCount++
+		case "degraded":
 			response.DegradedCount++
 		case "critical":
 			response.CriticalCount++
@@ -585,6 +647,8 @@ func (h *GPUHealthHandler) calculateOverallHealth(
 		response.Status = "critical"
 	case response.DegradedCount > 0:
 		response.Status = "degraded"
+	case response.WarningCount > 0:
+		response.Status = "warning"
 	default:
 		response.Status = "healthy"
 	}
@@ -610,6 +674,12 @@ func (h *GPUHealthHandler) generateRecommendation(
 		return fmt.Sprintf("%d GPU(s) degraded. "+
 			"Monitor closely and investigate issues.",
 			response.DegradedCount)
+	}
+
+	if response.WarningCount > 0 {
+		return fmt.Sprintf("%d GPU(s) with warnings. "+
+			"Review issues and monitor for changes.",
+			response.WarningCount)
 	}
 
 	return "All GPUs healthy. No action required."
