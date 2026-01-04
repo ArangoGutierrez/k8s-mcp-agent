@@ -51,6 +51,34 @@ type Device interface {
 
 	// GetUtilizationRates returns GPU and memory utilization rates.
 	GetUtilizationRates(ctx context.Context) (*Utilization, error)
+
+	// GetPowerManagementLimit returns the power management limit in
+	// milliwatts. This is the maximum power the GPU is allowed to draw.
+	GetPowerManagementLimit(ctx context.Context) (uint32, error)
+
+	// GetEccMode returns whether ECC is currently enabled and pending mode.
+	// Returns (current, pending, error). If ECC is not supported, returns
+	// (false, false, nil).
+	GetEccMode(ctx context.Context) (current, pending bool, err error)
+
+	// GetTotalEccErrors returns the total count of ECC errors.
+	// errorType: EccErrorCorrectable (0) or EccErrorUncorrectable (1).
+	// If ECC is not supported, returns 0 with no error.
+	GetTotalEccErrors(ctx context.Context, errorType int) (uint64, error)
+
+	// GetCurrentClocksThrottleReasons returns a bitmask of current throttle
+	// reasons. See ThrottleReason constants for bit definitions.
+	// If not supported, returns 0 with no error.
+	GetCurrentClocksThrottleReasons(ctx context.Context) (uint64, error)
+
+	// GetClockInfo returns the current clock frequency in MHz for the given
+	// clock type. clockType: ClockGraphics (0) or ClockMemory (1).
+	GetClockInfo(ctx context.Context, clockType int) (uint32, error)
+
+	// GetTemperatureThreshold returns the temperature threshold in Celsius.
+	// thresholdType: TempThresholdShutdown (0) or TempThresholdSlowdown (1).
+	// If not supported, returns 0 with no error.
+	GetTemperatureThreshold(ctx context.Context, thresholdType int) (uint32, error)
 }
 
 // PCIInfo contains PCI bus information for a device.
@@ -97,3 +125,34 @@ type GPUInfo struct {
 	GPUUtil     uint32
 	MemoryUtil  uint32
 }
+
+// ThrottleReason constants for interpreting GetCurrentClocksThrottleReasons.
+// These are bitmask values that can be combined.
+const (
+	ThrottleReasonGpuIdle            uint64 = 0x0000000000000001
+	ThrottleReasonApplicationsClocks uint64 = 0x0000000000000002
+	ThrottleReasonSwPowerCap         uint64 = 0x0000000000000004
+	ThrottleReasonHwSlowdown         uint64 = 0x0000000000000008
+	ThrottleReasonSyncBoost          uint64 = 0x0000000000000010
+	ThrottleReasonSwThermalSlowdown  uint64 = 0x0000000000000020
+	ThrottleReasonHwThermalSlowdown  uint64 = 0x0000000000000040
+	ThrottleReasonHwPowerBrake       uint64 = 0x0000000000000080
+)
+
+// ClockType constants for GetClockInfo.
+const (
+	ClockGraphics = 0 // SM/Graphics clock
+	ClockMemory   = 1 // Memory clock
+)
+
+// TemperatureThresholdType constants for GetTemperatureThreshold.
+const (
+	TempThresholdShutdown = 0 // GPU shutdown temperature
+	TempThresholdSlowdown = 1 // GPU slowdown/throttle temperature
+)
+
+// EccErrorType constants for GetTotalEccErrors.
+const (
+	EccErrorCorrectable   = 0 // Single-bit correctable errors
+	EccErrorUncorrectable = 1 // Double-bit uncorrectable errors
+)

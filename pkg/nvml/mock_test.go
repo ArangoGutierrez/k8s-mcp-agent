@@ -222,3 +222,88 @@ func TestMockDeviceConsistency(t *testing.T) {
 	// Should be the same
 	assert.Equal(t, uuid1, uuid2)
 }
+
+func TestMockDevice_GetPowerManagementLimit(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	limit, err := device.GetPowerManagementLimit(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(400000), limit) // 400W for A100
+}
+
+func TestMockDevice_GetEccMode(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	current, pending, err := device.GetEccMode(ctx)
+	require.NoError(t, err)
+	assert.True(t, current)
+	assert.True(t, pending)
+}
+
+func TestMockDevice_GetTotalEccErrors(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	correctable, err := device.GetTotalEccErrors(ctx, EccErrorCorrectable)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), correctable)
+
+	uncorrectable, err := device.GetTotalEccErrors(ctx, EccErrorUncorrectable)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), uncorrectable)
+}
+
+func TestMockDevice_GetCurrentClocksThrottleReasons(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	reasons, err := device.GetCurrentClocksThrottleReasons(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), reasons) // No throttling by default
+}
+
+func TestMockDevice_GetClockInfo(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	smClock, err := device.GetClockInfo(ctx, ClockGraphics)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1410), smClock)
+
+	memClock, err := device.GetClockInfo(ctx, ClockMemory)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(1215), memClock)
+}
+
+func TestMockDevice_GetTemperatureThreshold(t *testing.T) {
+	mock := NewMock(1)
+	ctx := context.Background()
+
+	device, err := mock.GetDeviceByIndex(ctx, 0)
+	require.NoError(t, err)
+
+	shutdown, err := device.GetTemperatureThreshold(ctx, TempThresholdShutdown)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(90), shutdown)
+
+	slowdown, err := device.GetTemperatureThreshold(ctx, TempThresholdSlowdown)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(82), slowdown)
+}
