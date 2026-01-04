@@ -103,57 +103,100 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 		Index: index,
 	}
 
-	// Get name
+	// Get name (required)
 	name, err := device.GetName(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name: %w", err)
 	}
 	info.Name = name
 
-	// Get UUID
+	// Get UUID (required)
 	uuid, err := device.GetUUID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get UUID: %w", err)
 	}
 	info.UUID = uuid
 
-	// Get PCI info
+	// Get PCI info (required)
 	pciInfo, err := device.GetPCIInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PCI info: %w", err)
 	}
 	info.BusID = pciInfo.BusID
 
-	// Get memory info
-	memInfo, err := device.GetMemoryInfo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get memory info: %w", err)
+	// Collect memory info
+	if memInfo, err := device.GetMemoryInfo(ctx); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get memory info",`+
+			`"index":%d,"error":"%s"}`, index, err)
+	} else {
+		info.Memory = nvml.MemorySpec{
+			TotalBytes: memInfo.Total,
+			UsedBytes:  memInfo.Used,
+			FreeBytes:  memInfo.Free,
+		}
 	}
-	info.MemoryTotal = memInfo.Total
-	info.MemoryUsed = memInfo.Used
-	info.MemoryFree = memInfo.Free
 
-	// Get temperature
-	temp, err := device.GetTemperature(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get temperature: %w", err)
+	// Collect temperature with thresholds
+	if temp, err := device.GetTemperature(ctx); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get temperature",`+
+			`"index":%d,"error":"%s"}`, index, err)
+	} else {
+		info.Temperature.CurrentCelsius = temp
 	}
-	info.Temperature = temp
+	if slowdown, err := device.GetTemperatureThreshold(
+		ctx, nvml.TempThresholdSlowdown); err == nil {
+		info.Temperature.SlowdownCelsius = slowdown
+	}
+	if shutdown, err := device.GetTemperatureThreshold(
+		ctx, nvml.TempThresholdShutdown); err == nil {
+		info.Temperature.ShutdownCelsius = shutdown
+	}
 
-	// Get power usage
-	power, err := device.GetPowerUsage(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get power usage: %w", err)
+	// Collect power with limit
+	if power, err := device.GetPowerUsage(ctx); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get power usage",`+
+			`"index":%d,"error":"%s"}`, index, err)
+	} else {
+		info.Power.CurrentMW = power
 	}
-	info.PowerUsage = power
+	if limit, err := device.GetPowerManagementLimit(ctx); err == nil {
+		info.Power.LimitMW = limit
+	}
 
-	// Get utilization
-	util, err := device.GetUtilizationRates(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get utilization: %w", err)
+	// Collect clock frequencies
+	if smClock, err := device.GetClockInfo(
+		ctx, nvml.ClockGraphics); err == nil {
+		info.Clocks.SMMHZ = smClock
 	}
-	info.GPUUtil = util.GPU
-	info.MemoryUtil = util.Memory
+	if memClock, err := device.GetClockInfo(
+		ctx, nvml.ClockMemory); err == nil {
+		info.Clocks.MemoryMHZ = memClock
+	}
+
+	// Collect utilization
+	if util, err := device.GetUtilizationRates(ctx); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get utilization",`+
+			`"index":%d,"error":"%s"}`, index, err)
+	} else {
+		info.Utilization.GPUPercent = util.GPU
+		info.Utilization.MemoryPercent = util.Memory
+	}
+
+	// Collect ECC status (optional - may not be supported)
+	if enabled, _, err := device.GetEccMode(ctx); err == nil {
+		eccSpec := &nvml.ECCSpec{Enabled: enabled}
+		if enabled {
+			if correctable, err := device.GetTotalEccErrors(
+				ctx, nvml.EccErrorCorrectable); err == nil {
+				eccSpec.CorrectableErrors = correctable
+			}
+			if uncorrectable, err := device.GetTotalEccErrors(
+				ctx, nvml.EccErrorUncorrectable); err == nil {
+				eccSpec.UncorrectableErrors = uncorrectable
+			}
+		}
+		info.ECC = eccSpec
+	}
 
 	return info, nil
 }
