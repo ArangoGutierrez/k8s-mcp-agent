@@ -352,6 +352,12 @@ func (h *GPUHealthHandler) checkMemory(
 // TODO: Query actual device power management limit from NVML when available.
 const defaultPowerLimit uint32 = 70000
 
+// eccCorrectableThreshold is the lifetime count of single-bit ECC errors
+// that triggers a warning. This threshold is based on industry practice:
+// occasional correctable errors are normal, but high counts may indicate
+// memory degradation. Value represents total lifetime errors, not rate.
+const eccCorrectableThreshold uint64 = 1000
+
 // checkPower evaluates GPU power consumption.
 func (h *GPUHealthHandler) checkPower(
 	ctx context.Context,
@@ -454,13 +460,9 @@ func (h *GPUHealthHandler) checkThrottling(
 	var status string
 	hasThermal := activeReasons&(nvml.ThrottleReasonHwThermalSlowdown|
 		nvml.ThrottleReasonSwThermalSlowdown) != 0
-	hasPower := activeReasons&(nvml.ThrottleReasonSwPowerCap|
-		nvml.ThrottleReasonHwPowerBrake) != 0
 
 	if hasThermal || len(reasonStrings) >= 2 {
 		status = "severe"
-	} else if hasPower {
-		status = "minor"
 	} else {
 		status = "minor"
 	}
@@ -494,16 +496,27 @@ func (h *GPUHealthHandler) checkECCErrors(
 		}
 	}
 
-	// Get error counts
-	correctable, _ := device.GetTotalEccErrors(ctx, nvml.EccErrorCorrectable)
-	uncorrectable, _ := device.GetTotalEccErrors(ctx, nvml.EccErrorUncorrectable)
+	// Get error counts; log errors, use 0 as fallback
+	var correctable, uncorrectable uint64
+	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorCorrectable); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get correctable ECC errors",`+
+			`"error":"%s"}`, err)
+	} else {
+		correctable = val
+	}
+	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorUncorrectable); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get uncorrectable ECC errors",`+
+			`"error":"%s"}`, err)
+	} else {
+		uncorrectable = val
+	}
 
 	// Determine status based on error counts
 	var status string
 	switch {
 	case uncorrectable > 0:
 		status = "critical"
-	case correctable > 1000:
+	case correctable > eccCorrectableThreshold:
 		status = "warning"
 	case correctable > 0:
 		status = "degraded"
@@ -533,9 +546,18 @@ func (h *GPUHealthHandler) checkPerformance(
 		}
 	}
 
-	// Get clock frequencies (ignore errors, use 0 as fallback)
-	smClock, _ := device.GetClockInfo(ctx, nvml.ClockGraphics)
-	memClock, _ := device.GetClockInfo(ctx, nvml.ClockMemory)
+	// Get clock frequencies; log errors, use 0 as fallback
+	var smClock, memClock uint32
+	if val, err := device.GetClockInfo(ctx, nvml.ClockGraphics); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get SM clock","error":"%s"}`, err)
+	} else {
+		smClock = val
+	}
+	if val, err := device.GetClockInfo(ctx, nvml.ClockMemory); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to get memory clock","error":"%s"}`, err)
+	} else {
+		memClock = val
+	}
 
 	var status string
 	switch {
@@ -641,12 +663,6 @@ func (h *GPUHealthHandler) calculateHealthScore(health *GPUHealthStatus) int {
 	}
 
 	// ECC errors impact (max -30 points)
-	// eccCorrectableThreshold is the lifetime count of single-bit ECC errors
-	// that triggers a warning. This threshold is based on industry practice:
-	// occasional correctable errors are normal, but high counts may indicate
-	// memory degradation. Value represents total lifetime errors, not rate.
-	const eccCorrectableThreshold uint64 = 1000
-
 	if health.ECCErrors.TotalUncorrectableErrors > 0 {
 		score -= 30
 		health.Issues = append(health.Issues, HealthIssue{
