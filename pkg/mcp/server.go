@@ -77,6 +77,10 @@ func New(cfg Config) (*Server, error) {
 	xidHandler := tools.NewAnalyzeXIDHandler(cfg.NVMLClient)
 	mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
 
+	// Register GPU health tool
+	healthHandler := tools.NewGPUHealthHandler(cfg.NVMLClient)
+	mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
+
 	s.mcpServer = mcpServer
 
 	log.Printf(`{"level":"info","msg":"MCP server initialized",`+
