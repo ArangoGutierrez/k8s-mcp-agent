@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/mark3labs/mcp-go v0.43.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
