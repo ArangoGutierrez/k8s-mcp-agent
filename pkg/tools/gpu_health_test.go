@@ -810,6 +810,12 @@ func (m *mockHealthyNVML) GetDeviceByIndex(
 ) (nvml.Device, error) {
 	return &mockHealthyDevice{}, nil
 }
+func (m *mockHealthyNVML) GetDriverVersion(ctx context.Context) (string, error) {
+	return "575.57.08", nil
+}
+func (m *mockHealthyNVML) GetCudaDriverVersion(ctx context.Context) (string, error) {
+	return "12.9", nil
+}
 
 type mockHealthyDevice struct{}
 
@@ -879,6 +885,11 @@ func (d *mockHealthyDevice) GetTemperatureThreshold(
 	}
 	return 82, nil // Slowdown
 }
+func (d *mockHealthyDevice) GetCudaComputeCapability(
+	ctx context.Context,
+) (string, error) {
+	return "7.5", nil // Turing (T4)
+}
 
 // mockEmptyNVML returns 0 devices
 type mockEmptyNVML struct{}
@@ -893,4 +904,10 @@ func (m *mockEmptyNVML) GetDeviceByIndex(
 	idx int,
 ) (nvml.Device, error) {
 	return nil, fmt.Errorf("no devices")
+}
+func (m *mockEmptyNVML) GetDriverVersion(ctx context.Context) (string, error) {
+	return "", fmt.Errorf("no devices")
+}
+func (m *mockEmptyNVML) GetCudaDriverVersion(ctx context.Context) (string, error) {
+	return "", fmt.Errorf("no devices")
 }

@@ -40,6 +40,16 @@ func (r *Real) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	return nil, fmt.Errorf("real NVML requires CGO")
 }
 
+// GetDriverVersion returns an error indicating CGO is required.
+func (r *Real) GetDriverVersion(ctx context.Context) (string, error) {
+	return "", fmt.Errorf("real NVML requires CGO")
+}
+
+// GetCudaDriverVersion returns an error indicating CGO is required.
+func (r *Real) GetCudaDriverVersion(ctx context.Context) (string, error) {
+	return "", fmt.Errorf("real NVML requires CGO")
+}
+
 // RealDevice is a stub for non-CGO builds.
 type RealDevice struct{}
 
@@ -123,4 +133,11 @@ func (d *RealDevice) GetTemperatureThreshold(
 	thresholdType int,
 ) (uint32, error) {
 	return 0, fmt.Errorf("real NVML requires CGO")
+}
+
+// GetCudaComputeCapability returns an error indicating CGO is required.
+func (d *RealDevice) GetCudaComputeCapability(
+	ctx context.Context,
+) (string, error) {
+	return "", fmt.Errorf("real NVML requires CGO")
 }

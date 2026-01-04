@@ -106,6 +106,45 @@ func (r *Real) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	return &RealDevice{device: device}, nil
 }
 
+// GetDriverVersion returns the NVIDIA driver version string.
+func (r *Real) GetDriverVersion(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context cancelled: %w", err)
+	}
+
+	if !r.initialized {
+		return "", fmt.Errorf("NVML not initialized")
+	}
+
+	version, ret := nvml.SystemGetDriverVersion()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get driver version: %s",
+			nvml.ErrorString(ret))
+	}
+	return version, nil
+}
+
+// GetCudaDriverVersion returns the CUDA driver version as a string.
+func (r *Real) GetCudaDriverVersion(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context cancelled: %w", err)
+	}
+
+	if !r.initialized {
+		return "", fmt.Errorf("NVML not initialized")
+	}
+
+	version, ret := nvml.SystemGetCudaDriverVersion()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get CUDA driver version: %s",
+			nvml.ErrorString(ret))
+	}
+	// Convert from major*1000 + minor*10 format to "major.minor" string
+	major := version / 1000
+	minor := (version % 1000) / 10
+	return fmt.Sprintf("%d.%d", major, minor), nil
+}
+
 // RealDevice is a real implementation of the Device interface.
 type RealDevice struct {
 	device nvml.Device
@@ -368,4 +407,20 @@ func (d *RealDevice) GetTemperatureThreshold(
 			nvml.ErrorString(ret))
 	}
 	return temp, nil
+}
+
+// GetCudaComputeCapability returns the CUDA compute capability as a string.
+func (d *RealDevice) GetCudaComputeCapability(
+	ctx context.Context,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context cancelled: %w", err)
+	}
+
+	major, minor, ret := d.device.GetCudaComputeCapability()
+	if ret != nvml.SUCCESS {
+		return "", fmt.Errorf("failed to get compute capability: %s",
+			nvml.ErrorString(ret))
+	}
+	return fmt.Sprintf("%d.%d", major, minor), nil
 }

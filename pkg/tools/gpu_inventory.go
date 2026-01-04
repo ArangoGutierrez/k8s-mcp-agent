@@ -71,11 +71,22 @@ func (h *GPUInventoryHandler) Handle(
 		gpus = append(gpus, *gpuInfo)
 	}
 
+	// Get system-level information
+	var driverVersion, cudaVersion string
+	if ver, err := h.nvmlClient.GetDriverVersion(ctx); err == nil {
+		driverVersion = ver
+	}
+	if ver, err := h.nvmlClient.GetCudaDriverVersion(ctx); err == nil {
+		cudaVersion = ver
+	}
+
 	// Create response
 	response := map[string]interface{}{
-		"status":       "success",
-		"device_count": count,
-		"devices":      gpus,
+		"status":         "success",
+		"driver_version": driverVersion,
+		"cuda_version":   cudaVersion,
+		"device_count":   count,
+		"devices":        gpus,
 	}
 
 	// Marshal to JSON
@@ -123,6 +134,11 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 		return nil, fmt.Errorf("failed to get PCI info: %w", err)
 	}
 	info.BusID = pciInfo.BusID
+
+	// Get compute capability (optional)
+	if cc, err := device.GetCudaComputeCapability(ctx); err == nil {
+		info.ComputeCapability = cc
+	}
 
 	// Collect memory info
 	if memInfo, err := device.GetMemoryInfo(ctx); err != nil {
