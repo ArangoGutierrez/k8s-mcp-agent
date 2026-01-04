@@ -1,14 +1,19 @@
 version: 2
 updates:
+  # =============================================================================
   # Go modules dependency updates
+  # =============================================================================
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "Europe/Madrid"
     open-pull-requests-limit: 5
     assignees:
+      - "ArangoGutierrez"
+    reviewers:
       - "ArangoGutierrez"
     labels:
       - "dependencies"
@@ -16,33 +21,34 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
-    # Group all patch and minor updates together
+    # Group updates to reduce PR noise
     groups:
+      # Group all minor and patch updates together
       go-dependencies:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
-    # Allow only security updates for major version bumps
+    # Ignore major version bumps (breaking changes require manual review)
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-    # Enable version updates for critical dependencies
-    allow:
-      - dependency-name: "github.com/NVIDIA/go-nvml"
-      - dependency-name: "github.com/mark3labs/mcp-go"
-      - dependency-name: "k8s.io/*"
 
+  # =============================================================================
   # GitHub Actions workflow dependency updates
+  # =============================================================================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "Europe/Madrid"
     open-pull-requests-limit: 3
     assignees:
+      - "ArangoGutierrez"
+    reviewers:
       - "ArangoGutierrez"
     labels:
       - "dependencies"
@@ -55,21 +61,3 @@ updates:
       github-actions:
         patterns:
           - "*"
-
-  # Docker base image updates (if Dockerfile present)
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 2
-    assignees:
-      - "ArangoGutierrez"
-    labels:
-      - "dependencies"
-      - "area/k8s-ephemeral"
-    commit-message:
-      prefix: "chore(container)"
-      include: "scope"
-
