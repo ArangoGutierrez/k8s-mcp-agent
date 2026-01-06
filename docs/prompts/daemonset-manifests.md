@@ -18,6 +18,14 @@ device plugin. The recommended deployment pattern is a DaemonSet with
 Create production-ready Kubernetes manifests for deploying k8s-mcp-agent to GPU
 clusters with NVIDIA Device Plugin, GPU Operator, or DRA driver.
 
+## Step 0: Create Feature Branch
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b feat/daemonset-manifests
+```
+
 ## Files to Create
 
 ### 1. `deploy/kubernetes/namespace.yaml`
