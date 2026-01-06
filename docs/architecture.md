@@ -177,12 +177,13 @@ For detailed deployment information, see
 
 **Helm Chart:** [`deployment/helm/k8s-mcp-agent/`](../deployment/helm/k8s-mcp-agent/)
 
-The chart supports two GPU access modes:
+The chart supports three GPU access modes:
 
 | Mode | Default | Description |
 |------|---------|-------------|
 | **RuntimeClass** | ✓ | Uses `runtimeClassName: nvidia` + `NVIDIA_VISIBLE_DEVICES=all` |
 | **Resource Request** | | Requests `nvidia.com/gpu` from device plugin (fallback) |
+| **DRA** | | Uses Kubernetes Dynamic Resource Allocation (K8s 1.26+) |
 
 Install with:
 ```bash

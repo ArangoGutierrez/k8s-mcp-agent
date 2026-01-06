@@ -68,7 +68,7 @@ spec:
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         {{- /* Sleep until kubectl exec invokes the agent */}}
-        {{- /* Requires image with busybox (see deploy/Containerfile) */}}
+        {{- /* Requires image with busybox (see deployment/Containerfile) */}}
         command: ["sleep", "infinity"]
         stdin: true
         tty: true
@@ -94,10 +94,9 @@ spec:
             {{- end }}
             {{ .Values.gpu.resourceRequest.resource }}: {{ .Values.gpu.resourceRequest.count | quote }}
           {{- else if .Values.gpu.resourceClaim.enabled }}
-          {{- /* DRA: Reference the resource claim */}}
-          {{- toYaml .Values.resources | nindent 10 }}
-          claims:
-          - name: {{ .Values.gpu.resourceClaim.name }}
+          {{- /* DRA: Merge base resources with claims reference */}}
+          {{- $draResources := merge (dict "claims" (list (dict "name" .Values.gpu.resourceClaim.name))) .Values.resources }}
+          {{- toYaml $draResources | nindent 10 }}
           {{- else }}
           {{- /* RuntimeClass: No GPU resource request - monitors all GPUs */}}
           {{- toYaml .Values.resources | nindent 10 }}
