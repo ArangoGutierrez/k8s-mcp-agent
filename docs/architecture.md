@@ -21,57 +21,61 @@ Context Protocol (MCP).
 
 ### Key Characteristics
 
-- **Ephemeral**: No standing infrastructure, injected on-demand
+- **On-Demand**: Agent runs only during diagnostic sessions
 - **Stdio Transport**: JSON-RPC 2.0 over standard I/O
 - **AI-Native**: Designed for AI assistant consumption (Claude, Cursor)
 - **Hardware-Focused**: Direct NVML access for deep GPU diagnostics
-- **Kubernetes-Aware**: Integrates via `kubectl debug`
+- **Multi-Platform**: Kubernetes (DaemonSet), Docker, Slurm, workstations
 
 ## Design Principles
 
-### 1. The "Syringe Pattern"
+### 1. On-Demand Diagnostics
 
-Unlike traditional monitoring (DaemonSets, exporters), we use **ephemeral
-injection**:
+Unlike traditional monitoring (always-running exporters with network endpoints),
+the agent only runs during active diagnostic sessions:
 
 ```
-Traditional:                    Ephemeral (This Project):
-┌─────────────┐                ┌─────────────┐
-│ DaemonSet   │                │  kubectl    │
-│ (Always On) │                │   debug     │
-└──────┬──────┘                └──────┬──────┘
-       │                              │
-       ▼                              ▼
-┌─────────────┐                ┌─────────────┐
-│   Metrics   │                │   Agent     │
-│   Server    │                │  (JIT Pod)  │
-│  :9090/tcp  │                │  (Stdio)    │
-└─────────────┘                └─────────────┘
-                                      │
-                                      ▼
-                                  [Exits]
+Traditional Monitoring:              k8s-mcp-agent:
+┌─────────────┐                     ┌─────────────────────────┐
+│ DaemonSet   │                     │ DaemonSet               │
+│ (Always On) │                     │ └─ sleep infinity       │
+└──────┬──────┘                     └───────────┬─────────────┘
+       │                                        │
+       ▼                                        │ kubectl exec
+┌─────────────┐                                 ▼
+│   Metrics   │                     ┌─────────────────────────┐
+│   Server    │                     │ /agent runs             │
+│  :9090/tcp  │                     │ └─ MCP session (stdio)  │
+└─────────────┘                     └───────────┬─────────────┘
+                                                │
+                                                ▼ session ends
+                                    ┌─────────────────────────┐
+                                    │ Back to sleep infinity  │
+                                    │ (near-zero resource)    │
+                                    └─────────────────────────┘
 ```
 
 **Benefits:**
-- **Zero attack surface** when idle
-- **No resource overhead** on cluster
+- **Minimal resource usage** when idle (sleeping container ≈ 0 CPU)
 - **No port exposure** or network listeners
-- **Just-in-time** diagnostics when needed
-- **Automatic cleanup** after use
+- **On-demand** diagnostics via `kubectl exec`
+- **No GPU allocation** — doesn't block scheduler
+- **Works with AI agents** and human SREs alike
 
 ### 2. Stdio-Only Transport
 
 **Why Stdio?**
 
-1. **Works through kubectl debug** SPDY tunneling
-2. **No network configuration** required
-3. **Firewall-friendly** (no listening ports)
-4. **Simpler security model**
-5. **Standard I/O redirection** compatible
+1. **Works through kubectl exec** SPDY tunneling
+2. **Works with Docker** direct stdin/stdout
+3. **No network configuration** required
+4. **Firewall-friendly** (no listening ports)
+5. **Simpler security model**
+6. **Standard I/O redirection** compatible
 
 **Trade-offs:**
 - Cannot be used as standalone HTTP server (by design)
-- Requires MCP-compatible client (Claude Desktop, Cursor)
+- Requires MCP-compatible client (Claude Desktop, Cursor, AI agents)
 
 ### 3. Interface Abstraction
 
@@ -94,28 +98,40 @@ type Interface interface {
 
 ## System Architecture
 
-### High-Level Architecture
+### Deployment Modes
+
+k8s-mcp-agent supports multiple deployment modes:
+
+| Mode | Use Case | Command |
+|------|----------|---------|
+| **Kubernetes** | Production GPU clusters | `kubectl exec -it <pod> -- /agent` |
+| **Docker** | Slurm, workstations, NVIDIA Spark | `docker run --gpus all ... /agent` |
+| **Direct** | Development, testing | `./agent --nvml-mode=mock` |
+
+### High-Level Architecture (Kubernetes)
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                      AI Host (Claude Desktop)                 │
+│                      AI Host / SRE Workstation                │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  MCP Client                                            │  │
+│  │  MCP Client (Claude Desktop, Cursor, or AI Agent)      │  │
 │  │  - Sends JSON-RPC 2.0 requests                         │  │
 │  │  - Receives structured responses                       │  │
 │  └────────────┬───────────────────────────────────────────┘  │
 └───────────────┼──────────────────────────────────────────────┘
                 │
-                │ kubectl debug node/gpu-node-5
+                │ kubectl exec -it <daemonset-pod> -- /agent
                 │ (SPDY Stdio Tunnel)
                 ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    Kubernetes Node (GPU-enabled)              │
 │                                                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  Ephemeral Debug Pod                                   │  │
+│  │  DaemonSet Pod (k8s-mcp-agent)                         │  │
+│  │  - runtimeClassName: nvidia (CDI injection)            │  │
+│  │  - No nvidia.com/gpu request (doesn't block scheduler) │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
-│  │  │  k8s-mcp-agent (stdin/stdout)                    │  │  │
+│  │  │  /agent (runs on exec, exits on disconnect)      │  │  │
 │  │  │                                                   │  │  │
 │  │  │  ┌─────────────┐      ┌──────────────┐          │  │  │
 │  │  │  │ MCP Server  │◄────►│ Tool Handlers│          │  │  │
@@ -125,7 +141,7 @@ type Interface interface {
 │  │  │                              ▼                   │  │  │
 │  │  │                       ┌──────────────┐          │  │  │
 │  │  │                       │ NVML Client  │          │  │  │
-│  │  │                       │ (Mock/Real)  │          │  │  │
+│  │  │                       │ (Real)       │          │  │  │
 │  │  │                       └──────┬───────┘          │  │  │
 │  │  └──────────────────────────────┼──────────────────┘  │  │
 │  └─────────────────────────────────┼─────────────────────┘  │
@@ -133,7 +149,7 @@ type Interface interface {
 │                                    ▼                         │
 │                            ┌──────────────┐                  │
 │                            │ libnvidia-ml │                  │
-│                            │  (NVML API)  │                  │
+│                            │  (via CDI)   │                  │
 │                            └──────┬───────┘                  │
 │                                   │                          │
 │                                   ▼                          │
@@ -143,6 +159,21 @@ type Interface interface {
 │                          └──────────────────┘                │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+### GPU Access in Kubernetes
+
+GPU access requires CDI (Container Device Interface) injection, which is provided
+by the nvidia-container-toolkit. The agent supports clusters with:
+
+- **NVIDIA Device Plugin** — Standard GPU scheduling
+- **NVIDIA GPU Operator** — Full-stack GPU management
+- **NVIDIA DRA Driver** — Dynamic Resource Allocation (K8s 1.32+)
+
+> **Note:** The agent does NOT request `nvidia.com/gpu` resources. It monitors
+> all GPUs on a node without consuming scheduler-visible resources.
+
+For detailed deployment information, see
+[Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
 
 ### Component Layers
 
@@ -352,19 +383,36 @@ Denied:
 
 **Activation:**
 ```bash
-kubectl debug node/gpu-node \
-  --image=... \
-  -- /agent --mode=operator --nvml-mode=real
+# Kubernetes
+kubectl exec -it <daemonset-pod> -- /agent --mode=operator
+
+# Docker
+docker run --rm -it --gpus all <image> --mode=operator
 ```
 
 ### Kubernetes Security Context
 
-When deployed via `kubectl debug --profile=sysadmin`:
+When deployed as a DaemonSet with RuntimeClass:
 
-- **Privileged**: Yes (required for NVML)
-- **Host PID**: Yes (for process inspection)
+```yaml
+securityContext:
+  runAsUser: 0                    # Root may be required for NVML
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+    # add: ["SYS_ADMIN"]          # Only if profiling metrics needed
+```
+
+**Key Security Properties:**
+- **NOT Privileged**: Uses RuntimeClass for GPU access, not privileged mode
+- **No GPU Resource Request**: Doesn't consume `nvidia.com/gpu` resources
 - **Host Network**: No
-- **Capabilities**: SYS_ADMIN (minimal required)
+- **Host PID**: No (not needed for basic monitoring)
+- **Zero Trust**: Follows principle of least privilege
+
+For detailed security analysis, see
+[Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
 
 ### Input Sanitization
 
@@ -561,10 +609,30 @@ Protocol Error (bad JSON)
 4. **Selected: Stdio only**
 
 **Rationale:**
-- Aligns with ephemeral design
-- Works through kubectl debug
+- Aligns with on-demand design
+- Works through kubectl exec
+- Works with Docker direct execution
 - Zero network exposure
 - Simpler security
+
+### Decision 5: DaemonSet vs kubectl debug
+
+**Chosen**: DaemonSet with `kubectl exec`
+
+**Alternatives Considered:**
+1. `kubectl debug` ephemeral containers
+2. On-demand Pod creation
+3. **Selected: DaemonSet with sleeping container**
+
+**Rationale:**
+- `kubectl debug` cannot access GPUs (bypasses device plugin)
+- On-demand Pod has ~5-10s startup overhead
+- DaemonSet provides instant access via exec
+- Sleeping container has near-zero resource usage
+- Agent runs only during active sessions
+
+See [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md)
+for detailed analysis.
 
 ### Decision 3: Runtime vs Compile-Time Mode Selection
 
@@ -669,15 +737,19 @@ No changes needed to MCP layer or tool handlers!
 
 ### Future Enhancements
 
+- **eBPF Integration**: Real-time XID error streaming via kernel tracing
+- **kubectl Plugin**: `kubectl mcp diagnose <node>` for simplified UX
 - **Streaming Telemetry**: Server-Sent Events for real-time data
 - **Batch Operations**: Query multiple GPUs in parallel
 - **Caching**: Cache device handles to reduce latency
-- **Prometheus Export**: Optional metrics exporter mode
+- **Multi-Vendor**: AMD ROCm, Intel oneAPI support
 
 ## References
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [NVIDIA NVML Documentation](https://docs.nvidia.com/deploy/nvml-api/)
 - [go-nvml Library](https://github.com/NVIDIA/go-nvml)
-- [kubectl debug Documentation](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
+- [NVIDIA Device Plugin](https://github.com/NVIDIA/k8s-device-plugin)
+- [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator)
+- [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md)
 
