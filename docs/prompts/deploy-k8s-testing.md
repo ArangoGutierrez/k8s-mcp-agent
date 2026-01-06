@@ -3,8 +3,7 @@
 ## Project Context
 
 I'm working on `k8s-mcp-agent` - an ephemeral GPU diagnostic agent that uses MCP
-(Model Context Protocol) over stdio. The project is at:
-`/Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent`
+(Model Context Protocol) over stdio.
 
 ### Recently Completed
 - PR #61 merged: Multi-stage Dockerfile (`deploy/Containerfile`)

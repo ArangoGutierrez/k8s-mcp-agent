@@ -294,6 +294,12 @@ spec:
 
 ### Option 3: DaemonSet with Privileged Mode (Fallback)
 
+> ⚠️ **SECURITY WARNING**: This option grants full root-level access to the host.
+> Only use in tightly controlled, admin-only clusters where RuntimeClass is not
+> available. A compromise of the agent or misuse of `kubectl exec` would allow
+> full node takeover. **This is NOT recommended for production or multi-tenant
+> environments.**
+
 For clusters without proper GPU infrastructure:
 
 ```yaml
@@ -322,9 +328,16 @@ spec:
 - No dependency on device plugin/operator
 
 **Cons:**
-- Requires `privileged: true`
+- Requires `privileged: true` — **major security risk**
 - Manual hostPath mounts
 - Driver-version-specific library paths
+
+**Required Mitigations (if used):**
+- Deploy in dedicated namespace with strict RBAC
+- Limit `kubectl exec` access to cluster admins only
+- Use NetworkPolicy to isolate pods
+- Enable audit logging for all exec operations
+- Consider this a temporary measure until RuntimeClass is configured
 
 ### Option 4: On-Demand Pod (Ephemeral Alternative)
 
