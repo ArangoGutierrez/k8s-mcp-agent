@@ -1,0 +1,11 @@
+{
+  "setup-worktree": [
+    "go mod download",
+    "make build"
+  ],
+  "setup-worktree-unix": [
+    "go mod download",
+    "make build",
+    "make test-short"
+  ]
+}
