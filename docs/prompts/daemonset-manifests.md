@@ -28,20 +28,20 @@ git checkout -b feat/daemonset-manifests
 
 ## Files to Create
 
-### 1. `deploy/kubernetes/namespace.yaml`
+### 1. `deployment/helm/k8s-mcp-agent/templates/namespace.yaml`
 
 Dedicated namespace for GPU diagnostics:
 - Name: `gpu-diagnostics` (or `k8s-mcp-agent`)
 - Labels for identification
 
-### 2. `deploy/kubernetes/rbac.yaml`
+### 2. `deployment/helm/k8s-mcp-agent/templates/serviceaccount.yaml`
 
 ServiceAccount and RBAC configuration:
 - ServiceAccount for the DaemonSet
 - Minimal permissions (read-only cluster info if needed)
 - Consider future operator mode permissions
 
-### 3. `deploy/kubernetes/daemonset.yaml`
+### 3. `deployment/helm/k8s-mcp-agent/templates/daemonset.yaml`
 
 Primary DaemonSet manifest with RuntimeClass:
 
@@ -91,7 +91,7 @@ spec:
         # NO nvidia.com/gpu resource - monitors all GPUs without allocation
 ```
 
-### 4. `deploy/kubernetes/kustomization.yaml` (Optional)
+### 4. `deployment/helm/k8s-mcp-agent/values.yaml`
 
 Kustomize base for easy customization:
 ```yaml
@@ -186,7 +186,7 @@ kubectl mcp diagnose <node-name>
 
 - `docs/reports/k8s-deploy-architecture-decision.md` — Architecture decision
 - `docs/architecture.md` — System architecture
-- `deploy/Containerfile` — Container image build
+- `deployment/Containerfile` — Container image build
 
 ## Notes
 

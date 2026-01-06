@@ -1,0 +1,104 @@
+{{/*
+Copyright 2026 k8s-mcp-agent contributors
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- /* Validate GPU configuration before rendering */}}
+{{- include "k8s-mcp-agent.validateGPUConfig" . }}
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "k8s-mcp-agent.fullname" . }}
+  namespace: {{ include "k8s-mcp-agent.namespace" . }}
+  labels:
+    {{- include "k8s-mcp-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gpu-diagnostics
+spec:
+  selector:
+    matchLabels:
+      {{- include "k8s-mcp-agent.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-mcp-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gpu-diagnostics
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- /* RuntimeClass for GPU access (recommended) */}}
+      {{- if .Values.gpu.runtimeClass.enabled }}
+      runtimeClassName: {{ .Values.gpu.runtimeClass.name }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      serviceAccountName: {{ include "k8s-mcp-agent.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* DRA ResourceClaims (K8s 1.26+) */}}
+      {{- if .Values.gpu.resourceClaim.enabled }}
+      resourceClaims:
+      - name: {{ .Values.gpu.resourceClaim.name }}
+        {{- if .Values.gpu.resourceClaim.templateName }}
+        resourceClaimTemplateName: {{ .Values.gpu.resourceClaim.templateName }}
+        {{- else if .Values.gpu.resourceClaim.spec }}
+        resourceClaimName: {{ include "k8s-mcp-agent.fullname" . }}-gpu
+        {{- end }}
+      {{- end }}
+      containers:
+      - name: agent
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- /* Sleep until kubectl exec invokes the agent */}}
+        {{- /* Requires image with busybox (see deployment/Containerfile) */}}
+        command: ["sleep", "infinity"]
+        stdin: true
+        tty: true
+        {{- if .Values.gpu.runtimeClass.enabled }}
+        env:
+        {{- /* Required for nvidia-container-runtime to inject GPU libraries */}}
+        {{- /* This enables GPU access without requesting nvidia.com/gpu resources */}}
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        {{- end }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        resources:
+          {{- if .Values.gpu.resourceRequest.enabled }}
+          {{- /* Device Plugin: Merge GPU resource request with user-defined resources */}}
+          requests:
+            {{- with .Values.resources.requests }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          limits:
+            {{- with .Values.resources.limits }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{ .Values.gpu.resourceRequest.resource }}: {{ .Values.gpu.resourceRequest.count | quote }}
+          {{- else if .Values.gpu.resourceClaim.enabled }}
+          {{- /* DRA: Merge base resources with claims reference */}}
+          {{- $draResources := merge (dict "claims" (list (dict "name" .Values.gpu.resourceClaim.name))) .Values.resources }}
+          {{- toYaml $draResources | nindent 10 }}
+          {{- else }}
+          {{- /* RuntimeClass: No GPU resource request - monitors all GPUs */}}
+          {{- toYaml .Values.resources | nindent 10 }}
+          {{- end }}
+

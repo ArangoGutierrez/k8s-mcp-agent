@@ -1,0 +1,92 @@
+===============================================================================
+ k8s-mcp-agent deployed successfully!
+===============================================================================
+
+Namespace: {{ include "k8s-mcp-agent.namespace" . }}
+
+GPU Access Mode:
+{{- if .Values.gpu.runtimeClass.enabled }}
+  ✓ RuntimeClass: {{ .Values.gpu.runtimeClass.name }}
+  ✓ NVIDIA_VISIBLE_DEVICES: all
+  → No nvidia.com/gpu resources consumed (scheduler sees all GPUs as available)
+{{- end }}
+{{- if .Values.gpu.resourceRequest.enabled }}
+  ⚠ Device Plugin: {{ .Values.gpu.resourceRequest.resource }}: {{ .Values.gpu.resourceRequest.count }}
+  → This WILL consume GPU resources from the scheduler
+{{- end }}
+{{- if .Values.gpu.resourceClaim.enabled }}
+  ⚠ DRA ResourceClaim: {{ .Values.gpu.resourceClaim.name }}
+  {{- if .Values.gpu.resourceClaim.templateName }}
+  → Using ResourceClaimTemplate: {{ .Values.gpu.resourceClaim.templateName }}
+  {{- else }}
+  → Using inline ResourceClaim spec
+  {{- end }}
+  → This WILL consume GPU resources from the scheduler
+{{- end }}
+
+-------------------------------------------------------------------------------
+USAGE
+-------------------------------------------------------------------------------
+
+1. Find the agent pod on a specific node:
+
+   NODE_NAME=<your-gpu-node>
+   POD=$(kubectl get pods -n {{ include "k8s-mcp-agent.namespace" . }} \
+     -l app.kubernetes.io/name={{ include "k8s-mcp-agent.name" . }} \
+     --field-selector spec.nodeName=$NODE_NAME \
+     -o jsonpath='{.items[0].metadata.name}')
+
+2. Start a diagnostic session:
+
+   kubectl exec -it -n {{ include "k8s-mcp-agent.namespace" . }} $POD -- /agent --mode=read-only
+
+3. Or pipe JSON-RPC commands directly:
+
+   echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory","arguments":{}},"id":1}' | \
+     kubectl exec -i -n {{ include "k8s-mcp-agent.namespace" . }} $POD -- /agent
+
+-------------------------------------------------------------------------------
+PREREQUISITES
+-------------------------------------------------------------------------------
+{{- if .Values.gpu.runtimeClass.enabled }}
+
+RuntimeClass '{{ .Values.gpu.runtimeClass.name }}' must be configured in your cluster.
+This is typically done by:
+  - NVIDIA GPU Operator (automatically creates RuntimeClass)
+  - Manual nvidia-ctk configuration:
+    $ sudo nvidia-ctk runtime configure --runtime=containerd
+    $ sudo systemctl restart containerd
+
+If RuntimeClass is NOT available, use the fallback mode:
+  $ helm upgrade {{ .Release.Name }} {{ .Chart.Name }} \
+      --set gpu.runtimeClass.enabled=false \
+      --set gpu.resourceRequest.enabled=true
+{{- end }}
+{{- if .Values.gpu.resourceRequest.enabled }}
+
+NVIDIA Device Plugin must be deployed in your cluster.
+Install via Helm:
+  $ helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+  $ helm install nvdp nvdp/nvidia-device-plugin -n kube-system
+{{- end }}
+{{- if .Values.gpu.resourceClaim.enabled }}
+
+DRA (Dynamic Resource Allocation) requires:
+  - Kubernetes 1.26+ with DynamicResourceAllocation feature gate
+  - NVIDIA DRA Driver deployed in your cluster
+
+Install NVIDIA DRA Driver:
+  $ helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+  $ helm install nvidia-dra-driver nvidia/nvidia-dra-driver -n nvidia-system
+{{- end }}
+
+-------------------------------------------------------------------------------
+DOCUMENTATION
+-------------------------------------------------------------------------------
+
+- Architecture: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/architecture.md
+- MCP Usage: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/mcp-usage.md
+- Quick Start: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/quickstart.md
+
+===============================================================================
+

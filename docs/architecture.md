@@ -175,6 +175,27 @@ by the nvidia-container-toolkit. The agent supports clusters with:
 For detailed deployment information, see
 [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
 
+**Helm Chart:** [`deployment/helm/k8s-mcp-agent/`](../deployment/helm/k8s-mcp-agent/)
+
+The chart supports three GPU access modes:
+
+| Mode | Default | Description |
+|------|---------|-------------|
+| **RuntimeClass** | ✓ | Uses `runtimeClassName: nvidia` + `NVIDIA_VISIBLE_DEVICES=all` |
+| **Resource Request** | | Requests `nvidia.com/gpu` from device plugin (fallback) |
+| **DRA** | | Uses Kubernetes Dynamic Resource Allocation (K8s 1.26+) |
+
+Install with:
+```bash
+# RuntimeClass mode (recommended)
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent
+
+# Fallback mode (no RuntimeClass)
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+  --set gpu.runtimeClass.enabled=false \
+  --set gpu.resourceRequest.enabled=true
+```
+
 ### Component Layers
 
 ```

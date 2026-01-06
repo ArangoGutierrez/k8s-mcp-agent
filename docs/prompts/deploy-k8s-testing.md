@@ -6,7 +6,7 @@ I'm working on `k8s-mcp-agent` - an ephemeral GPU diagnostic agent that uses MCP
 (Model Context Protocol) over stdio.
 
 ### Recently Completed
-- PR #61 merged: Multi-stage Dockerfile (`deploy/Containerfile`)
+- PR #61 merged: Multi-stage Dockerfile (`deployment/Containerfile`)
 - PR #61 merged: CI workflow for container builds (`.github/workflows/image.yml`)
 - Container image builds successfully locally (tested with Docker)
 
@@ -27,7 +27,7 @@ Test the k8s-mcp-agent deployment pipeline on a real Kubernetes cluster:
 ## Prerequisites
 
 - [x] kubectl configured (context: `kubernetes-admin@holodeck-cluster`)
-- [x] Dockerfile ready (`deploy/Containerfile`)
+- [x] Dockerfile ready (`deployment/Containerfile`)
 - [x] CI workflow ready (`.github/workflows/image.yml`)
 - [ ] Container image in ghcr.io
 
@@ -49,7 +49,7 @@ Option B: Push manually using docker + ghcr.io login
 echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 
 # Build and push
-docker build -f deploy/Containerfile -t ghcr.io/arangogutierrez/k8s-mcp-agent:latest .
+docker build -f deployment/Containerfile -t ghcr.io/arangogutierrez/k8s-mcp-agent:latest .
 docker push ghcr.io/arangogutierrez/k8s-mcp-agent:latest
 ```
 
@@ -106,7 +106,7 @@ Resources: 4 CPU, 16GB RAM, No GPUs
 
 ## Files to Reference
 
-- `deploy/Containerfile` - Production Dockerfile
+- `deployment/Containerfile` - Production Dockerfile
 - `.github/workflows/image.yml` - CI workflow
 - `examples/initialize.json` - MCP init request
 - `examples/gpu_inventory.json` - GPU inventory request

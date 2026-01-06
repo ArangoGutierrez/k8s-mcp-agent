@@ -1,0 +1,22 @@
+{{/*
+Copyright 2026 k8s-mcp-agent contributors
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- if and .Values.gpu.resourceClaim.enabled (not .Values.gpu.resourceClaim.templateName) .Values.gpu.resourceClaim.spec }}
+{{- /*
+  Create a ResourceClaim when DRA is enabled with inline spec.
+  This is used when templateName is not provided but spec is.
+  Requires Kubernetes 1.26+ with DynamicResourceAllocation feature gate.
+*/}}
+apiVersion: resource.k8s.io/v1alpha3
+kind: ResourceClaim
+metadata:
+  name: {{ include "k8s-mcp-agent.fullname" . }}-gpu
+  namespace: {{ include "k8s-mcp-agent.namespace" . }}
+  labels:
+    {{- include "k8s-mcp-agent.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .Values.gpu.resourceClaim.spec | nindent 2 }}
+{{- end }}
+

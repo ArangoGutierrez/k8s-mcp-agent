@@ -23,7 +23,7 @@ Kubernetes APIs cannot detect.
 
 ### ✨ Key Features
 
-- 🎯 **Ephemeral Injection** - No DaemonSets, no standing infrastructure
+- 🎯 **On-Demand Diagnostics** - Agent runs only during `kubectl exec` sessions
 - 🔌 **Stdio Transport** - JSON-RPC 2.0 over `kubectl debug` SPDY tunneling
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts
@@ -52,12 +52,24 @@ cat examples/gpu_inventory.json | ./bin/agent --nvml-mode=real
 ### Deploy to Kubernetes
 
 ```bash
-# Inject into GPU node for diagnostics
-kubectl debug node/gpu-node-5 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
-  --profile=sysadmin \
-  -- /agent --mode=read-only --nvml-mode=real
+# Deploy with Helm (RuntimeClass mode - recommended)
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+  --namespace gpu-diagnostics --create-namespace
+
+# Find agent pod on target node
+NODE_NAME=<node-name>
+POD=$(kubectl get pods -n gpu-diagnostics \
+  -l app.kubernetes.io/name=k8s-mcp-agent \
+  --field-selector spec.nodeName=$NODE_NAME \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Start diagnostic session
+kubectl exec -it -n gpu-diagnostics $POD -- /agent --mode=read-only
 ```
+
+> **Note:** GPU access requires `runtimeClassName: nvidia` configured by
+> GPU Operator or nvidia-ctk. For clusters without RuntimeClass, use fallback:
+> `--set gpu.runtimeClass.enabled=false --set gpu.resourceRequest.enabled=true`
 
 ### Use with Claude Desktop
 
