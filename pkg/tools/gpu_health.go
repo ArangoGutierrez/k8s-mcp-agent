@@ -238,7 +238,7 @@ func (h *GPUHealthHandler) collectGPUHealth(
 // - Tesla T4: slowdown ~82°C, shutdown ~90°C
 // - A100: slowdown ~83°C, shutdown ~92°C
 // - V100: slowdown ~83°C, shutdown ~90°C
-// TODO: Add model-specific threshold detection via NVML when available.
+// TODO(#68): Add model-specific threshold detection via NVML when available.
 const (
 	// defaultTempThreshold is the temperature at which throttling begins.
 	defaultTempThreshold uint32 = 82
@@ -349,7 +349,7 @@ func (h *GPUHealthHandler) checkMemory(
 // - H100 SXM: 700W TDP
 // The computed UsedPercent and Status values may not accurately reflect true
 // power utilization for non-T4 GPUs.
-// TODO: Query actual device power management limit from NVML when available.
+// TODO(#69): Query actual device power management limit from NVML when available.
 const defaultPowerLimit uint32 = 70000
 
 // eccCorrectableThreshold is the lifetime count of single-bit ECC errors
