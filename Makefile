@@ -183,7 +183,7 @@ licenses: ## Generate license report
 
 ##@ Container
 
-DOCKERFILE ?= $(CURDIR)/deploy/Containerfile
+DOCKERFILE ?= $(CURDIR)/deployment/Containerfile
 IMAGE_TAG ?= $(CLI_VERSION)
 
 image: ## Build container image
@@ -223,7 +223,7 @@ clean-all: clean ## Clean all generated files including vendor
 .PHONY: .build-image
 .build-image:
 	$(DOCKER) build \
-		-f $(CURDIR)/deploy/Containerfile.build \
+		-f $(CURDIR)/deployment/Containerfile.build \
 		-t $(BUILDIMAGE) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		.

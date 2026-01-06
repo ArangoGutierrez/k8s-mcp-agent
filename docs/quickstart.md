@@ -105,7 +105,7 @@ GPU access in Kubernetes requires one of:
 
 ```bash
 # Add the chart (if published) or use local path
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --namespace gpu-diagnostics \
   --create-namespace
 
@@ -118,7 +118,7 @@ kubectl get pods -n gpu-diagnostics -o wide
 For clusters without RuntimeClass configured (e.g., cri-dockerd):
 
 ```bash
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --namespace gpu-diagnostics \
   --create-namespace \
   --set gpu.runtimeClass.enabled=false \

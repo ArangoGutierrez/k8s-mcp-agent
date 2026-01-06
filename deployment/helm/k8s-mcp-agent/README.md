@@ -15,7 +15,7 @@ Deploys the k8s-mcp-agent as a DaemonSet for on-demand GPU diagnostics.
 ### Quick Start (RuntimeClass mode)
 
 ```bash
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --namespace gpu-diagnostics \
   --create-namespace
 ```
@@ -25,7 +25,7 @@ helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
 For clusters without RuntimeClass configured:
 
 ```bash
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --namespace gpu-diagnostics \
   --create-namespace \
   --set gpu.runtimeClass.enabled=false \
@@ -66,7 +66,7 @@ Requests `nvidia.com/gpu` resources from the NVIDIA Device Plugin. Use this
 if RuntimeClass is not available (e.g., cri-dockerd clusters).
 
 ```bash
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceRequest.enabled=true
 ```
@@ -82,13 +82,13 @@ Requires K8s 1.26+ with DynamicResourceAllocation feature gate (beta in 1.31+).
 
 ```bash
 # Using an existing ResourceClaimTemplate
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceClaim.enabled=true \
   --set gpu.resourceClaim.templateName=gpu-template
 
 # Using inline ResourceClaim spec
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceClaim.enabled=true \
   --set-json 'gpu.resourceClaim.spec={"devices":{"requests":[{"name":"gpu","deviceClassName":"gpu.nvidia.com"}]}}'

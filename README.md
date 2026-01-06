@@ -53,7 +53,7 @@ cat examples/gpu_inventory.json | ./bin/agent --nvml-mode=real
 
 ```bash
 # Deploy with Helm (RuntimeClass mode - recommended)
-helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
   --namespace gpu-diagnostics --create-namespace
 
 # Find agent pod on target node

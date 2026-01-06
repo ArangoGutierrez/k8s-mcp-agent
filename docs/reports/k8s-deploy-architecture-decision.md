@@ -474,8 +474,8 @@ Document privileged mode as fallback with clear security trade-off warnings.
 ### Immediate Actions
 
 1. [ ] Update `docs/architecture.md` with new deployment pattern
-2. [ ] Create `deploy/kubernetes/daemonset.yaml` manifest
-3. [ ] Create `deploy/kubernetes/daemonset-privileged.yaml` fallback
+2. [x] Create `deployment/helm/k8s-mcp-agent/` Helm chart
+3. [x] Support RuntimeClass, Device Plugin, and DRA modes
 4. [ ] Update README.md deployment instructions
 5. [ ] Start kubectl plugin development (`kubectl-mcp`)
 
