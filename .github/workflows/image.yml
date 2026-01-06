@@ -9,7 +9,7 @@ on:
     tags: ['v*']
   pull_request:
     paths:
-      - 'deploy/Containerfile'
+      - 'deployment/Containerfile'
       - 'cmd/**'
       - 'pkg/**'
       - 'internal/**'
@@ -63,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./deploy/Containerfile
+          file: ./deployment/Containerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
