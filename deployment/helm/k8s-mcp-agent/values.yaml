@@ -82,10 +82,11 @@ gpu:
     spec: {}
 
 # Node selection
-nodeSelector:
-  # -- Node selector for GPU nodes
-  # Default selects nodes labeled by GPU Feature Discovery or manually
-  nvidia.com/gpu.present: "true"
+# -- Node selector for GPU nodes (empty by default, runs on all nodes)
+# Examples:
+#   nvidia.com/gpu.count: "1"        # GPU Feature Discovery label
+#   nvidia.com/gpu.present: "true"   # Manual labeling
+nodeSelector: {}
 
 # Tolerations for GPU nodes
 tolerations:
