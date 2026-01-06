@@ -1,0 +1,136 @@
+# Copyright 2026 k8s-mcp-agent contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Default values for k8s-mcp-agent Helm chart.
+
+# -- Override the name of the chart
+nameOverride: ""
+# -- Override the full name of the chart
+fullnameOverride: ""
+
+# Namespace configuration
+namespace:
+  # -- Create a dedicated namespace for the agent
+  create: true
+  # -- Namespace name (used if create is true or for resource deployment)
+  name: "gpu-diagnostics"
+
+# Image configuration
+image:
+  # -- Container image repository
+  repository: ghcr.io/arangogutierrez/k8s-mcp-agent
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag (default is chart appVersion)
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# ServiceAccount configuration
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name (generated if not set)
+  name: ""
+  # -- Annotations to add to the ServiceAccount
+  annotations: {}
+
+# GPU access configuration
+gpu:
+  # RuntimeClass-based GPU access (recommended)
+  # Requires: nvidia RuntimeClass configured via GPU Operator or nvidia-ctk
+  runtimeClass:
+    # -- Enable RuntimeClass for GPU access (recommended)
+    # When enabled, uses nvidia-container-runtime via RuntimeClass for CDI injection
+    enabled: true
+    # -- Name of the RuntimeClass to use
+    name: "nvidia"
+
+  # Device Plugin resource request (fallback for clusters without RuntimeClass)
+  # Uses traditional resources.limits mechanism
+  resourceRequest:
+    # -- Enable GPU resource request from device plugin
+    # WARNING: This consumes nvidia.com/gpu resources and may block scheduler
+    # Only enable if RuntimeClass is not configured in your cluster
+    enabled: false
+    # -- GPU resource name (nvidia.com/gpu for device plugin)
+    resource: "nvidia.com/gpu"
+    # -- Number of GPUs to request (typically 1 for monitoring all GPUs)
+    count: 1
+
+  # Dynamic Resource Allocation (DRA) - Kubernetes 1.26+, beta in 1.31+
+  # Uses ResourceClaim mechanism for fine-grained GPU allocation
+  # Requires: NVIDIA DRA Driver deployed in cluster
+  resourceClaim:
+    # -- Enable DRA-based GPU access
+    # Mutually exclusive with resourceRequest.enabled
+    enabled: false
+    # -- Name for the resource claim reference
+    name: "gpu"
+    # -- Reference an existing ResourceClaimTemplate by name
+    # If set, uses resourceClaimTemplateName in pod spec
+    templateName: ""
+    # -- Create an inline ResourceClaim spec (advanced)
+    # If templateName is empty and spec is provided, uses inline claim
+    # Example:
+    #   spec:
+    #     devices:
+    #       requests:
+    #       - name: gpu
+    #         deviceClassName: gpu.nvidia.com
+    spec: {}
+
+# Node selection
+nodeSelector:
+  # -- Node selector for GPU nodes
+  # Default selects nodes labeled by GPU Feature Discovery or manually
+  nvidia.com/gpu.present: "true"
+
+# Tolerations for GPU nodes
+tolerations:
+  # -- Tolerate GPU node taints
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+# Pod security configuration
+securityContext:
+  # -- Run as root (may be required for NVML access)
+  runAsUser: 0
+  # -- Prevent privilege escalation
+  allowPrivilegeEscalation: false
+  # -- Read-only root filesystem
+  readOnlyRootFilesystem: true
+  # -- Drop all capabilities (add only if needed)
+  capabilities:
+    drop:
+      - ALL
+    # Uncomment if profiling metrics are needed (like dcgm-exporter)
+    # add:
+    #   - SYS_ADMIN
+
+# Resource limits
+resources:
+  requests:
+    cpu: 1m
+    memory: 10Mi
+  limits:
+    cpu: 100m
+    memory: 50Mi
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# -- Priority class name for the DaemonSet pods
+priorityClassName: ""
+
+# Update strategy
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+

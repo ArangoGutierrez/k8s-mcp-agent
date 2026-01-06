@@ -94,23 +94,66 @@ echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory
 
 ## Kubernetes Deployment
 
-### Using kubectl debug (Ephemeral Injection)
+### Prerequisites
 
-The recommended way to use the agent is via `kubectl debug`:
+GPU access in Kubernetes requires one of:
+- **NVIDIA GPU Operator** (configures RuntimeClass automatically) — *recommended*
+- **nvidia-ctk** configured with containerd/cri-o
+- **NVIDIA Device Plugin** (fallback mode)
+
+### Install with Helm
 
 ```bash
-# Inspect GPU node (read-only mode)
-kubectl debug node/gpu-node-5 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
-  --profile=sysadmin \
-  -- /agent --mode=read-only --nvml-mode=real
+# Add the chart (if published) or use local path
+helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+  --namespace gpu-diagnostics \
+  --create-namespace
+
+# Verify pods are running on GPU nodes
+kubectl get pods -n gpu-diagnostics -o wide
+```
+
+### Fallback Mode (No RuntimeClass)
+
+For clusters without RuntimeClass configured (e.g., cri-dockerd):
+
+```bash
+helm install k8s-mcp-agent ./deploy/helm/k8s-mcp-agent \
+  --namespace gpu-diagnostics \
+  --create-namespace \
+  --set gpu.runtimeClass.enabled=false \
+  --set gpu.resourceRequest.enabled=true
+```
+
+> ⚠️ **Warning:** Fallback mode requests `nvidia.com/gpu` resources, consuming
+> GPU capacity from the scheduler.
+
+### Start Diagnostic Session
+
+```bash
+# Find agent pod on target node
+NODE_NAME=gpu-node-5
+POD=$(kubectl get pods -n gpu-diagnostics \
+  -l app.kubernetes.io/name=k8s-mcp-agent \
+  --field-selector spec.nodeName=$NODE_NAME \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Start read-only diagnostic session
+kubectl exec -it -n gpu-diagnostics $POD -- /agent --mode=read-only
 
 # With operator mode (enables kill/reset operations)
-kubectl debug node/gpu-node-5 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
-  --profile=sysadmin \
-  -- /agent --mode=operator --nvml-mode=real
+kubectl exec -it -n gpu-diagnostics $POD -- /agent --mode=operator
 ```
+
+### GPU Access Modes
+
+| Mode | Helm Values | Description |
+|------|-------------|-------------|
+| **RuntimeClass** (default) | `gpu.runtimeClass.enabled=true` | Uses nvidia RuntimeClass + `NVIDIA_VISIBLE_DEVICES=all` |
+| **Resource Request** | `gpu.resourceRequest.enabled=true` | Requests `nvidia.com/gpu` from device plugin |
+
+The default RuntimeClass mode does NOT request `nvidia.com/gpu` resources,
+allowing the agent to monitor all GPUs without blocking the scheduler.
 
 ## Available Tools
 

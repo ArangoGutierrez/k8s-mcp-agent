@@ -41,8 +41,10 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 RUN /agent --version
 
 # =============================================================================
-# Stage 2: Runtime (Distroless)
+# Stage 2: Runtime (Distroless + Busybox)
 # =============================================================================
+FROM busybox:1.37-musl AS busybox
+
 FROM gcr.io/distroless/base-debian12:nonroot
 
 # OCI Image Labels
@@ -52,16 +54,22 @@ LABEL org.opencontainers.image.source="https://github.com/ArangoGutierrez/k8s-mc
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="ArangoGutierrez"
 
-# Copy the binary from builder
+# Copy the agent binary from builder
 COPY --from=builder /agent /agent
+
+# Copy busybox for sleep capability (DaemonSet idle pattern)
+# Adds ~1.2MB but enables `sleep infinity` for K8s deployments
+COPY --from=busybox /bin/busybox /bin/busybox
+COPY --from=busybox /bin/sh /bin/sh
+COPY --from=busybox /bin/sleep /bin/sleep
 
 # NVML requires libnvidia-ml.so from the host
 # This is automatically mounted by nvidia-container-toolkit when using:
 #   docker run --gpus all ...
-#   or kubectl with nvidia device plugin
+#   or kubectl with runtimeClassName: nvidia
 
-# Run as non-root user (distroless:nonroot runs as uid 65532)
-USER nonroot:nonroot
+# Note: USER is not set - let K8s securityContext control it
+# NVML may require root (runAsUser: 0) in DaemonSet deployments
 
 # Expose no ports - stdio transport only (MCP over stdin/stdout)
 
