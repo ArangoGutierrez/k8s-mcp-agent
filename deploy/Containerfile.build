@@ -1,0 +1,32 @@
+# Copyright 2026 k8s-mcp-agent contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# Development build image for k8s-mcp-agent
+# Used for containerized builds via: make docker-<target>
+
+ARG GOLANG_VERSION=1.25
+
+FROM golang:${GOLANG_VERSION}-bookworm
+
+# Install development tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc6-dev \
+    git \
+    make \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install golangci-lint
+ARG GOLANGCI_LINT_VERSION=v1.61.0
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
+    sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}
+
+# Create non-root user for builds
+RUN useradd -m -s /bin/bash builder
+USER builder
+
+WORKDIR /work
+
+# Default command
+CMD ["make", "help"]
