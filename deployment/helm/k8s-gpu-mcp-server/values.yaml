@@ -135,3 +135,26 @@ updateStrategy:
   rollingUpdate:
     maxUnavailable: 1
 
+# Transport configuration
+transport:
+  # -- Transport mode: stdio or http
+  # stdio: Uses kubectl exec for interaction (default)
+  # http: Exposes HTTP endpoint for MCP access
+  mode: stdio
+
+  # HTTP mode settings (only used if mode: http)
+  http:
+    # -- HTTP port to listen on
+    port: 8080
+    # -- HTTP listen address
+    addr: "0.0.0.0"
+
+# Service configuration (for HTTP mode)
+service:
+  # -- Enable service (required for HTTP mode)
+  enabled: false
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 8080
+

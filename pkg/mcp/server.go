@@ -1,7 +1,8 @@
 // Copyright 2026 k8s-gpu-mcp-server contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package mcp provides the MCP server implementation for stdio transport.
+// Package mcp provides the MCP server implementation for stdio and HTTP
+// transports.
 package mcp
 
 import (
@@ -18,11 +19,24 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// Server wraps the MCP server with stdio transport.
+// TransportType defines the transport mode for the MCP server.
+type TransportType string
+
+const (
+	// TransportStdio uses stdin/stdout for communication (default).
+	TransportStdio TransportType = "stdio"
+	// TransportHTTP uses HTTP/SSE for communication.
+	TransportHTTP TransportType = "http"
+)
+
+// Server wraps the MCP server with configurable transport.
 type Server struct {
 	mcpServer  *server.MCPServer
 	mode       string
 	nvmlClient nvml.Interface
+	transport  TransportType
+	httpAddr   string
+	version    string
 }
 
 // Config holds server configuration.
@@ -35,6 +49,10 @@ type Config struct {
 	GitCommit string
 	// NVMLClient is the NVML interface implementation
 	NVMLClient nvml.Interface
+	// Transport is the transport mode: "stdio" or "http"
+	Transport TransportType
+	// HTTPAddr is the HTTP listen address (e.g., "0.0.0.0:8080")
+	HTTPAddr string
 }
 
 // New creates a new MCP server instance.
@@ -47,9 +65,17 @@ func New(cfg Config) (*Server, error) {
 		return nil, fmt.Errorf("NVMLClient is required")
 	}
 
+	// Default to stdio transport
+	if cfg.Transport == "" {
+		cfg.Transport = TransportStdio
+	}
+
 	s := &Server{
 		mode:       cfg.Mode,
 		nvmlClient: cfg.NVMLClient,
+		transport:  cfg.Transport,
+		httpAddr:   cfg.HTTPAddr,
+		version:    cfg.Version,
 	}
 
 	// Create MCP server
@@ -90,8 +116,18 @@ func New(cfg Config) (*Server, error) {
 	return s, nil
 }
 
-// Run starts the MCP server and blocks until context is cancelled.
+// Run starts the MCP server with the configured transport.
 func (s *Server) Run(ctx context.Context) error {
+	switch s.transport {
+	case TransportHTTP:
+		return s.runHTTP(ctx)
+	default:
+		return s.runStdio(ctx)
+	}
+}
+
+// runStdio runs the server with stdio transport.
+func (s *Server) runStdio(ctx context.Context) error {
 	log.Printf(`{"level":"info","msg":"MCP server starting",`+
 		`"transport":"stdio","mode":"%s"}`, s.mode)
 
@@ -114,6 +150,15 @@ func (s *Server) Run(ctx context.Context) error {
 			err)
 		return err
 	}
+}
+
+// runHTTP runs the server with HTTP transport.
+func (s *Server) runHTTP(ctx context.Context) error {
+	log.Printf(`{"level":"info","msg":"MCP server starting",`+
+		`"transport":"http","addr":"%s","mode":"%s"}`, s.httpAddr, s.mode)
+
+	httpServer := NewHTTPServer(s.mcpServer, s.httpAddr, s.version)
+	return httpServer.ListenAndServe(ctx)
 }
 
 // Shutdown gracefully shuts down the MCP server.
