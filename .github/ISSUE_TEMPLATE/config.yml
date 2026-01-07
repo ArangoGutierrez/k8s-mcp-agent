@@ -1,12 +1,12 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Discussions
-    url: https://github.com/ArangoGutierrez/k8s-mcp-agent/discussions
+    url: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/discussions
     about: Ask questions, share ideas, or discuss the project with the community
   - name: 📚 Documentation
-    url: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/README.md
+    url: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/README.md
     about: Read the documentation and getting started guide
   - name: 🔒 Security Advisory (Private)
-    url: https://github.com/ArangoGutierrez/k8s-mcp-agent/security/advisories/new
+    url: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/security/advisories/new
     about: Report critical security vulnerabilities privately
 

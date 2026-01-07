@@ -1,4 +1,4 @@
-// Copyright 2026 k8s-mcp-agent contributors
+// Copyright 2026 k8s-gpu-mcp-server contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package tools implements MCP tool handlers for GPU operations.
@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 

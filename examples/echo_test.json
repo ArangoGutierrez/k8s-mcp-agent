@@ -4,7 +4,7 @@
   "params": {
     "name": "echo_test",
     "arguments": {
-      "message": "Hello from k8s-mcp-agent!"
+      "message": "Hello from k8s-gpu-mcp-server!"
     }
   },
   "id": 1

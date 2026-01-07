@@ -1,6 +1,6 @@
 # MCP Usage Guide
 
-Learn how to interact with `k8s-mcp-agent` using the Model Context Protocol.
+Learn how to interact with `k8s-gpu-mcp-server` using the Model Context Protocol.
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ Learn how to interact with `k8s-mcp-agent` using the Model Context Protocol.
 The Model Context Protocol (MCP) is an open protocol that enables AI
 assistants to securely interact with external tools and data sources.
 
-`k8s-mcp-agent` implements MCP over **stdio** (standard input/output),
+`k8s-gpu-mcp-server` implements MCP over **stdio** (standard input/output),
 making it compatible with:
 
 - **Claude Desktop** - Anthropic's AI assistant
@@ -101,7 +101,7 @@ Add to your Claude Desktop MCP configuration:
       "args": [
         "debug",
         "node/gpu-node-5",
-        "--image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest",
+        "--image=ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest",
         "--profile=sysadmin",
         "--",
         "/agent",
@@ -162,7 +162,7 @@ Claude: [Calls get_gpu_inventory tool]
 
 ```typescript
 // Ask Cursor AI:
-// "Query the GPU inventory using k8s-mcp-agent"
+// "Query the GPU inventory using k8s-gpu-mcp-server"
 
 // Cursor will:
 // 1. Initialize MCP session
@@ -193,7 +193,7 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-0
       }
     },
     "serverInfo": {
-      "name": "k8s-mcp-agent",
+      "name": "k8s-gpu-mcp-server",
       "version": "0.1.0-alpha"
     }
   }

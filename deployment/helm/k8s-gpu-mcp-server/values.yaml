@@ -1,7 +1,7 @@
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
-# Default values for k8s-mcp-agent Helm chart.
+# Default values for k8s-gpu-mcp-server Helm chart.
 
 # -- Override the name of the chart
 nameOverride: ""
@@ -18,7 +18,7 @@ namespace:
 # Image configuration
 image:
   # -- Container image repository
-  repository: ghcr.io/arangogutierrez/k8s-mcp-agent
+  repository: ghcr.io/arangogutierrez/k8s-gpu-mcp-server
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Overrides the image tag (default is chart appVersion)

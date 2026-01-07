@@ -1,4 +1,4 @@
-// Copyright 2026 k8s-mcp-agent contributors
+// Copyright 2026 k8s-gpu-mcp-server contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package tools
@@ -10,8 +10,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/xid"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 

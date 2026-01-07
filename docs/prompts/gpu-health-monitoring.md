@@ -2,9 +2,9 @@
 
 ## PROJECT CONTEXT
 
-**Repository:** https://github.com/ArangoGutierrez/k8s-mcp-agent  
+**Repository:** https://github.com/ArangoGutierrez/k8s-gpu-mcp-server  
 **Current Branch:** `main`  
-**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent`
+**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server`
 
 ### Current State (Jan 3, 2026)
 - ✅ M1 Complete: MCP stdio server working, Mock NVML implemented
@@ -24,7 +24,7 @@
 - **SSH:** `ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com`
 - **GPU:** Tesla T4 (16GB), Driver 575.57.08, CUDA 12.9
 - **Go:** 1.25.5 at `/usr/local/go/bin/go`
-- **Code Location:** `~/k8s-mcp-agent`
+- **Code Location:** `~/k8s-gpu-mcp-server`
 - **Kubernetes:** v1.33.3 single node
 
 ---
@@ -61,7 +61,7 @@ package tools
 
 import (
 	"context"
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -502,7 +502,7 @@ Create `examples/gpu_health.json`:
 ### Local Testing (Mock NVML)
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 
 # Run unit tests
 make test
@@ -521,7 +521,7 @@ cat examples/gpu_health.json | ./bin/agent --nvml-mode=mock
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
 
 # Navigate to code
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 
 # Pull latest changes
 git fetch origin
@@ -651,7 +651,7 @@ go test -tags=integration -v ./pkg/tools/
 
 ### Step 1: Create Branch and Structure
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 git checkout main && git pull
 git checkout -b feat/m2-gpu-health
 
@@ -841,7 +841,7 @@ gh pr create          # Create PR
 ### Remote Machine
 ```bash
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 export PATH=/usr/local/go/bin:$PATH
 ```
 

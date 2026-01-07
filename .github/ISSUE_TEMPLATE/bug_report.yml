@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug or unexpected behavior in k8s-mcp-agent
+description: Report a bug or unexpected behavior in k8s-gpu-mcp-server
 title: "[Bug]: "
 labels: ["kind/bug"]
 body:

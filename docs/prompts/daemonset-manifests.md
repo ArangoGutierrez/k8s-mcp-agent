@@ -2,7 +2,7 @@
 
 ## Issue Reference
 
-- **Issue:** [#62 - feat: Add DaemonSet deployment manifests for Kubernetes](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues/62)
+- **Issue:** [#62 - feat: Add DaemonSet deployment manifests for Kubernetes](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/62)
 - **Priority:** P1-High
 - **Labels:** kind/feature, area/k8s-ephemeral, ops/security
 
@@ -15,7 +15,7 @@ device plugin. The recommended deployment pattern is a DaemonSet with
 
 ## Objective
 
-Create production-ready Kubernetes manifests for deploying k8s-mcp-agent to GPU
+Create production-ready Kubernetes manifests for deploying k8s-gpu-mcp-server to GPU
 clusters with NVIDIA Device Plugin, GPU Operator, or DRA driver.
 
 ## Step 0: Create Feature Branch
@@ -28,20 +28,20 @@ git checkout -b feat/daemonset-manifests
 
 ## Files to Create
 
-### 1. `deployment/helm/k8s-mcp-agent/templates/namespace.yaml`
+### 1. `deployment/helm/k8s-gpu-mcp-server/templates/namespace.yaml`
 
 Dedicated namespace for GPU diagnostics:
-- Name: `gpu-diagnostics` (or `k8s-mcp-agent`)
+- Name: `gpu-diagnostics` (or `k8s-gpu-mcp-server`)
 - Labels for identification
 
-### 2. `deployment/helm/k8s-mcp-agent/templates/serviceaccount.yaml`
+### 2. `deployment/helm/k8s-gpu-mcp-server/templates/serviceaccount.yaml`
 
 ServiceAccount and RBAC configuration:
 - ServiceAccount for the DaemonSet
 - Minimal permissions (read-only cluster info if needed)
 - Consider future operator mode permissions
 
-### 3. `deployment/helm/k8s-mcp-agent/templates/daemonset.yaml`
+### 3. `deployment/helm/k8s-gpu-mcp-server/templates/daemonset.yaml`
 
 Primary DaemonSet manifest with RuntimeClass:
 
@@ -49,16 +49,16 @@ Primary DaemonSet manifest with RuntimeClass:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: k8s-mcp-agent
+  name: k8s-gpu-mcp-server
   namespace: gpu-diagnostics
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: k8s-mcp-agent
+      app.kubernetes.io/name: k8s-gpu-mcp-server
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: k8s-mcp-agent
+        app.kubernetes.io/name: k8s-gpu-mcp-server
         app.kubernetes.io/component: gpu-diagnostics
     spec:
       runtimeClassName: nvidia  # CDI injection for GPU access
@@ -68,10 +68,10 @@ spec:
       - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
-      serviceAccountName: k8s-mcp-agent
+      serviceAccountName: k8s-gpu-mcp-server
       containers:
       - name: agent
-        image: ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+        image: ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
         command: ["sleep", "infinity"]
         stdin: true
         tty: true
@@ -91,7 +91,7 @@ spec:
         # NO nvidia.com/gpu resource - monitors all GPUs without allocation
 ```
 
-### 4. `deployment/helm/k8s-mcp-agent/values.yaml`
+### 4. `deployment/helm/k8s-gpu-mcp-server/values.yaml`
 
 Kustomize base for easy customization:
 ```yaml
@@ -152,7 +152,7 @@ Once deployed, users diagnose GPUs with:
 ```bash
 # Find pod on target node
 POD=$(kubectl get pods -n gpu-diagnostics \
-  -l app.kubernetes.io/name=k8s-mcp-agent \
+  -l app.kubernetes.io/name=k8s-gpu-mcp-server \
   --field-selector spec.nodeName=<node-name> \
   -o jsonpath='{.items[0].metadata.name}')
 

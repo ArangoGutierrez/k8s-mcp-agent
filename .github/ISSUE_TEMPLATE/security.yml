@@ -12,7 +12,7 @@ body:
         reporting privately via GitHub Security Advisories instead of creating 
         a public issue:
         
-        https://github.com/ArangoGutierrez/k8s-mcp-agent/security/advisories/new
+        https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/security/advisories/new
         
         Use this template only for lower-severity security concerns or design 
         issues that don't pose immediate exploit risk.

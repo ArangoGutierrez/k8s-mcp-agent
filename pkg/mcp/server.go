@@ -1,4 +1,4 @@
-// Copyright 2026 k8s-mcp-agent contributors
+// Copyright 2026 k8s-gpu-mcp-server contributors
 // SPDX-License-Identifier: Apache-2.0
 
 // Package mcp provides the MCP server implementation for stdio transport.
@@ -12,8 +12,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/tools"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -54,7 +54,7 @@ func New(cfg Config) (*Server, error) {
 
 	// Create MCP server
 	mcpServer := server.NewMCPServer(
-		"k8s-mcp-agent",
+		"k8s-gpu-mcp-server",
 		cfg.Version,
 	)
 

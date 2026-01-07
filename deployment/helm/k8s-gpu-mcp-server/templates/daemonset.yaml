@@ -1,29 +1,29 @@
 {{/*
-Copyright 2026 k8s-mcp-agent contributors
+Copyright 2026 k8s-gpu-mcp-server contributors
 SPDX-License-Identifier: Apache-2.0
 */}}
 
 {{- /* Validate GPU configuration before rendering */}}
-{{- include "k8s-mcp-agent.validateGPUConfig" . }}
+{{- include "k8s-gpu-mcp-server.validateGPUConfig" . }}
 
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "k8s-mcp-agent.fullname" . }}
-  namespace: {{ include "k8s-mcp-agent.namespace" . }}
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}
+  namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
   labels:
-    {{- include "k8s-mcp-agent.labels" . | nindent 4 }}
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: gpu-diagnostics
 spec:
   selector:
     matchLabels:
-      {{- include "k8s-mcp-agent.selectorLabels" . | nindent 6 }}
+      {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 6 }}
   updateStrategy:
     {{- toYaml .Values.updateStrategy | nindent 4 }}
   template:
     metadata:
       labels:
-        {{- include "k8s-mcp-agent.selectorLabels" . | nindent 8 }}
+        {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: gpu-diagnostics
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
@@ -48,7 +48,7 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
-      serviceAccountName: {{ include "k8s-mcp-agent.serviceAccountName" . }}
+      serviceAccountName: {{ include "k8s-gpu-mcp-server.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -60,7 +60,7 @@ spec:
         {{- if .Values.gpu.resourceClaim.templateName }}
         resourceClaimTemplateName: {{ .Values.gpu.resourceClaim.templateName }}
         {{- else if .Values.gpu.resourceClaim.spec }}
-        resourceClaimName: {{ include "k8s-mcp-agent.fullname" . }}-gpu
+        resourceClaimName: {{ include "k8s-gpu-mcp-server.fullname" . }}-gpu
         {{- end }}
       {{- end }}
       containers:

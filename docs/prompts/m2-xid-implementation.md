@@ -1,7 +1,7 @@
 # M2 Phase 2: XID Error Analysis - Implementation Prompt
 
-**Project:** `k8s-mcp-agent` - Just-in-Time SRE Diagnostic Agent for NVIDIA GPU Clusters  
-**Repository:** https://github.com/ArangoGutierrez/k8s-mcp-agent  
+**Project:** `k8s-gpu-mcp-server` - Just-in-Time SRE Diagnostic Agent for NVIDIA GPU Clusters  
+**Repository:** https://github.com/ArangoGutierrez/k8s-gpu-mcp-server  
 **Branch:** Create new: `feat/m2-xid-error-analysis`  
 **Milestone:** M2: Hardware Introspection (Due: Jan 17, 2026)
 
@@ -42,7 +42,7 @@ pkg/tools/                  # MCP tool handlers
 - **GPU:** Tesla T4 (15GB) with NVIDIA Driver 575.57.08
 - **Go:** 1.25.5 installed at `/usr/local/go/bin/go`
 - **Kubernetes:** v1.33.3 single node
-- **Code:** `~/k8s-mcp-agent` (clone available)
+- **Code:** `~/k8s-gpu-mcp-server` (clone available)
 
 ---
 
@@ -339,7 +339,7 @@ Follow the pattern from `gpu_inventory.go`:
 **pkg/mcp/server.go:**
 ```go
 // Add import
-import "github.com/ArangoGutierrez/k8s-mcp-agent/pkg/xid"
+import "github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid"
 
 // In New() function, register tool:
 xidHandler := tools.NewAnalyzeXIDHandler(cfg.NVMLClient)
@@ -365,7 +365,7 @@ mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
 
 ```bash
 # On remote machine
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 git pull
 git checkout feat/m2-xid-error-analysis
 export PATH=/usr/local/go/bin:$PATH
@@ -658,7 +658,7 @@ func (h *AnalyzeXIDHandler) Handle(ctx context.Context, request mcp.CallToolRequ
 
 ```bash
 # On your local machine
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 git checkout main
 git pull
 git checkout -b feat/m2-xid-error-analysis

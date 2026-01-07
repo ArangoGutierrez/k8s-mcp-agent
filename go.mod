@@ -1,4 +1,4 @@
-module github.com/ArangoGutierrez/k8s-mcp-agent
+module github.com/ArangoGutierrez/k8s-gpu-mcp-server
 
 go 1.25
 

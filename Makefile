@@ -1,4 +1,4 @@
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # Core utilities
@@ -9,12 +9,12 @@ BIN_DIR  ?= $(CURDIR)/bin
 
 include $(CURDIR)/versions.mk
 
-MODULE := github.com/ArangoGutierrez/k8s-mcp-agent
+MODULE := github.com/ArangoGutierrez/k8s-gpu-mcp-server
 
 # Registry configuration
 ifeq ($(IMAGE_NAME),)
 REGISTRY ?= ghcr.io/arangogutierrez
-IMAGE_NAME = $(REGISTRY)/k8s-mcp-agent
+IMAGE_NAME = $(REGISTRY)/k8s-gpu-mcp-server
 endif
 
 BUILDIMAGE_TAG ?= golang$(GOLANG_VERSION)

@@ -1,7 +1,7 @@
 # Architecture
 
 This document describes the architecture, design decisions, and technical
-implementation of `k8s-mcp-agent`.
+implementation of `k8s-gpu-mcp-server`.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ implementation of `k8s-mcp-agent`.
 
 ## Overview
 
-`k8s-mcp-agent` is an **ephemeral diagnostic agent** that provides real-time
+`k8s-gpu-mcp-server` is an **ephemeral diagnostic agent** that provides real-time
 NVIDIA GPU hardware introspection for Kubernetes clusters via the Model
 Context Protocol (MCP).
 
@@ -35,7 +35,7 @@ Unlike traditional monitoring (always-running exporters with network endpoints),
 the agent only runs during active diagnostic sessions:
 
 ```
-Traditional Monitoring:              k8s-mcp-agent:
+Traditional Monitoring:              k8s-gpu-mcp-server:
 ┌─────────────┐                     ┌─────────────────────────┐
 │ DaemonSet   │                     │ DaemonSet               │
 │ (Always On) │                     │ └─ sleep infinity       │
@@ -100,7 +100,7 @@ type Interface interface {
 
 ### Deployment Modes
 
-k8s-mcp-agent supports multiple deployment modes:
+k8s-gpu-mcp-server supports multiple deployment modes:
 
 | Mode | Use Case | Command |
 |------|----------|---------|
@@ -127,7 +127,7 @@ k8s-mcp-agent supports multiple deployment modes:
 │                    Kubernetes Node (GPU-enabled)              │
 │                                                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  DaemonSet Pod (k8s-mcp-agent)                         │  │
+│  │  DaemonSet Pod (k8s-gpu-mcp-server)                         │  │
 │  │  - runtimeClassName: nvidia (CDI injection)            │  │
 │  │  - No nvidia.com/gpu request (doesn't block scheduler) │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
@@ -175,7 +175,7 @@ by the nvidia-container-toolkit. The agent supports clusters with:
 For detailed deployment information, see
 [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
 
-**Helm Chart:** [`deployment/helm/k8s-mcp-agent/`](../deployment/helm/k8s-mcp-agent/)
+**Helm Chart:** [`deployment/helm/k8s-gpu-mcp-server/`](../deployment/helm/k8s-gpu-mcp-server/)
 
 The chart supports three GPU access modes:
 
@@ -188,10 +188,10 @@ The chart supports three GPU access modes:
 Install with:
 ```bash
 # RuntimeClass mode (recommended)
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server
 
 # Fallback mode (no RuntimeClass)
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceRequest.enabled=true
 ```
@@ -688,7 +688,7 @@ for detailed analysis.
 ## File Structure
 
 ```
-k8s-mcp-agent/
+k8s-gpu-mcp-server/
 ├── cmd/agent/              # Entry point
 │   └── main.go             # CLI, lifecycle, wiring
 │

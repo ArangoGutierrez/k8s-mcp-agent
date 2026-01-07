@@ -39,7 +39,7 @@ providing complete GPU diagnostics for AI/ML workload troubleshooting.
 **Verification:**
 ```bash
 $ make test
-ok  github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml  (20+ tests passing)
+ok  github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml  (20+ tests passing)
 ```
 
 ---
@@ -176,10 +176,10 @@ ok  github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml  (20+ tests passing)
 
 ```
 Package                                              Tests  Pass
-github.com/ArangoGutierrez/k8s-mcp-agent/pkg/mcp       7     7
-github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml     20    20
-github.com/ArangoGutierrez/k8s-mcp-agent/pkg/tools    40+   40+
-github.com/ArangoGutierrez/k8s-mcp-agent/pkg/xid      15    15
+github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/mcp       7     7
+github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml     20    20
+github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools    40+   40+
+github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid      15    15
 ```
 
 ### Integration Testing
@@ -276,7 +276,7 @@ All tools follow:
 
 ## Conclusion
 
-Milestone 2 has been completed **13 days ahead of schedule**. The k8s-mcp-agent
+Milestone 2 has been completed **13 days ahead of schedule**. The k8s-gpu-mcp-server
 now provides comprehensive GPU hardware introspection:
 
 - ✅ 16 NVML interface methods implemented

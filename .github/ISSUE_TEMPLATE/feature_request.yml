@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest a new feature or enhancement for k8s-mcp-agent
+description: Suggest a new feature or enhancement for k8s-gpu-mcp-server
 title: "[Feature]: "
 labels: ["kind/feature"]
 body:

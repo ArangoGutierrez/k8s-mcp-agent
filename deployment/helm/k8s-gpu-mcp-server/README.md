@@ -1,6 +1,6 @@
-# k8s-mcp-agent Helm Chart
+# k8s-gpu-mcp-server Helm Chart
 
-Deploys the k8s-mcp-agent as a DaemonSet for on-demand GPU diagnostics.
+Deploys the k8s-gpu-mcp-server as a DaemonSet for on-demand GPU diagnostics.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Deploys the k8s-mcp-agent as a DaemonSet for on-demand GPU diagnostics.
 ### Quick Start (RuntimeClass mode)
 
 ```bash
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics \
   --create-namespace
 ```
@@ -25,7 +25,7 @@ helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
 For clusters without RuntimeClass configured:
 
 ```bash
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics \
   --create-namespace \
   --set gpu.runtimeClass.enabled=false \
@@ -66,7 +66,7 @@ Requests `nvidia.com/gpu` resources from the NVIDIA Device Plugin. Use this
 if RuntimeClass is not available (e.g., cri-dockerd clusters).
 
 ```bash
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceRequest.enabled=true
 ```
@@ -82,13 +82,13 @@ Requires K8s 1.26+ with DynamicResourceAllocation feature gate (beta in 1.31+).
 
 ```bash
 # Using an existing ResourceClaimTemplate
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceClaim.enabled=true \
   --set gpu.resourceClaim.templateName=gpu-template
 
 # Using inline ResourceClaim spec
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --set gpu.runtimeClass.enabled=false \
   --set gpu.resourceClaim.enabled=true \
   --set-json 'gpu.resourceClaim.spec={"devices":{"requests":[{"name":"gpu","deviceClassName":"gpu.nvidia.com"}]}}'
@@ -129,7 +129,7 @@ See [values.yaml](values.yaml) for all configuration options.
 ```bash
 NODE_NAME=<your-gpu-node>
 POD=$(kubectl get pods -n gpu-diagnostics \
-  -l app.kubernetes.io/name=k8s-mcp-agent \
+  -l app.kubernetes.io/name=k8s-gpu-mcp-server \
   --field-selector spec.nodeName=$NODE_NAME \
   -o jsonpath='{.items[0].metadata.name}')
 ```
@@ -151,7 +151,7 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-0
 ## Uninstallation
 
 ```bash
-helm uninstall k8s-mcp-agent -n gpu-diagnostics
+helm uninstall k8s-gpu-mcp-server -n gpu-diagnostics
 kubectl delete namespace gpu-diagnostics
 ```
 

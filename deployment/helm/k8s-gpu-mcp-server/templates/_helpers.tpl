@@ -1,19 +1,19 @@
 {{/*
-Copyright 2026 k8s-mcp-agent contributors
+Copyright 2026 k8s-gpu-mcp-server contributors
 SPDX-License-Identifier: Apache-2.0
 */}}
 
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "k8s-mcp-agent.name" -}}
+{{- define "k8s-gpu-mcp-server.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "k8s-mcp-agent.fullname" -}}
+{{- define "k8s-gpu-mcp-server.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -29,16 +29,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "k8s-mcp-agent.chart" -}}
+{{- define "k8s-gpu-mcp-server.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "k8s-mcp-agent.labels" -}}
-helm.sh/chart: {{ include "k8s-mcp-agent.chart" . }}
-{{ include "k8s-mcp-agent.selectorLabels" . }}
+{{- define "k8s-gpu-mcp-server.labels" -}}
+helm.sh/chart: {{ include "k8s-gpu-mcp-server.chart" . }}
+{{ include "k8s-gpu-mcp-server.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -48,17 +48,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "k8s-mcp-agent.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "k8s-mcp-agent.name" . }}
+{{- define "k8s-gpu-mcp-server.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "k8s-gpu-mcp-server.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "k8s-mcp-agent.serviceAccountName" -}}
+{{- define "k8s-gpu-mcp-server.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "k8s-mcp-agent.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "k8s-gpu-mcp-server.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -67,7 +67,7 @@ Create the name of the service account to use
 {{/*
 Create the namespace name
 */}}
-{{- define "k8s-mcp-agent.namespace" -}}
+{{- define "k8s-gpu-mcp-server.namespace" -}}
 {{- if .Values.namespace.create }}
 {{- .Values.namespace.name }}
 {{- else }}
@@ -79,7 +79,7 @@ Create the namespace name
 Validate GPU access configuration.
 Ensures only one GPU access method is enabled at a time.
 */}}
-{{- define "k8s-mcp-agent.validateGPUConfig" -}}
+{{- define "k8s-gpu-mcp-server.validateGPUConfig" -}}
 {{- $enabledCount := 0 }}
 {{- $enabledMethods := list }}
 {{- if .Values.gpu.runtimeClass.enabled }}

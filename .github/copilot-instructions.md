@@ -1,11 +1,11 @@
-# GitHub Copilot Instructions for k8s-mcp-agent
+# GitHub Copilot Instructions for k8s-gpu-mcp-server
 
 This file provides context and guidelines for GitHub Copilot when generating code, 
-reviews, and suggestions for the k8s-mcp-agent project.
+reviews, and suggestions for the k8s-gpu-mcp-server project.
 
 ## Project Context
 
-**k8s-mcp-agent** is an ephemeral diagnostic agent that provides surgical, real-time 
+**k8s-gpu-mcp-server** is an ephemeral diagnostic agent that provides surgical, real-time 
 NVIDIA GPU hardware introspection for Kubernetes clusters via the Model Context 
 Protocol (MCP). It is designed for AI-assisted troubleshooting by SREs debugging 
 complex hardware failures.

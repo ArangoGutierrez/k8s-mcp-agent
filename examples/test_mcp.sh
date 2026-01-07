@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
 # Test script for MCP protocol validation
@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_BIN="${SCRIPT_DIR}/../bin/agent"
 
-echo "=== Testing k8s-mcp-agent MCP Protocol ==="
+echo "=== Testing k8s-gpu-mcp-server MCP Protocol ==="
 echo
 
 # Check if agent binary exists

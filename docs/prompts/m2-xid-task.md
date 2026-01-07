@@ -1,4 +1,4 @@
-# Task: Implement XID Error Analysis for k8s-mcp-agent
+# Task: Implement XID Error Analysis for k8s-gpu-mcp-server
 
 **Copy this entire message to start a new chat window** ↓
 
@@ -6,11 +6,11 @@
 
 ## CONTEXT
 
-I'm working on `k8s-mcp-agent` - an MCP server that provides NVIDIA GPU diagnostics for Kubernetes.
+I'm working on `k8s-gpu-mcp-server` - an MCP server that provides NVIDIA GPU diagnostics for Kubernetes.
 
-**Repository:** https://github.com/ArangoGutierrez/k8s-mcp-agent  
+**Repository:** https://github.com/ArangoGutierrez/k8s-gpu-mcp-server  
 **Current Branch:** `main`  
-**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent`
+**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server`
 
 **Current State:**
 - ✅ M1 Complete: MCP stdio server, Mock NVML
@@ -32,7 +32,7 @@ I'm working on `k8s-mcp-agent` - an MCP server that provides NVIDIA GPU diagnost
 - Remote machine: `ssh -i ~/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com`
 - Tesla T4 (15GB), NVIDIA Driver 575.57.08
 - Go 1.25.5 at `/usr/local/go/bin/go`
-- Code at `~/k8s-mcp-agent`
+- Code at `~/k8s-gpu-mcp-server`
 
 ---
 
@@ -164,7 +164,7 @@ mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
 
 ```bash
 # Start
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 git checkout main && git pull
 git checkout -b feat/m2-xid-error-analysis
 
@@ -180,7 +180,7 @@ go test -tags=integration ./pkg/xid/
 
 # Test on Tesla T4
 ssh -i ~/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
-cd ~/k8s-mcp-agent && git pull && git checkout feat/m2-xid-error-analysis
+cd ~/k8s-gpu-mcp-server && git pull && git checkout feat/m2-xid-error-analysis
 export PATH=/usr/local/go/bin:$PATH
 go build -o bin/agent ./cmd/agent
 sudo dmesg | grep -i xid  # Check for existing XIDs

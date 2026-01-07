@@ -2,9 +2,9 @@
 
 ## PROJECT CONTEXT
 
-**Repository:** https://github.com/ArangoGutierrez/k8s-mcp-agent  
+**Repository:** https://github.com/ArangoGutierrez/k8s-gpu-mcp-server  
 **Current Branch:** `main`  
-**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent`
+**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server`
 
 ### Current State (Jan 3, 2026)
 - ✅ M1 Complete: MCP stdio server working, Mock NVML implemented
@@ -23,7 +23,7 @@
 - **SSH:** `ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com`
 - **GPU:** Tesla T4 (15GB), Driver 575.57.08, CUDA 12.9
 - **Go:** 1.25.5 at `/usr/local/go/bin/go`
-- **Code Location:** `~/k8s-mcp-agent`
+- **Code Location:** `~/k8s-gpu-mcp-server`
 - **Kubernetes:** v1.33.3 single node
 
 ---
@@ -199,8 +199,8 @@ Create `pkg/tools/analyze_xid.go`:
 package tools
 
 import (
-    "github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
-    "github.com/ArangoGutierrez/k8s-mcp-agent/pkg/xid"
+    "github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
+    "github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid"
     "github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -293,7 +293,7 @@ func (h *AnalyzeXIDHandler) Handle(
 
 In `pkg/mcp/server.go`, add to imports:
 ```go
-import "github.com/ArangoGutierrez/k8s-mcp-agent/pkg/xid"
+import "github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid"
 ```
 
 In `New()` function after gpu_inventory registration:
@@ -339,7 +339,7 @@ Create `examples/analyze_xid.json`:
 ### Local Testing (Mock dmesg)
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 
 # Run unit tests
 make test
@@ -358,7 +358,7 @@ cat examples/analyze_xid.json | ./bin/agent --nvml-mode=mock
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
 
 # Navigate to code
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 
 # Pull latest changes
 git fetch origin
@@ -434,7 +434,7 @@ Or if errors exist:
 
 ### Step 1: Create Branch and Structure
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 git checkout main && git pull
 git checkout -b feat/m2-xid-error-analysis
 
@@ -525,17 +525,17 @@ ls -lh bin/agent
 ```bash
 # Build on remote
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com \
-  "cd ~/k8s-mcp-agent && git pull && git checkout feat/m2-xid-error-analysis && \
+  "cd ~/k8s-gpu-mcp-server && git pull && git checkout feat/m2-xid-error-analysis && \
    export PATH=/usr/local/go/bin:\$PATH && go build -o bin/agent ./cmd/agent"
 
 # Check for XIDs
 ssh ... "sudo dmesg | grep -i xid"
 
 # Test tool
-ssh ... "cd ~/k8s-mcp-agent && cat examples/analyze_xid.json | ./bin/agent --nvml-mode=real"
+ssh ... "cd ~/k8s-gpu-mcp-server && cat examples/analyze_xid.json | ./bin/agent --nvml-mode=real"
 
 # Run integration tests
-ssh ... "cd ~/k8s-mcp-agent && go test -tags=integration -v ./pkg/xid/"
+ssh ... "cd ~/k8s-gpu-mcp-server && go test -tags=integration -v ./pkg/xid/"
 ```
 
 ### Step 9: Documentation
@@ -741,7 +741,7 @@ gh pr checks --watch  # Monitor CI
 ### Remote Machine
 ```bash
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 export PATH=/usr/local/go/bin:$PATH
 ```
 
