@@ -1,0 +1,72 @@
+{{/*
+Copyright 2026 k8s-gpu-mcp-server contributors
+SPDX-License-Identifier: Apache-2.0
+*/}}
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-gateway
+  namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
+  labels:
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "k8s-gpu-mcp-server.serviceAccountName" . }}-gateway
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: gateway
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/agent"]
+        args:
+        - "--gateway"
+        - "--port={{ .Values.gateway.port }}"
+        - "--namespace={{ include "k8s-gpu-mcp-server.namespace" . }}"
+        - "--mode={{ .Values.agent.mode }}"
+        ports:
+        - name: http
+          containerPort: {{ .Values.gateway.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.gateway.resources | nindent 10 }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+{{- end }}
+

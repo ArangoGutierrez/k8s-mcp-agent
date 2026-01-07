@@ -163,3 +163,32 @@ service:
   # -- Service port
   port: 8080
 
+# Gateway configuration
+# Gateway provides a single MCP entry point for multi-node GPU clusters
+gateway:
+  # -- Enable gateway deployment
+  # When enabled, deploys a gateway that routes requests to node agents
+  enabled: false
+
+  # -- Number of gateway replicas
+  replicas: 1
+
+  # -- Gateway HTTP port
+  port: 8080
+
+  # -- Gateway service configuration
+  service:
+    # -- Service type for gateway
+    type: ClusterIP
+    # -- Service port (defaults to gateway.port)
+    port: 8080
+
+  # -- Resource limits for gateway pods
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+

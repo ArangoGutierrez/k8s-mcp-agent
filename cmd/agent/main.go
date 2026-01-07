@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/mcp"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 )
@@ -36,6 +37,12 @@ func main() {
 		// HTTP transport flags
 		port = flag.Int("port", 0, "HTTP port (0 = stdio mode, >0 = HTTP mode)")
 		addr = flag.String("addr", "0.0.0.0", "HTTP listen address")
+
+		// Gateway mode flags
+		gatewayMode = flag.Bool("gateway", false,
+			"Enable gateway mode (routes to node agents via K8s pod exec)")
+		namespace = flag.String("namespace", "gpu-diagnostics",
+			"Namespace for GPU agent pods (gateway mode)")
 	)
 	flag.Parse()
 
@@ -49,12 +56,14 @@ func main() {
 
 	// Validate mode flag
 	if *mode != ModeReadOnly && *mode != ModeOperator {
-		log.Fatalf(`{"level":"fatal","msg":"invalid mode","mode":"%s","valid":["read-only","operator"]}`, *mode)
+		log.Fatalf(`{"level":"fatal","msg":"invalid mode","mode":"%s",`+
+			`"valid":["read-only","operator"]}`, *mode)
 	}
 
-	// Validate nvml-mode flag
-	if *nvmlMode != "mock" && *nvmlMode != "real" {
-		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode","nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
+	// Validate nvml-mode flag (only relevant in non-gateway mode)
+	if !*gatewayMode && *nvmlMode != "mock" && *nvmlMode != "real" {
+		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode",`+
+			`"nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
 	}
 
 	// Validate and configure transport mode
@@ -68,14 +77,24 @@ func main() {
 		}
 		transport = mcp.TransportHTTP
 		httpAddr = fmt.Sprintf("%s:%d", *addr, *port)
-		log.Printf(`{"level":"info","msg":"HTTP mode enabled","addr":"%s"}`, httpAddr)
+		log.Printf(`{"level":"info","msg":"HTTP mode enabled","addr":"%s"}`,
+			httpAddr)
 	} else {
 		transport = mcp.TransportStdio
 	}
 
 	// Log startup information to stderr (structured JSON)
-	log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server","version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s","log_level":"%s"}`,
-		info.Version(), info.GitCommit(), *mode, *nvmlMode, *logLevel)
+	if *gatewayMode {
+		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
+			`"version":"%s","commit":"%s","mode":"%s","gateway":true,`+
+			`"namespace":"%s","log_level":"%s"}`,
+			info.Version(), info.GitCommit(), *mode, *namespace, *logLevel)
+	} else {
+		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
+			`"version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s",`+
+			`"log_level":"%s"}`,
+			info.Version(), info.GitCommit(), *mode, *nvmlMode, *logLevel)
+	}
 
 	// Setup context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,38 +107,62 @@ func main() {
 	// Channel to coordinate shutdown
 	done := make(chan error, 1)
 
-	// Initialize NVML client based on mode
-	var nvmlClient nvml.Interface
-	if *nvmlMode == "real" {
-		log.Printf(`{"level":"info","msg":"initializing real NVML (requires GPU hardware)"}`)
-		nvmlClient = nvml.NewReal()
-	} else {
-		log.Printf(`{"level":"info","msg":"initializing mock NVML","fake_gpus":2}`)
-		nvmlClient = nvml.NewMock(2)
+	// Build MCP server config
+	buildInfo := info.GetInfo()
+	mcpCfg := mcp.Config{
+		Mode:        *mode,
+		Version:     buildInfo.Version,
+		GitCommit:   buildInfo.GitCommit,
+		Transport:   transport,
+		HTTPAddr:    httpAddr,
+		GatewayMode: *gatewayMode,
+		Namespace:   *namespace,
 	}
 
-	if err := nvmlClient.Init(ctx); err != nil {
-		log.Printf(`{"level":"fatal","msg":"failed to initialize NVML","nvml_mode":"%s","error":"%s"}`, *nvmlMode, err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := nvmlClient.Shutdown(ctx); err != nil {
-			log.Printf(`{"level":"error","msg":"failed to shutdown NVML","error":"%s"}`, err)
+	if *gatewayMode {
+		// Gateway mode: initialize K8s client
+		log.Printf(`{"level":"info","msg":"initializing K8s client",`+
+			`"namespace":"%s"}`, *namespace)
+
+		k8sClient, err := k8s.NewClient(*namespace)
+		if err != nil {
+			log.Printf(`{"level":"fatal","msg":"failed to create K8s client",`+
+				`"error":"%s"}`, err)
+			os.Exit(1)
 		}
-	}()
+		mcpCfg.K8sClient = k8sClient
+	} else {
+		// Regular mode: initialize NVML client
+		var nvmlClient nvml.Interface
+		if *nvmlMode == "real" {
+			log.Printf(`{"level":"info",` +
+				`"msg":"initializing real NVML (requires GPU hardware)"}`)
+			nvmlClient = nvml.NewReal()
+		} else {
+			log.Printf(`{"level":"info","msg":"initializing mock NVML",` +
+				`"fake_gpus":2}`)
+			nvmlClient = nvml.NewMock(2)
+		}
+
+		if err := nvmlClient.Init(ctx); err != nil {
+			log.Printf(`{"level":"fatal","msg":"failed to initialize NVML",`+
+				`"nvml_mode":"%s","error":"%s"}`, *nvmlMode, err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := nvmlClient.Shutdown(ctx); err != nil {
+				log.Printf(`{"level":"error",`+
+					`"msg":"failed to shutdown NVML","error":"%s"}`, err)
+			}
+		}()
+		mcpCfg.NVMLClient = nvmlClient
+	}
 
 	// Initialize MCP server
-	buildInfo := info.GetInfo()
-	mcpServer, err := mcp.New(mcp.Config{
-		Mode:       *mode,
-		Version:    buildInfo.Version,
-		GitCommit:  buildInfo.GitCommit,
-		NVMLClient: nvmlClient,
-		Transport:  transport,
-		HTTPAddr:   httpAddr,
-	})
+	mcpServer, err := mcp.New(mcpCfg)
 	if err != nil {
-		log.Printf(`{"level":"fatal","msg":"failed to create MCP server","error":"%s"}`, err)
+		log.Printf(`{"level":"fatal","msg":"failed to create MCP server",`+
+			`"error":"%s"}`, err)
 		os.Exit(1)
 	}
 
