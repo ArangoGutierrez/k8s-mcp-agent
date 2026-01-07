@@ -41,16 +41,26 @@ Once HTTP transport (#71) and Gateway mode (#72) are implemented, we can cut v0.
 
 ### ❌ What's Missing for MVP
 
-| Capability | Issue | Priority | Blocker? | Status |
-|------------|-------|----------|----------|--------|
+| Capability | Issue | Priority | MVP? | Status |
+|------------|-------|----------|------|--------|
 | HTTP/SSE Transport | #71 | P0 | **Yes** | 🔴 Not Started |
 | Gateway Mode | #72 | P0 | **Yes** | 🔴 Not Started |
-| Multi-platform Binaries | #76 | P0 | No | ✅ Done (GoReleaser) |
-| Published Container Images | - | P1 | No | ✅ Done (release.yml) |
-| npm Package Distribution | #74 | P0 | No | ✅ Done (npm-publish.yml) |
-| K8s Client Integration | #28 | P1 | No | 🟡 Nice to have |
-| Structured Logging (klog) | #42 | P1 | No | 🟡 Nice to have |
-| AGENTS.md for AI assistants | #82 | P1 | No | 🟡 Nice to have |
+| K8s Client Integration | #28 | P1 | **Yes** | 🔴 Not Started |
+| list_gpu_nodes | #29 | P1 | **Yes** | 🔴 Not Started |
+| get_pod_gpu_allocation | #30 | P1 | **Yes** | 🔴 Not Started |
+| correlate_gpu_workload | #31 | P2 | **Yes** | 🔴 Not Started |
+| Multi-platform Binaries | #76 | P0 | Yes | ✅ Done |
+| Container Images | - | P1 | Yes | ✅ Done |
+| npm Package | #74 | P0 | Yes | ✅ Done |
+
+### 🔵 Post-MVP (v0.2.0+)
+
+| Capability | Issue | Priority | Notes |
+|------------|-------|----------|-------|
+| Multi-cluster support | #73 | P1 | Context parameter for multi-cluster |
+| Structured Logging | #42 | P1 | klog/v2 integration |
+| AGENTS.md | #82 | P1 | AI assistant guide |
+| MCP Prompts | #78 | P1 | Pre-defined workflows |
 
 ---
 
@@ -156,14 +166,22 @@ Release chain: `git tag v0.1.0` → GoReleaser → Container Image → npm publi
 
 **→ After Phase 2: Cut v0.1.0 MVP Release**
 
-### 🟡 Phase 3: Post-MVP Enhancements
+### 🟡 Phase 3: K8s Integration (MVP)
 
 6. **#28 - K8s Client** (1 day)
 7. **#29 - list_gpu_nodes** (1 day)
 8. **#30 - get_pod_gpu_allocation** (1 day)
 9. **#31 - correlate_gpu_workload** (2 days)
-10. **#42 - Structured Logging** (1 day)
-11. **#82 - AGENTS.md** (1 day)
+
+**→ After Phase 3: Cut v0.1.0 MVP Release**
+
+### 🔵 Phase 4: Post-MVP Enhancements (v0.2.0+)
+
+10. **#73 - Multi-cluster support** - context parameter
+11. **#42 - Structured Logging (klog)** 
+12. **#82 - AGENTS.md**
+13. **#78 - MCP Prompts support**
+14. **#79 - Toolsets with enable/disable**
 
 ---
 
@@ -201,18 +219,24 @@ Release chain: `git tag v0.1.0` → GoReleaser → Container Image → npm publi
 | npm package | ✅ Done |
 | HTTP transport (#71) | ⬜ Required |
 | Gateway mode (#72) | ⬜ Required |
+| K8s client integration (#28) | ⬜ Required |
+| list_gpu_nodes tool (#29) | ⬜ Required |
 
-**Release v0.1.0 when #71 and #72 are complete.**
+**Explicitly NOT in MVP v0.1.0:**
+- Multi-cluster support (#73) - post-MVP feature
+
+**Release v0.1.0 when #71, #72, #28, #29 are complete.**
 
 **Suggested Release Timeline:**
 
 | Version | Target | Scope |
 |---------|--------|-------|
 | v0.0.1-alpha | Now | Test release infrastructure |
-| v0.1.0-alpha | Week 1-2 | HTTP transport complete |
-| v0.1.0-beta | Week 2-3 | Gateway mode complete |
-| v0.1.0 | Week 3 | MVP Release |
-| v0.2.0 | Week 4+ | K8s integration, logging |
+| v0.0.2-alpha | Week 2 | HTTP transport |
+| v0.0.3-alpha | Week 3 | K8s integration |
+| v0.1.0-beta | Week 4 | Gateway mode, feature complete |
+| v0.1.0 | Week 5 | Production ready |
+| v0.2.0 | Future | Multi-cluster (#73), advanced features |
 
 ---
 
