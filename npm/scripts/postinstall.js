@@ -4,8 +4,12 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const REPO = 'ArangoGutierrez/k8s-gpu-mcp-server';
+// Configurable via environment variable to support forks
+const REPO = process.env.GITHUB_REPO || 'ArangoGutierrez/k8s-gpu-mcp-server';
 const BINARY_NAME = 'k8s-gpu-mcp-server';
+
+// Semantic version pattern: X.Y.Z with optional pre-release suffix
+const SEMVER_PATTERN = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
 
 // Map Node.js platform/arch to Go build targets
 const PLATFORM_MAP = {
@@ -34,7 +38,16 @@ function getBinaryName(platformKey) {
 
 function getPackageVersion() {
   const packageJson = require('../package.json');
-  return packageJson.version;
+  const version = packageJson.version;
+
+  // Validate version follows semantic versioning to prevent path traversal
+  if (!SEMVER_PATTERN.test(version)) {
+    throw new Error(
+      `Invalid version format: ${version}. Expected semantic version (e.g., 1.2.3)`
+    );
+  }
+
+  return version;
 }
 
 function downloadFile(url, dest) {
@@ -57,12 +70,16 @@ function downloadFile(url, dest) {
         }
 
         const file = fs.createWriteStream(dest);
-        res.pipe(file);
+
+        // Register error handlers before piping to avoid race conditions
+        res.on('error', reject);
+        file.on('error', reject);
         file.on('finish', () => {
           file.close();
           resolve();
         });
-        file.on('error', reject);
+
+        res.pipe(file);
       }).on('error', reject);
     };
 
@@ -107,11 +124,10 @@ async function main() {
     console.error('You may need to:');
     console.error('1. Check if the release exists on GitHub');
     console.error(
-      '2. Build from source: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server'
+      `2. Build from source: https://github.com/${REPO}`
     );
     process.exit(1);
   }
 }
 
 main();
-
