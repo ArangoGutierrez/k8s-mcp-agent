@@ -19,6 +19,7 @@ type HTTPServer struct {
 	httpServer *http.Server
 	addr       string
 	version    string
+	ready      chan struct{}
 }
 
 // NewHTTPServer creates an HTTP transport server.
@@ -27,6 +28,7 @@ func NewHTTPServer(mcpServer *server.MCPServer, addr, version string) *HTTPServe
 		mcpServer: mcpServer,
 		addr:      addr,
 		version:   version,
+		ready:     make(chan struct{}),
 	}
 }
 
@@ -45,12 +47,14 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 	// Version endpoint
 	mux.HandleFunc("/version", h.handleVersion)
 
+	// Create server before starting goroutine to avoid race condition
 	h.httpServer = &http.Server{
 		Addr:              h.addr,
 		Handler:           mux,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	log.Printf(`{"level":"info","msg":"HTTP server starting","addr":"%s"}`, h.addr)
@@ -58,6 +62,7 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 	// Start server in goroutine
 	errCh := make(chan error, 1)
 	go func() {
+		close(h.ready) // Signal that server is ready to accept connections
 		if err := h.httpServer.ListenAndServe(); err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -88,29 +93,50 @@ func (h *HTTPServer) Shutdown() error {
 
 // handleHealthz handles liveness probe.
 func (h *HTTPServer) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "healthy",
-	})
+	}); err != nil {
+		log.Printf(`{"level":"error","msg":"failed to encode healthz response",`+
+			`"error":"%s"}`, err)
+	}
 }
 
 // handleReadyz handles readiness probe.
 func (h *HTTPServer) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
 	// TODO: Check NVML initialization status
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
-	})
+	}); err != nil {
+		log.Printf(`{"level":"error","msg":"failed to encode readyz response",`+
+			`"error":"%s"}`, err)
+	}
 }
 
 // handleVersion returns version information.
 func (h *HTTPServer) handleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"server":  "k8s-gpu-mcp-server",
 		"version": h.version,
-	})
+	}); err != nil {
+		log.Printf(`{"level":"error","msg":"failed to encode version response",`+
+			`"error":"%s"}`, err)
+	}
 }

@@ -74,6 +74,7 @@ spec:
         - "--nvml-mode=real"
         - "--port={{ .Values.transport.http.port }}"
         - "--addr={{ .Values.transport.http.addr }}"
+        - "--mode={{ default "read-only" .Values.agent.mode }}"
         ports:
         - name: http
           containerPort: {{ .Values.transport.http.port }}

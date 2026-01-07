@@ -5,6 +5,11 @@
 
 # -- Override the name of the chart
 nameOverride: ""
+
+# Agent configuration
+agent:
+  # -- Operation mode: read-only or operator
+  mode: "read-only"
 # -- Override the full name of the chart
 fullnameOverride: ""
 

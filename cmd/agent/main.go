@@ -62,9 +62,9 @@ func main() {
 	var httpAddr string
 
 	if *port > 0 {
-		if *port < 1024 || *port > 65535 {
+		if *port < 1 || *port > 65535 {
 			log.Fatalf(`{"level":"fatal","msg":"invalid port","port":%d,`+
-				`"valid":"1024-65535 or 0 for stdio"}`, *port)
+				`"valid":"1-65535 or 0 for stdio"}`, *port)
 		}
 		transport = mcp.TransportHTTP
 		httpAddr = fmt.Sprintf("%s:%d", *addr, *port)

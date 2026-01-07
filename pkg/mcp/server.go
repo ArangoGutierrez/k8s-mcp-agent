@@ -70,6 +70,11 @@ func New(cfg Config) (*Server, error) {
 		cfg.Transport = TransportStdio
 	}
 
+	// Validate HTTPAddr is set when using HTTP transport
+	if cfg.Transport == TransportHTTP && cfg.HTTPAddr == "" {
+		return nil, fmt.Errorf("HTTPAddr is required for HTTP transport")
+	}
+
 	s := &Server{
 		mode:       cfg.Mode,
 		nvmlClient: cfg.NVMLClient,

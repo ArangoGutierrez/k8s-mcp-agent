@@ -92,8 +92,13 @@ func TestHTTPServer_ListenAndServe_Shutdown(t *testing.T) {
 		errCh <- httpServer.ListenAndServe(ctx)
 	}()
 
-	// Give server time to start
-	time.Sleep(100 * time.Millisecond)
+	// Wait for server to be ready using the ready channel
+	select {
+	case <-httpServer.ready:
+		// Server is ready
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start in time")
+	}
 
 	// Cancel context to trigger shutdown
 	cancel()
@@ -122,4 +127,35 @@ func TestNewHTTPServer(t *testing.T) {
 func TestTransportType_Constants(t *testing.T) {
 	assert.Equal(t, TransportType("stdio"), TransportStdio)
 	assert.Equal(t, TransportType("http"), TransportHTTP)
+}
+
+func TestHTTPServer_MethodNotAllowed(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.0.0")
+
+	tests := []struct {
+		name    string
+		handler func(http.ResponseWriter, *http.Request)
+		path    string
+	}{
+		{"healthz", httpServer.handleHealthz, "/healthz"},
+		{"readyz", httpServer.handleReadyz, "/readyz"},
+		{"version", httpServer.handleVersion, "/version"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_POST", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			w := httptest.NewRecorder()
+			tt.handler(w, req)
+			assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		})
+
+		t.Run(tt.name+"_PUT", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, tt.path, nil)
+			w := httptest.NewRecorder()
+			tt.handler(w, req)
+			assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		})
+	}
 }

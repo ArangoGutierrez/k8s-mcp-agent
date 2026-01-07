@@ -63,6 +63,31 @@ func TestNew(t *testing.T) {
 			expectError: true,
 			errorMsg:    "NVMLClient is required",
 		},
+		{
+			name: "successful creation with HTTP transport",
+			config: Config{
+				Mode:       "read-only",
+				Version:    "1.0.0",
+				GitCommit:  "abc123",
+				NVMLClient: nvml.NewMock(2),
+				Transport:  TransportHTTP,
+				HTTPAddr:   "0.0.0.0:8080",
+			},
+			expectError: false,
+		},
+		{
+			name: "fails HTTP transport without HTTPAddr",
+			config: Config{
+				Mode:       "read-only",
+				Version:    "1.0.0",
+				GitCommit:  "abc123",
+				NVMLClient: nvml.NewMock(2),
+				Transport:  TransportHTTP,
+				HTTPAddr:   "",
+			},
+			expectError: true,
+			errorMsg:    "HTTPAddr is required for HTTP transport",
+		},
 	}
 
 	for _, tt := range tests {
@@ -87,6 +112,17 @@ func TestNew(t *testing.T) {
 				} else {
 					assert.Equal(t, tt.config.Mode, server.mode)
 				}
+
+				// Verify transport defaults
+				if tt.config.Transport == "" {
+					assert.Equal(t, TransportStdio, server.transport)
+				} else {
+					assert.Equal(t, tt.config.Transport, server.transport)
+				}
+
+				// Verify httpAddr and version stored correctly
+				assert.Equal(t, tt.config.HTTPAddr, server.httpAddr)
+				assert.Equal(t, tt.config.Version, server.version)
 			}
 		})
 	}
