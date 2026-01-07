@@ -32,6 +32,10 @@ func main() {
 		nvmlMode = flag.String("nvml-mode", "mock", "NVML mode: mock or real (requires GPU hardware)")
 		showVer  = flag.Bool("version", false, "Show version information and exit")
 		logLevel = flag.String("log-level", "info", "Log level: debug, info, warn, error")
+
+		// HTTP transport flags
+		port = flag.Int("port", 0, "HTTP port (0 = stdio mode, >0 = HTTP mode)")
+		addr = flag.String("addr", "0.0.0.0", "HTTP listen address")
 	)
 	flag.Parse()
 
@@ -51,6 +55,22 @@ func main() {
 	// Validate nvml-mode flag
 	if *nvmlMode != "mock" && *nvmlMode != "real" {
 		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode","nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
+	}
+
+	// Validate and configure transport mode
+	var transport mcp.TransportType
+	var httpAddr string
+
+	if *port > 0 {
+		if *port < 1 || *port > 65535 {
+			log.Fatalf(`{"level":"fatal","msg":"invalid port","port":%d,`+
+				`"valid":"1-65535 or 0 for stdio"}`, *port)
+		}
+		transport = mcp.TransportHTTP
+		httpAddr = fmt.Sprintf("%s:%d", *addr, *port)
+		log.Printf(`{"level":"info","msg":"HTTP mode enabled","addr":"%s"}`, httpAddr)
+	} else {
+		transport = mcp.TransportStdio
 	}
 
 	// Log startup information to stderr (structured JSON)
@@ -95,6 +115,8 @@ func main() {
 		Version:    buildInfo.Version,
 		GitCommit:  buildInfo.GitCommit,
 		NVMLClient: nvmlClient,
+		Transport:  transport,
+		HTTPAddr:   httpAddr,
 	})
 	if err != nil {
 		log.Printf(`{"level":"fatal","msg":"failed to create MCP server","error":"%s"}`, err)

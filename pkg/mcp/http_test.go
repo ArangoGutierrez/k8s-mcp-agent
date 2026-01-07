@@ -1,0 +1,161 @@
+// Copyright 2026 k8s-gpu-mcp-server contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/mark3labs/mcp-go/server"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestHTTPServer_Healthz(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.0.0")
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+
+	httpServer.handleHealthz(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var resp map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "healthy", resp["status"])
+}
+
+func TestHTTPServer_Readyz(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.0.0")
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	w := httptest.NewRecorder()
+
+	httpServer.handleReadyz(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var resp map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "ready", resp["status"])
+}
+
+func TestHTTPServer_Version(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.2.3")
+
+	req := httptest.NewRequest(http.MethodGet, "/version", nil)
+	w := httptest.NewRecorder()
+
+	httpServer.handleVersion(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var resp map[string]string
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "k8s-gpu-mcp-server", resp["server"])
+	assert.Equal(t, "1.2.3", resp["version"])
+}
+
+func TestHTTPServer_Shutdown(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.0.0")
+
+	// Shutdown without starting should not error
+	err := httpServer.Shutdown()
+	assert.NoError(t, err)
+}
+
+func TestHTTPServer_ListenAndServe_Shutdown(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	// Use port 0 to get a random available port
+	httpServer := NewHTTPServer(mcpServer, "127.0.0.1:0", "1.0.0")
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- httpServer.ListenAndServe(ctx)
+	}()
+
+	// Wait for server to be ready using the ready channel
+	select {
+	case <-httpServer.ready:
+		// Server is ready
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start in time")
+	}
+
+	// Cancel context to trigger shutdown
+	cancel()
+
+	// Wait for server to stop
+	select {
+	case err := <-errCh:
+		// Shutdown error is acceptable
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not shut down in time")
+	}
+}
+
+func TestNewHTTPServer(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, "0.0.0.0:8080", "2.0.0")
+
+	assert.NotNil(t, httpServer)
+	assert.Equal(t, "0.0.0.0:8080", httpServer.addr)
+	assert.Equal(t, "2.0.0", httpServer.version)
+	assert.Equal(t, mcpServer, httpServer.mcpServer)
+	assert.Nil(t, httpServer.httpServer) // Not started yet
+}
+
+func TestTransportType_Constants(t *testing.T) {
+	assert.Equal(t, TransportType("stdio"), TransportStdio)
+	assert.Equal(t, TransportType("http"), TransportHTTP)
+}
+
+func TestHTTPServer_MethodNotAllowed(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+	httpServer := NewHTTPServer(mcpServer, ":0", "1.0.0")
+
+	tests := []struct {
+		name    string
+		handler func(http.ResponseWriter, *http.Request)
+		path    string
+	}{
+		{"healthz", httpServer.handleHealthz, "/healthz"},
+		{"readyz", httpServer.handleReadyz, "/readyz"},
+		{"version", httpServer.handleVersion, "/version"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_POST", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			w := httptest.NewRecorder()
+			tt.handler(w, req)
+			assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		})
+
+		t.Run(tt.name+"_PUT", func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, tt.path, nil)
+			w := httptest.NewRecorder()
+			tt.handler(w, req)
+			assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		})
+	}
+}

@@ -67,11 +67,37 @@ spec:
       - name: agent
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        {{- /* Sleep until kubectl exec invokes the agent */}}
+        {{- if eq .Values.transport.mode "http" }}
+        {{- /* HTTP mode: run agent with --port flag */}}
+        command: ["/agent"]
+        args:
+        - "--nvml-mode=real"
+        - "--port={{ .Values.transport.http.port }}"
+        - "--addr={{ .Values.transport.http.addr }}"
+        - "--mode={{ default "read-only" .Values.agent.mode }}"
+        ports:
+        - name: http
+          containerPort: {{ .Values.transport.http.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        {{- else }}
+        {{- /* Stdio mode: Sleep until kubectl exec invokes the agent */}}
         {{- /* Requires image with busybox (see deployment/Containerfile) */}}
         command: ["sleep", "infinity"]
         stdin: true
         tty: true
+        {{- end }}
         {{- if .Values.gpu.runtimeClass.enabled }}
         env:
         {{- /* Required for nvidia-container-runtime to inject GPU libraries */}}
