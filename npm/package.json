@@ -1,0 +1,49 @@
+{
+  "name": "k8s-gpu-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for NVIDIA GPU diagnostics in Kubernetes clusters",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "nvidia",
+    "gpu",
+    "kubernetes",
+    "diagnostics",
+    "claude",
+    "cursor"
+  ],
+  "homepage": "https://github.com/ArangoGutierrez/k8s-gpu-mcp-server",
+  "bugs": {
+    "url": "https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Eduardo Arango <arangogutierrez@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArangoGutierrez/k8s-gpu-mcp-server.git"
+  },
+  "bin": {
+    "k8s-gpu-mcp-server": "./bin/k8s-gpu-mcp-server"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
+
