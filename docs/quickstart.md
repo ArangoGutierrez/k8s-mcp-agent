@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get started with `k8s-mcp-agent` in under 5 minutes.
+Get started with `k8s-gpu-mcp-server` in under 5 minutes.
 
 ## Prerequisites
 
@@ -15,17 +15,17 @@ Get started with `k8s-mcp-agent` in under 5 minutes.
 
 ```bash
 # Download latest release (coming in M4)
-curl -LO https://github.com/ArangoGutierrez/k8s-mcp-agent/releases/latest/download/agent-linux-amd64
+curl -LO https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/releases/latest/download/agent-linux-amd64
 chmod +x agent-linux-amd64
-mv agent-linux-amd64 /usr/local/bin/k8s-mcp-agent
+mv agent-linux-amd64 /usr/local/bin/k8s-gpu-mcp-server
 ```
 
 ### Option 2: Build from Source
 
 ```bash
 # Clone repository
-git clone https://github.com/ArangoGutierrez/k8s-mcp-agent.git
-cd k8s-mcp-agent
+git clone https://github.com/ArangoGutierrez/k8s-gpu-mcp-server.git
+cd k8s-gpu-mcp-server
 
 # Build agent
 make agent
@@ -38,7 +38,7 @@ make agent
 
 ```bash
 # Pull latest image (coming in M3)
-docker pull ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+docker pull ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 ## Basic Usage
@@ -105,7 +105,7 @@ GPU access in Kubernetes requires one of:
 
 ```bash
 # Add the chart (if published) or use local path
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics \
   --create-namespace
 
@@ -118,7 +118,7 @@ kubectl get pods -n gpu-diagnostics -o wide
 For clusters without RuntimeClass configured (e.g., cri-dockerd):
 
 ```bash
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics \
   --create-namespace \
   --set gpu.runtimeClass.enabled=false \
@@ -134,7 +134,7 @@ helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
 # Find agent pod on target node
 NODE_NAME=gpu-node-5
 POD=$(kubectl get pods -n gpu-diagnostics \
-  -l app.kubernetes.io/name=k8s-mcp-agent \
+  -l app.kubernetes.io/name=k8s-gpu-mcp-server \
   --field-selector spec.nodeName=$NODE_NAME \
   -o jsonpath='{.items[0].metadata.name}')
 
@@ -207,7 +207,7 @@ Once the agent is running, you can call these MCP tools:
 ```bash
 # 1. Connect to the problematic node
 kubectl debug node/gpu-node-5 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
+  --image=ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest \
   --profile=sysadmin \
   -- /bin/bash
 
@@ -288,7 +288,7 @@ echo '{"jsonrpc":"2.0","method":"tools/call",...}' | ./bin/agent
 ## Getting Help
 
 - 📖 [Full Documentation](README.md)
-- 🐛 [Report Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
-- 💬 [Discussions](https://github.com/ArangoGutierrez/k8s-mcp-agent/discussions)
+- 🐛 [Report Issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
+- 💬 [Discussions](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/discussions)
 - 📧 Contact: [@ArangoGutierrez](https://github.com/ArangoGutierrez)
 

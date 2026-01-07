@@ -1,8 +1,8 @@
-# Deploy k8s-mcp-agent to Kubernetes Cluster
+# Deploy k8s-gpu-mcp-server to Kubernetes Cluster
 
 ## Project Context
 
-I'm working on `k8s-mcp-agent` - an ephemeral GPU diagnostic agent that uses MCP
+I'm working on `k8s-gpu-mcp-server` - an ephemeral GPU diagnostic agent that uses MCP
 (Model Context Protocol) over stdio.
 
 ### Recently Completed
@@ -17,7 +17,7 @@ I'm working on `k8s-mcp-agent` - an ephemeral GPU diagnostic agent that uses MCP
 
 ## Objective
 
-Test the k8s-mcp-agent deployment pipeline on a real Kubernetes cluster:
+Test the k8s-gpu-mcp-server deployment pipeline on a real Kubernetes cluster:
 
 1. Push container image to ghcr.io
 2. Deploy via `kubectl debug` (ephemeral injection pattern)
@@ -49,18 +49,18 @@ Option B: Push manually using docker + ghcr.io login
 echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 
 # Build and push
-docker build -f deployment/Containerfile -t ghcr.io/arangogutierrez/k8s-mcp-agent:latest .
-docker push ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+docker build -f deployment/Containerfile -t ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest .
+docker push ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 ### Step 2: Verify Image is Pullable
 
 ```bash
 # Verify image exists
-docker pull ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+docker pull ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 
 # Check image size
-docker images ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+docker images ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 ### Step 3: Test kubectl debug Injection
@@ -68,7 +68,7 @@ docker images ghcr.io/arangogutierrez/k8s-mcp-agent:latest
 ```bash
 # Inject agent into node (mock GPU mode since no real GPUs)
 kubectl debug node/ip-10-0-0-194 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
+  --image=ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest \
   -it --tty \
   -- /agent --nvml-mode=mock --mode=read-only
 ```

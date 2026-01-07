@@ -1,19 +1,19 @@
-# k8s-mcp-agent
+# k8s-gpu-mcp-server
 
 **Just-in-Time SRE Diagnostic Agent for NVIDIA GPU Clusters on Kubernetes**
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![CI Status](https://github.com/ArangoGutierrez/k8s-mcp-agent/workflows/CI/badge.svg)](https://github.com/ArangoGutierrez/k8s-mcp-agent/actions)
-[![GitHub Issues](https://img.shields.io/github/issues/ArangoGutierrez/k8s-mcp-agent)](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/ArangoGutierrez/k8s-mcp-agent?style=social)](https://github.com/ArangoGutierrez/k8s-mcp-agent)
+[![CI Status](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/workflows/CI/badge.svg)](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/actions)
+[![GitHub Issues](https://img.shields.io/github/issues/ArangoGutierrez/k8s-gpu-mcp-server)](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/ArangoGutierrez/k8s-gpu-mcp-server?style=social)](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server)
 [![MCP](https://img.shields.io/badge/MCP-2025--06--18-purple)](https://modelcontextprotocol.io/)
 
 ---
 
 ## Overview
 
-`k8s-mcp-agent` is an **ephemeral diagnostic agent** that provides surgical, 
+`k8s-gpu-mcp-server` is an **ephemeral diagnostic agent** that provides surgical, 
 real-time NVIDIA GPU hardware introspection for Kubernetes clusters via the 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). 
 
@@ -38,8 +38,8 @@ Kubernetes APIs cannot detect.
 
 ```bash
 # Clone and build
-git clone https://github.com/ArangoGutierrez/k8s-mcp-agent.git
-cd k8s-mcp-agent
+git clone https://github.com/ArangoGutierrez/k8s-gpu-mcp-server.git
+cd k8s-gpu-mcp-server
 make agent
 
 # Test with mock GPUs (no hardware required)
@@ -53,13 +53,13 @@ cat examples/gpu_inventory.json | ./bin/agent --nvml-mode=real
 
 ```bash
 # Deploy with Helm (RuntimeClass mode - recommended)
-helm install k8s-mcp-agent ./deployment/helm/k8s-mcp-agent \
+helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics --create-namespace
 
 # Find agent pod on target node
 NODE_NAME=<node-name>
 POD=$(kubectl get pods -n gpu-diagnostics \
-  -l app.kubernetes.io/name=k8s-mcp-agent \
+  -l app.kubernetes.io/name=k8s-gpu-mcp-server \
   --field-selector spec.nodeName=$NODE_NAME \
   -o jsonpath='{.items[0].metadata.name}')
 
@@ -139,12 +139,12 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
 
 ## 📈 Project Status
 
-### Current Milestone: [M2: Hardware Introspection](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestone/2)
+### Current Milestone: [M2: Hardware Introspection](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/2)
 **Due:** January 17, 2026  
 **Progress:** Phase 1 Complete (Real NVML ✅)
 
 ### Completed Milestones
-- ✅ [M1: Foundation & API](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestone/1) - Completed Jan 3, 2026
+- ✅ [M1: Foundation & API](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/1) - Completed Jan 3, 2026
   - Go module scaffolding
   - MCP stdio server
   - Mock NVML implementation
@@ -156,7 +156,7 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
 - **Jan 3, 2026**: Real NVML integration complete, tested on Tesla T4
 - **Jan 3, 2026**: 74/74 tests passing, 5/5 integration tests on real GPU
 
-📊 **[View All Milestones →](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestones)**
+📊 **[View All Milestones →](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestones)**
 
 ---
 
@@ -219,22 +219,22 @@ make dist
 ### From Source
 
 ```bash
-git clone https://github.com/ArangoGutierrez/k8s-mcp-agent.git
-cd k8s-mcp-agent
+git clone https://github.com/ArangoGutierrez/k8s-gpu-mcp-server.git
+cd k8s-gpu-mcp-server
 make agent
-sudo mv bin/agent /usr/local/bin/k8s-mcp-agent
+sudo mv bin/agent /usr/local/bin/k8s-gpu-mcp-server
 ```
 
 ### Using Go
 
 ```bash
-go install github.com/ArangoGutierrez/k8s-mcp-agent/cmd/agent@latest
+go install github.com/ArangoGutierrez/k8s-gpu-mcp-server/cmd/agent@latest
 ```
 
 ### Container Image (Coming in M3)
 
 ```bash
-docker pull ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+docker pull ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 ---
@@ -246,7 +246,7 @@ for details.
 
 ### Quick Contribution Guide
 
-1. Check [open issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
+1. Check [open issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
 2. Fork and create feature branch: `git checkout -b feat/my-feature`
 3. Make changes, add tests
 4. Run checks: `make all`
@@ -283,7 +283,7 @@ for details.
 
 ```
 SRE: "Why is the training job on node-5 stuck?"
-Claude → k8s-mcp-agent → Detects XID 48 (ECC Error)
+Claude → k8s-gpu-mcp-server → Detects XID 48 (ECC Error)
 Claude: "Node-5 has uncorrectable memory errors. Drain immediately."
 ```
 
@@ -291,7 +291,7 @@ Claude: "Node-5 has uncorrectable memory errors. Drain immediately."
 
 ```
 SRE: "Are any GPUs thermal throttling?"
-Claude → k8s-mcp-agent → Checks temps and throttle status
+Claude → k8s-gpu-mcp-server → Checks temps and throttle status
 Claude: "GPU 3 is at 86°C and thermal throttling. Check cooling."
 ```
 
@@ -299,7 +299,7 @@ Claude: "GPU 3 is at 86°C and thermal throttling. Check cooling."
 
 ```
 SRE: "Is NVLink properly configured for multi-GPU training?"
-Claude → k8s-mcp-agent → Inspects NVLink topology
+Claude → k8s-gpu-mcp-server → Inspects NVLink topology
 Claude: "All 8 GPUs connected via NVLink, 600GB/s bandwidth."
 ```
 
@@ -307,7 +307,7 @@ Claude: "All 8 GPUs connected via NVLink, 600GB/s bandwidth."
 
 ```
 SRE: "GPU memory is full but no pods are running"
-Claude → k8s-mcp-agent → Lists GPU processes
+Claude → k8s-gpu-mcp-server → Lists GPU processes
 Claude: "Found zombie process PID 12345 using 8GB. Kill it?"
 ```
 
@@ -344,8 +344,8 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 ## 📞 Contact
 
 **Maintainer:** [@ArangoGutierrez](https://github.com/ArangoGutierrez)  
-**Issues:** [GitHub Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)  
-**Discussions:** [GitHub Discussions](https://github.com/ArangoGutierrez/k8s-mcp-agent/discussions)
+**Issues:** [GitHub Issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)  
+**Discussions:** [GitHub Discussions](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/discussions)
 
 ---
 
@@ -353,8 +353,8 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 
 **⭐ Star us on GitHub — it helps!**
 
-[Report Bug](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues/new?template=bug_report.yml) · 
-[Request Feature](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues/new?template=feature_request.yml) · 
-[View Roadmap](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestones)
+[Report Bug](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/new?template=bug_report.yml) · 
+[Request Feature](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/new?template=feature_request.yml) · 
+[View Roadmap](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestones)
 
 </div>

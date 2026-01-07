@@ -1,6 +1,6 @@
 # Documentation
 
-Complete documentation for `k8s-mcp-agent` - Just-in-Time SRE Diagnostic
+Complete documentation for `k8s-gpu-mcp-server` - Just-in-Time SRE Diagnostic
 Agent for NVIDIA GPU Clusters on Kubernetes.
 
 ## 📚 Documentation Index
@@ -90,8 +90,8 @@ All code examples are available in the [`examples/`](../examples/) directory:
 
 ## 🤝 Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ArangoGutierrez/k8s-mcp-agent/discussions)
+- **Issues**: [GitHub Issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/discussions)
 - **Maintainer**: [@ArangoGutierrez](https://github.com/ArangoGutierrez)
 
 ## 📄 License

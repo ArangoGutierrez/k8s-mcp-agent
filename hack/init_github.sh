@@ -4,7 +4,7 @@ set -euo pipefail
 # NVIDIA K8s MCP Agent - GitHub Repository Initialization Script
 # This script sets up labels, milestones, and initial issues for project governance.
 
-REPO="ArangoGutierrez/k8s-mcp-agent"
+REPO="ArangoGutierrez/k8s-gpu-mcp-server"
 
 echo "🚀 Initializing GitHub repository: ${REPO}"
 echo ""

@@ -1,7 +1,7 @@
 # Development Guide
 
 This guide provides detailed information for developers working on
-`k8s-mcp-agent`.
+`k8s-gpu-mcp-server`.
 
 > 📖 **Also see:** [Architecture Documentation](docs/architecture.md) for
 > system design details and [MCP Usage Guide](docs/mcp-usage.md) for protocol
@@ -18,7 +18,7 @@ This guide provides detailed information for developers working on
 ## Project Structure
 
 ```
-k8s-mcp-agent/
+k8s-gpu-mcp-server/
 ├── cmd/
 │   └── agent/              # Main application entry point
 │       └── main.go         # CLI setup, server initialization
@@ -49,8 +49,8 @@ k8s-mcp-agent/
 
 ```bash
 # Clone repository
-git clone https://github.com/ArangoGutierrez/k8s-mcp-agent.git
-cd k8s-mcp-agent
+git clone https://github.com/ArangoGutierrez/k8s-gpu-mcp-server.git
+cd k8s-gpu-mcp-server
 
 # Download dependencies
 go mod download
@@ -402,12 +402,12 @@ golangci-lint run --verbose
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [NVML Documentation](https://docs.nvidia.com/deploy/nvml-api/)
 - [Effective Go](https://go.dev/doc/effective_go)
-- [Project Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
-- [Milestones](https://github.com/ArangoGutierrez/k8s-mcp-agent/milestones)
+- [Project Issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
+- [Milestones](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestones)
 
 ## Getting Help
 
-- Open an [issue](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues/new)
-- Check [existing issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues)
+- Open an [issue](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/new)
+- Check [existing issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
 - Review [init.md](init.md) for workflow standards
 

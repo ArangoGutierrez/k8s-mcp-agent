@@ -1,5 +1,5 @@
 {{/*
-Copyright 2026 k8s-mcp-agent contributors
+Copyright 2026 k8s-gpu-mcp-server contributors
 SPDX-License-Identifier: Apache-2.0
 */}}
 
@@ -9,7 +9,7 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespace.name }}
   labels:
-    {{- include "k8s-mcp-agent.labels" . | nindent 4 }}
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: gpu-diagnostics
 {{- end }}
 

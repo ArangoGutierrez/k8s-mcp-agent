@@ -1,8 +1,8 @@
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
 apiVersion: v2
-name: k8s-mcp-agent
+name: k8s-gpu-mcp-server
 description: |
   Ephemeral GPU diagnostic agent for Kubernetes via MCP.
   Provides on-demand NVIDIA GPU introspection without consuming scheduler resources.
@@ -19,9 +19,9 @@ keywords:
   - nvml
   - kubernetes
 
-home: https://github.com/ArangoGutierrez/k8s-mcp-agent
+home: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server
 sources:
-  - https://github.com/ArangoGutierrez/k8s-mcp-agent
+  - https://github.com/ArangoGutierrez/k8s-gpu-mcp-server
 
 maintainers:
   - name: ArangoGutierrez

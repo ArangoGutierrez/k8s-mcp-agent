@@ -1,4 +1,4 @@
-# Architecture Decision Report: k8s-mcp-agent Kubernetes Deployment
+# Architecture Decision Report: k8s-gpu-mcp-server Kubernetes Deployment
 
 **Date:** January 6, 2026  
 **Branch:** `feat/k8s-deploy-test`  
@@ -55,7 +55,7 @@ or DRA driver, with or without the GPU Operator.
 
 ```
 kubectl debug node/gpu-node-5 \
-  --image=ghcr.io/.../k8s-mcp-agent:latest \
+  --image=ghcr.io/.../k8s-gpu-mcp-server:latest \
   -- /agent --nvml-mode=real
 ```
 
@@ -75,13 +75,13 @@ kubectl debug node/gpu-node-5 \
 ```bash
 # kubectl debug - FAILS
 kubectl debug node/ip-10-0-0-194 \
-  --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
+  --image=ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest \
   -- /agent --nvml-mode=real
 # Result: "failed to initialize NVML: Unknown Error"
 
 # docker run --gpus all - WORKS
 docker run --rm -i --gpus all \
-  ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+  ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 # Result: Tesla T4 detected, MCP protocol functional
 ```
 
@@ -161,7 +161,7 @@ securityContext:
 
 ### Key Observations
 
-| Aspect | dcgm-exporter | Implication for k8s-mcp-agent |
+| Aspect | dcgm-exporter | Implication for k8s-gpu-mcp-server |
 |--------|---------------|-------------------------------|
 | Runs as root | Yes | May be required for NVML |
 | Privileged | No | Good - can avoid full privileged |
@@ -238,11 +238,11 @@ It monitors ALL GPUs without blocking the scheduler.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: k8s-mcp-agent
+  name: k8s-gpu-mcp-server
 spec:
   selector:
     matchLabels:
-      app: k8s-mcp-agent
+      app: k8s-gpu-mcp-server
   template:
     spec:
       runtimeClassName: nvidia  # Uses nvidia runtime for CDI injection
@@ -250,7 +250,7 @@ spec:
         nvidia.com/gpu.present: "true"
       containers:
       - name: agent-shell
-        image: ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+        image: ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
         command: ["sleep", "infinity"]
         securityContext:
           runAsUser: 0
@@ -413,16 +413,16 @@ securityContext:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: k8s-mcp-agent
+  name: k8s-gpu-mcp-server
   namespace: gpu-diagnostics
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: k8s-mcp-agent
+      app.kubernetes.io/name: k8s-gpu-mcp-server
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: k8s-mcp-agent
+        app.kubernetes.io/name: k8s-gpu-mcp-server
     spec:
       runtimeClassName: nvidia
       nodeSelector:
@@ -433,7 +433,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: agent
-        image: ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+        image: ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
         command: ["sleep", "infinity"]
         securityContext:
           runAsUser: 0
@@ -458,7 +458,7 @@ spec:
 kubectl mcp diagnose <node-name>
 
 # Under the hood:
-POD=$(kubectl get pods -l app.kubernetes.io/name=k8s-mcp-agent \
+POD=$(kubectl get pods -l app.kubernetes.io/name=k8s-gpu-mcp-server \
   --field-selector spec.nodeName=<node-name> -o name)
 kubectl exec -it $POD -- /agent --mode=read-only
 ```
@@ -474,7 +474,7 @@ Document privileged mode as fallback with clear security trade-off warnings.
 ### Immediate Actions
 
 1. [ ] Update `docs/architecture.md` with new deployment pattern
-2. [x] Create `deployment/helm/k8s-mcp-agent/` Helm chart
+2. [x] Create `deployment/helm/k8s-gpu-mcp-server/` Helm chart
 3. [x] Support RuntimeClass, Device Plugin, and DRA modes
 4. [ ] Update README.md deployment instructions
 5. [ ] Start kubectl plugin development (`kubectl-mcp`)
@@ -500,7 +500,7 @@ Document privileged mode as fallback with clear security trade-off warnings.
 
 ```bash
 docker run --rm -i --gpus all \
-  ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+  ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 ```json
@@ -527,7 +527,7 @@ docker run --rm -i \
   --device /dev/nvidiactl \
   --device /dev/nvidia0 \
   -v /usr/.../libnvidia-ml.so.1:/usr/.../libnvidia-ml.so.1:ro \
-  ghcr.io/arangogutierrez/k8s-mcp-agent:latest
+  ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
 ```
 
 Result: **Full GPU access with non-root, no capabilities**

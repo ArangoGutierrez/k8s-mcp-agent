@@ -1,7 +1,7 @@
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
-# Multi-stage Dockerfile for k8s-mcp-agent
+# Multi-stage Dockerfile for k8s-gpu-mcp-server
 # Produces a minimal, secure container for ephemeral GPU diagnostics
 
 # =============================================================================
@@ -32,8 +32,8 @@ ARG GIT_COMMIT=unknown
 # Using dynamic linking - libnvidia-ml.so provided at runtime by nvidia-container-toolkit
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w \
-        -X github.com/ArangoGutierrez/k8s-mcp-agent/internal/info.version=${VERSION} \
-        -X github.com/ArangoGutierrez/k8s-mcp-agent/internal/info.gitCommit=${GIT_COMMIT}" \
+        -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.version=${VERSION} \
+        -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.gitCommit=${GIT_COMMIT}" \
     -o /agent \
     ./cmd/agent
 
@@ -48,9 +48,9 @@ FROM busybox:1.37-musl AS busybox
 FROM gcr.io/distroless/base-debian12:nonroot
 
 # OCI Image Labels
-LABEL org.opencontainers.image.title="k8s-mcp-agent"
+LABEL org.opencontainers.image.title="k8s-gpu-mcp-server"
 LABEL org.opencontainers.image.description="Ephemeral GPU diagnostic agent for Kubernetes via MCP"
-LABEL org.opencontainers.image.source="https://github.com/ArangoGutierrez/k8s-mcp-agent"
+LABEL org.opencontainers.image.source="https://github.com/ArangoGutierrez/k8s-gpu-mcp-server"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="ArangoGutierrez"
 

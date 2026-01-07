@@ -1,8 +1,8 @@
 ===============================================================================
- k8s-mcp-agent deployed successfully!
+ k8s-gpu-mcp-server deployed successfully!
 ===============================================================================
 
-Namespace: {{ include "k8s-mcp-agent.namespace" . }}
+Namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
 
 GPU Access Mode:
 {{- if .Values.gpu.runtimeClass.enabled }}
@@ -31,19 +31,19 @@ USAGE
 1. Find the agent pod on a specific node:
 
    NODE_NAME=<your-gpu-node>
-   POD=$(kubectl get pods -n {{ include "k8s-mcp-agent.namespace" . }} \
-     -l app.kubernetes.io/name={{ include "k8s-mcp-agent.name" . }} \
+   POD=$(kubectl get pods -n {{ include "k8s-gpu-mcp-server.namespace" . }} \
+     -l app.kubernetes.io/name={{ include "k8s-gpu-mcp-server.name" . }} \
      --field-selector spec.nodeName=$NODE_NAME \
      -o jsonpath='{.items[0].metadata.name}')
 
 2. Start a diagnostic session:
 
-   kubectl exec -it -n {{ include "k8s-mcp-agent.namespace" . }} $POD -- /agent --mode=read-only
+   kubectl exec -it -n {{ include "k8s-gpu-mcp-server.namespace" . }} $POD -- /agent --mode=read-only
 
 3. Or pipe JSON-RPC commands directly:
 
    echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory","arguments":{}},"id":1}' | \
-     kubectl exec -i -n {{ include "k8s-mcp-agent.namespace" . }} $POD -- /agent
+     kubectl exec -i -n {{ include "k8s-gpu-mcp-server.namespace" . }} $POD -- /agent
 
 -------------------------------------------------------------------------------
 PREREQUISITES
@@ -84,9 +84,9 @@ Install NVIDIA DRA Driver:
 DOCUMENTATION
 -------------------------------------------------------------------------------
 
-- Architecture: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/architecture.md
-- MCP Usage: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/mcp-usage.md
-- Quick Start: https://github.com/ArangoGutierrez/k8s-mcp-agent/blob/main/docs/quickstart.md
+- Architecture: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/architecture.md
+- MCP Usage: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/mcp-usage.md
+- Quick Start: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/quickstart.md
 
 ===============================================================================
 

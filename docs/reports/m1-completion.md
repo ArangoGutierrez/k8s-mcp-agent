@@ -7,7 +7,7 @@
 ## Executive Summary
 
 Milestone 1 has been successfully completed, establishing the foundational
-architecture for the k8s-mcp-agent project. All core deliverables have been
+architecture for the k8s-gpu-mcp-server project. All core deliverables have been
 implemented, tested, and documented.
 
 ## Deliverables
@@ -37,7 +37,7 @@ $ make agent
 ✓ Built bin/agent
 
 $ ./bin/agent --version
-k8s-mcp-agent version 0.1.0-alpha (commit 0051333...)
+k8s-gpu-mcp-server version 0.1.0-alpha (commit 0051333...)
 
 $ ./bin/agent --help
 Usage of ./bin/agent:
@@ -73,7 +73,7 @@ Usage of ./bin/agent:
 ```bash
 $ cat examples/echo_test.json | ./bin/agent
 {
-  "echo": "Hello from k8s-mcp-agent!",
+  "echo": "Hello from k8s-gpu-mcp-server!",
   "timestamp": "2026-01-03T12:00:00Z",
   "mode": "read-only"
 }
@@ -240,7 +240,7 @@ $ make all
 
 ```
 Package                                          Tests  Pass  Fail
-github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml   13    13     0
+github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml   13    13     0
 ```
 
 **Test Cases:**

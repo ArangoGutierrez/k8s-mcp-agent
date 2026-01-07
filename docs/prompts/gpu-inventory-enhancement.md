@@ -2,10 +2,10 @@
 
 ## PROJECT CONTEXT
 
-**Repository:** https://github.com/ArangoGutierrez/k8s-mcp-agent  
+**Repository:** https://github.com/ArangoGutierrez/k8s-gpu-mcp-server  
 **Issue:** Enhancement of `get_gpu_inventory` tool  
 **Milestone:** M2: Hardware Introspection (Due: Jan 17, 2026)  
-**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent`
+**Workspace:** `/Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server`
 
 ### Current State (Jan 4, 2026)
 - ✅ M1 Complete: MCP stdio server working
@@ -24,14 +24,14 @@
 - **SSH:** `ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com`
 - **GPU:** Tesla T4 (16GB), Driver 575.57.08, CUDA 12.9
 - **Go:** 1.25.5 at `/usr/local/go/bin/go`
-- **Code Location:** `~/k8s-mcp-agent`
+- **Code Location:** `~/k8s-gpu-mcp-server`
 
 ---
 
 ## FIRST TASK: Create Branch
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 git checkout main && git pull
 git checkout -b feat/m2-inventory-enhancement
 ```
@@ -371,7 +371,7 @@ func TestGPUInventoryHandler_NestedStructures(t *testing.T) {
 ### Local Testing (Mock NVML)
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-mcp-agent
+cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 
 # Run unit tests
 make test
@@ -388,7 +388,7 @@ make agent
 ```bash
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
 
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 git fetch origin
 git checkout feat/m2-inventory-enhancement
 
@@ -486,7 +486,7 @@ gh pr create          # Create PR
 ### Remote Machine
 ```bash
 ssh -i /Users/eduardoa/.ssh/cnt-ci.pem ubuntu@ec2-54-176-252-175.us-west-1.compute.amazonaws.com
-cd ~/k8s-mcp-agent
+cd ~/k8s-gpu-mcp-server
 export PATH=/usr/local/go/bin:$PATH
 ```
 

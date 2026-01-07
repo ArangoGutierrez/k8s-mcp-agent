@@ -1,5 +1,5 @@
 {{/*
-Copyright 2026 k8s-mcp-agent contributors
+Copyright 2026 k8s-gpu-mcp-server contributors
 SPDX-License-Identifier: Apache-2.0
 */}}
 
@@ -12,10 +12,10 @@ SPDX-License-Identifier: Apache-2.0
 apiVersion: resource.k8s.io/v1alpha3
 kind: ResourceClaim
 metadata:
-  name: {{ include "k8s-mcp-agent.fullname" . }}-gpu
-  namespace: {{ include "k8s-mcp-agent.namespace" . }}
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-gpu
+  namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
   labels:
-    {{- include "k8s-mcp-agent.labels" . | nindent 4 }}
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
 spec:
   {{- toYaml .Values.gpu.resourceClaim.spec | nindent 2 }}
 {{- end }}

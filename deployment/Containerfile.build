@@ -1,7 +1,7 @@
-# Copyright 2026 k8s-mcp-agent contributors
+# Copyright 2026 k8s-gpu-mcp-server contributors
 # SPDX-License-Identifier: Apache-2.0
 
-# Development build image for k8s-mcp-agent
+# Development build image for k8s-gpu-mcp-server
 # Used for containerized builds via: make docker-<target>
 
 ARG GOLANG_VERSION=1.25

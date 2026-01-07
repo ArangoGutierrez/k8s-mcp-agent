@@ -1,7 +1,7 @@
-// Copyright 2026 k8s-mcp-agent contributors
+// Copyright 2026 k8s-gpu-mcp-server contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package main is the entry point for the k8s-mcp-agent MCP server.
+// Package main is the entry point for the k8s-gpu-mcp-server MCP server.
 package main
 
 import (
@@ -13,9 +13,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ArangoGutierrez/k8s-mcp-agent/internal/info"
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/mcp"
-	"github.com/ArangoGutierrez/k8s-mcp-agent/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/mcp"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 )
 
 const (
@@ -38,7 +38,7 @@ func main() {
 	// Show version and exit if requested
 	if *showVer {
 		buildInfo := info.GetInfo()
-		fmt.Fprintf(os.Stderr, "k8s-mcp-agent version %s (commit %s)\n",
+		fmt.Fprintf(os.Stderr, "k8s-gpu-mcp-server version %s (commit %s)\n",
 			buildInfo.Version, buildInfo.GitCommit)
 		os.Exit(0)
 	}
@@ -54,7 +54,7 @@ func main() {
 	}
 
 	// Log startup information to stderr (structured JSON)
-	log.Printf(`{"level":"info","msg":"starting k8s-mcp-agent","version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s","log_level":"%s"}`,
+	log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server","version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s","log_level":"%s"}`,
 		info.Version(), info.GitCommit(), *mode, *nvmlMode, *logLevel)
 
 	// Setup context with cancellation for graceful shutdown

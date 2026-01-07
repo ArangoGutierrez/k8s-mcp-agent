@@ -1,6 +1,6 @@
 # GitHub Configuration
 
-This directory contains GitHub-specific configuration files for the k8s-mcp-agent project.
+This directory contains GitHub-specific configuration files for the k8s-gpu-mcp-server project.
 
 ## 📁 Structure
 
@@ -119,7 +119,7 @@ Triggered on version tags (`v*`):
 
 ### Creating an Issue
 
-1. Go to [Issues](https://github.com/ArangoGutierrez/k8s-mcp-agent/issues/new/choose)
+1. Go to [Issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/new/choose)
 2. Select the appropriate template
 3. Fill out all required fields
 4. Link to relevant milestone (M1-M4)
@@ -144,7 +144,7 @@ When Dependabot opens a dependency update PR:
 
 ## 🔒 Security
 
-- **Private vulnerability reporting**: Use [Security Advisories](https://github.com/ArangoGutierrez/k8s-mcp-agent/security/advisories/new)
+- **Private vulnerability reporting**: Use [Security Advisories](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/security/advisories/new)
 - **Public security issues**: Use `security.yml` template for lower-severity concerns
 - **Trivy scanning**: Automated on every PR and push
 - **Dependabot alerts**: Enabled for security vulnerabilities
