@@ -3,10 +3,19 @@
 
 name: Container Image
 
+# Build images on PRs (test only) and main branch pushes (publish :main tag)
+# Tagged releases are handled by release.yml
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    paths:
+      - 'deployment/Containerfile'
+      - 'cmd/**'
+      - 'pkg/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/image.yml'
   pull_request:
     paths:
       - 'deployment/Containerfile'
@@ -40,7 +49,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -53,8 +62,6 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
             type=sha,prefix=
 
@@ -65,7 +72,7 @@ jobs:
           context: .
           file: ./deployment/Containerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -74,14 +81,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Check image size
-        if: github.event_name == 'pull_request'
+      - name: Image size check
         run: |
-          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | head -5
-          echo "✓ Image build successful"
-
-      - name: Test image
-        run: |
-          # For PRs, the image is available locally from buildx
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} --version || \
-          docker run --rm $(docker images -q | head -1) --version
+          echo "## Container Image Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "✓ Image build successful (PR - not pushed)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✓ Image pushed to \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main\`" >> $GITHUB_STEP_SUMMARY
+          fi

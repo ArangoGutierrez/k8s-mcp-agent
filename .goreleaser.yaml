@@ -1,0 +1,131 @@
+# Copyright 2026 k8s-gpu-mcp-server contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# GoReleaser configuration for k8s-gpu-mcp-server
+# Docs: https://goreleaser.com
+
+version: 2
+
+project_name: k8s-gpu-mcp-server
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: agent
+    main: ./cmd/agent
+    binary: k8s-gpu-mcp-server-{{ .Os }}-{{ .Arch }}
+    no_unique_dist_dir: true
+    env:
+      # CGO disabled for cross-compilation
+      # Real NVML requires CGO but npm/PyPI wrappers need static binaries
+      # Users on GPU hosts can build from source with CGO_ENABLED=1
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Skip windows/arm64 (not common for GPU workloads)
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.version={{.Version}}
+      - -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.gitCommit={{.Commit}}
+
+archives:
+  - id: binaries
+    format: binary
+    # Don't wrap in archive - npm postinstall expects raw binary
+    name_template: "{{ .Binary }}"
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 'Features'
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: 'Security'
+      regexp: '^security(\(.+\))?:'
+      order: 2
+    - title: 'Performance'
+      regexp: '^perf(\(.+\))?:'
+      order: 3
+    - title: 'Other'
+      order: 999
+
+release:
+  github:
+    owner: ArangoGutierrez
+    name: k8s-gpu-mcp-server
+  
+  # Release name template
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  
+  # Release header template
+  header: |
+    ## k8s-gpu-mcp-server v{{.Version}}
+    
+    MCP server for NVIDIA GPU diagnostics in Kubernetes clusters.
+    
+    ### Installation
+    
+    ```bash
+    # Using npm (recommended)
+    npx k8s-gpu-mcp-server@{{.Version}}
+    
+    # Or download binary directly
+    curl -LO https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/releases/download/v{{.Version}}/k8s-gpu-mcp-server-linux-amd64
+    chmod +x k8s-gpu-mcp-server-linux-amd64
+    ./k8s-gpu-mcp-server-linux-amd64 --help
+    ```
+    
+    ### Container Image
+    
+    ```bash
+    docker pull ghcr.io/arangogutierrez/k8s-gpu-mcp-server:{{.Version}}
+    ```
+
+  footer: |
+    ---
+    
+    **Full Changelog**: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/compare/{{.PreviousTag}}...{{.Tag}}
+    
+    **npm package**: https://www.npmjs.com/package/k8s-gpu-mcp-server
+    
+    **Container image**: `ghcr.io/arangogutierrez/k8s-gpu-mcp-server:{{.Version}}`
+
+  # Don't mark as draft - publish immediately
+  draft: false
+  
+  # Mark as prerelease if version contains alpha/beta/rc
+  prerelease: auto
+
+  # Extra files to include in release
+  extra_files:
+    - glob: ./LICENSE
+
+# Announce is optional - can add later for Slack/Discord notifications
+# announce:
+#   skip: true
+
