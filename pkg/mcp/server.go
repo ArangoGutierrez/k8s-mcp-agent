@@ -13,6 +13,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -31,12 +32,14 @@ const (
 
 // Server wraps the MCP server with configurable transport.
 type Server struct {
-	mcpServer  *server.MCPServer
-	mode       string
-	nvmlClient nvml.Interface
-	transport  TransportType
-	httpAddr   string
-	version    string
+	mcpServer   *server.MCPServer
+	mode        string
+	nvmlClient  nvml.Interface
+	transport   TransportType
+	httpAddr    string
+	version     string
+	gatewayMode bool
+	k8sClient   *k8s.Client
 }
 
 // Config holds server configuration.
@@ -47,12 +50,18 @@ type Config struct {
 	Version string
 	// GitCommit is the git commit hash
 	GitCommit string
-	// NVMLClient is the NVML interface implementation
+	// NVMLClient is the NVML interface implementation (nil in gateway mode)
 	NVMLClient nvml.Interface
 	// Transport is the transport mode: "stdio" or "http"
 	Transport TransportType
 	// HTTPAddr is the HTTP listen address (e.g., "0.0.0.0:8080")
 	HTTPAddr string
+	// GatewayMode enables routing to node agents via K8s pod exec
+	GatewayMode bool
+	// Namespace for GPU agent pods (gateway mode only)
+	Namespace string
+	// K8sClient is the Kubernetes client (gateway mode only)
+	K8sClient *k8s.Client
 }
 
 // New creates a new MCP server instance.
@@ -61,8 +70,15 @@ func New(cfg Config) (*Server, error) {
 		cfg.Mode = "read-only"
 	}
 
-	if cfg.NVMLClient == nil {
-		return nil, fmt.Errorf("NVMLClient is required")
+	// Gateway mode requires K8s client, regular mode requires NVML client
+	if cfg.GatewayMode {
+		if cfg.K8sClient == nil {
+			return nil, fmt.Errorf("K8sClient is required for gateway mode")
+		}
+	} else {
+		if cfg.NVMLClient == nil {
+			return nil, fmt.Errorf("NVMLClient is required")
+		}
 	}
 
 	// Default to stdio transport
@@ -76,11 +92,13 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	s := &Server{
-		mode:       cfg.Mode,
-		nvmlClient: cfg.NVMLClient,
-		transport:  cfg.Transport,
-		httpAddr:   cfg.HTTPAddr,
-		version:    cfg.Version,
+		mode:        cfg.Mode,
+		nvmlClient:  cfg.NVMLClient,
+		transport:   cfg.Transport,
+		httpAddr:    cfg.HTTPAddr,
+		version:     cfg.Version,
+		gatewayMode: cfg.GatewayMode,
+		k8sClient:   cfg.K8sClient,
 	}
 
 	// Create MCP server
@@ -99,24 +117,33 @@ func New(cfg Config) (*Server, error) {
 	)
 	mcpServer.AddTool(echoTool, s.handleEchoTest)
 
-	// Register GPU inventory tool
-	gpuInventoryHandler := tools.NewGPUInventoryHandler(cfg.NVMLClient)
-	mcpServer.AddTool(tools.GetGPUInventoryTool(),
-		gpuInventoryHandler.Handle)
+	if cfg.GatewayMode {
+		// Gateway mode: register list_gpu_nodes tool
+		listNodesHandler := tools.NewListGPUNodesHandler(cfg.K8sClient)
+		mcpServer.AddTool(tools.GetListGPUNodesTool(), listNodesHandler.Handle)
 
-	// Register XID analysis tool
-	xidHandler := tools.NewAnalyzeXIDHandler(cfg.NVMLClient)
-	mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
+		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
+			`"mode":"%s","gateway":true,"namespace":"%s",`+
+			`"version":"%s","commit":"%s"}`,
+			cfg.Mode, cfg.Namespace, cfg.Version, cfg.GitCommit)
+	} else {
+		// Regular mode: register GPU tools with NVML
+		gpuInventoryHandler := tools.NewGPUInventoryHandler(cfg.NVMLClient)
+		mcpServer.AddTool(tools.GetGPUInventoryTool(),
+			gpuInventoryHandler.Handle)
 
-	// Register GPU health tool
-	healthHandler := tools.NewGPUHealthHandler(cfg.NVMLClient)
-	mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
+		xidHandler := tools.NewAnalyzeXIDHandler(cfg.NVMLClient)
+		mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidHandler.Handle)
+
+		healthHandler := tools.NewGPUHealthHandler(cfg.NVMLClient)
+		mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
+
+		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
+			`"mode":"%s","gateway":false,"version":"%s","commit":"%s"}`,
+			cfg.Mode, cfg.Version, cfg.GitCommit)
+	}
 
 	s.mcpServer = mcpServer
-
-	log.Printf(`{"level":"info","msg":"MCP server initialized",`+
-		`"mode":"%s","version":"%s","commit":"%s"}`,
-		cfg.Mode, cfg.Version, cfg.GitCommit)
 
 	return s, nil
 }
