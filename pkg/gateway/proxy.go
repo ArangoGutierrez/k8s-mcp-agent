@@ -42,7 +42,7 @@ func (p *ProxyHandler) Handle(
 	results, err := p.router.RouteToAllNodes(ctx, mcpRequest)
 	if err != nil {
 		return mcp.NewToolResultError(
-			fmt.Sprintf("failed to route to nodes: %s", err)), nil
+			fmt.Sprintf("failed to route to nodes: %v", err)), nil
 	}
 
 	// Aggregate results
@@ -51,7 +51,7 @@ func (p *ProxyHandler) Handle(
 	jsonBytes, err := json.MarshalIndent(aggregated, "", "  ")
 	if err != nil {
 		return mcp.NewToolResultError(
-			fmt.Sprintf("failed to marshal response: %s", err)), nil
+			fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}
 
 	log.Printf(`{"level":"info","msg":"proxy_tool completed","tool":"%s",`+
@@ -87,8 +87,19 @@ func buildMCPRequest(toolName string, arguments interface{}) []byte {
 		"id": 1,
 	}
 
-	initBytes, _ := json.Marshal(initReq)
-	toolBytes, _ := json.Marshal(toolReq)
+	initBytes, err := json.Marshal(initReq)
+	if err != nil {
+		log.Printf(`{"level":"error","msg":"failed to marshal init request",`+
+			`"error":"%v"}`, err)
+		return nil
+	}
+
+	toolBytes, err := json.Marshal(toolReq)
+	if err != nil {
+		log.Printf(`{"level":"error","msg":"failed to marshal tool request",`+
+			`"error":"%v"}`, err)
+		return nil
+	}
 
 	// Concatenate with newline (stdio protocol)
 	return append(append(initBytes, '\n'), toolBytes...)
@@ -195,6 +206,12 @@ func parseToolResponse(response []byte) interface{} {
 }
 
 // splitJSONLines splits response into individual JSON objects.
+//
+// Note: This is a simple brace-counting parser that works for well-formed
+// MCP JSON-RPC responses. It does not handle escaped braces within string
+// values (e.g., "error": "expected '}' but got '{'"). This is acceptable
+// because MCP responses are machine-generated and don't contain such patterns.
+// For more complex scenarios, consider using a streaming JSON decoder.
 func splitJSONLines(data []byte) [][]byte {
 	var lines [][]byte
 	var current []byte

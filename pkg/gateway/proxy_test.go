@@ -6,6 +6,9 @@ package gateway
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildMCPRequest(t *testing.T) {
@@ -14,36 +17,39 @@ func TestBuildMCPRequest(t *testing.T) {
 
 	// Should contain two JSON objects
 	lines := splitJSONLines(request)
-	if len(lines) != 2 {
-		t.Errorf("expected 2 JSON objects, got %d", len(lines))
-	}
+	require.Len(t, lines, 2, "expected 2 JSON objects")
 
 	// First should be initialize
 	var init map[string]interface{}
-	if err := json.Unmarshal(lines[0], &init); err != nil {
-		t.Fatalf("failed to parse init request: %v", err)
-	}
-	if init["method"] != "initialize" {
-		t.Errorf("expected initialize method, got %v", init["method"])
-	}
+	err := json.Unmarshal(lines[0], &init)
+	require.NoError(t, err, "failed to parse init request")
+	assert.Equal(t, "initialize", init["method"])
 
 	// Second should be tools/call
 	var tool map[string]interface{}
-	if err := json.Unmarshal(lines[1], &tool); err != nil {
-		t.Fatalf("failed to parse tool request: %v", err)
-	}
-	if tool["method"] != "tools/call" {
-		t.Errorf("expected tools/call method, got %v", tool["method"])
-	}
+	err = json.Unmarshal(lines[1], &tool)
+	require.NoError(t, err, "failed to parse tool request")
+	assert.Equal(t, "tools/call", tool["method"])
 
 	// Verify tool name in params
 	params, ok := tool["params"].(map[string]interface{})
-	if !ok {
-		t.Fatal("params is not a map")
-	}
-	if params["name"] != "get_gpu_health" {
-		t.Errorf("expected get_gpu_health, got %v", params["name"])
-	}
+	require.True(t, ok, "params is not a map")
+	assert.Equal(t, "get_gpu_health", params["name"])
+}
+
+func TestBuildMCPRequest_NilArguments(t *testing.T) {
+	request := buildMCPRequest("get_gpu_inventory", nil)
+
+	lines := splitJSONLines(request)
+	require.Len(t, lines, 2)
+
+	var tool map[string]interface{}
+	err := json.Unmarshal(lines[1], &tool)
+	require.NoError(t, err)
+
+	params := tool["params"].(map[string]interface{})
+	assert.Equal(t, "get_gpu_inventory", params["name"])
+	assert.Nil(t, params["arguments"])
 }
 
 func TestParseToolResponse(t *testing.T) {
@@ -52,6 +58,7 @@ func TestParseToolResponse(t *testing.T) {
 		response    string
 		wantErr     bool
 		wantContent bool
+		wantStatus  string
 	}{
 		{
 			name: "valid response with JSON content",
@@ -60,6 +67,7 @@ func TestParseToolResponse(t *testing.T) {
 				`{"type":"text","text":"{\"status\":\"healthy\"}"}]}}`,
 			wantErr:     false,
 			wantContent: true,
+			wantStatus:  "healthy",
 		},
 		{
 			name: "error response",
@@ -92,24 +100,12 @@ func TestParseToolResponse(t *testing.T) {
 			resultMap, isMap := result.(map[string]interface{})
 
 			if tt.wantErr {
-				if !isMap || resultMap["error"] == nil {
-					// For empty response case
-					if tt.response == "" {
-						if resultMap["error"] != "empty response" {
-							t.Errorf("expected 'empty response' error")
-						}
-						return
-					}
-					t.Errorf("expected error in result, got %v", result)
-				}
+				require.True(t, isMap, "expected map result")
+				assert.NotNil(t, resultMap["error"], "expected error in result")
 			} else if tt.wantContent {
-				if isMap && resultMap["error"] != nil {
-					t.Errorf("unexpected error: %v", resultMap["error"])
-				}
-				// Should have parsed the JSON content
-				if isMap && resultMap["status"] != "healthy" {
-					t.Errorf("expected status=healthy, got %v", result)
-				}
+				require.True(t, isMap, "expected map result")
+				assert.Nil(t, resultMap["error"], "unexpected error")
+				assert.Equal(t, tt.wantStatus, resultMap["status"])
 			}
 		})
 	}
@@ -146,105 +142,110 @@ func TestSplitJSONLines(t *testing.T) {
 			input:    `{"key":"value"}`,
 			expected: 1,
 		},
+		{
+			name:     "deeply nested",
+			input:    `{"a":{"b":{"c":{"d":1}}}}`,
+			expected: 1,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lines := splitJSONLines([]byte(tt.input))
-			if len(lines) != tt.expected {
-				t.Errorf("expected %d lines, got %d", tt.expected, len(lines))
-			}
+			assert.Len(t, lines, tt.expected)
 		})
 	}
 }
 
-func TestAggregateResults(t *testing.T) {
+func TestAggregateResults_AllSuccess(t *testing.T) {
 	handler := &ProxyHandler{toolName: "test"}
 
-	t.Run("all success", func(t *testing.T) {
-		results := []NodeResult{
-			{
-				NodeName: "node-1",
-				PodName:  "pod-1",
-				Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
-					`"content":[{"type":"text","text":"{\"gpus\":1}"}]}}`),
-			},
-			{
-				NodeName: "node-2",
-				PodName:  "pod-2",
-				Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
-					`"content":[{"type":"text","text":"{\"gpus\":2}"}]}}`),
-			},
-		}
+	results := []NodeResult{
+		{
+			NodeName: "node-1",
+			PodName:  "pod-1",
+			Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
+				`"content":[{"type":"text","text":"{\"gpus\":1}"}]}}`),
+		},
+		{
+			NodeName: "node-2",
+			PodName:  "pod-2",
+			Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
+				`"content":[{"type":"text","text":"{\"gpus\":2}"}]}}`),
+		},
+	}
 
-		aggregated := handler.aggregateResults(results)
-		aggMap := aggregated.(map[string]interface{})
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
 
-		if aggMap["status"] != "success" {
-			t.Errorf("expected success status, got %v", aggMap["status"])
-		}
-		if aggMap["success_count"] != 2 {
-			t.Errorf("expected 2 success, got %v", aggMap["success_count"])
-		}
-		if aggMap["error_count"] != 0 {
-			t.Errorf("expected 0 errors, got %v", aggMap["error_count"])
-		}
-	})
+	assert.Equal(t, "success", aggMap["status"])
+	assert.Equal(t, 2, aggMap["success_count"])
+	assert.Equal(t, 0, aggMap["error_count"])
+	assert.Equal(t, 2, aggMap["node_count"])
 
-	t.Run("partial success", func(t *testing.T) {
-		results := []NodeResult{
-			{
-				NodeName: "node-1",
-				PodName:  "pod-1",
-				Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
-					`"content":[{"type":"text","text":"{\"gpus\":1}"}]}}`),
-			},
-			{
-				NodeName: "node-2",
-				PodName:  "pod-2",
-				Error:    "connection failed",
-			},
-		}
+	nodes := aggMap["nodes"].([]interface{})
+	assert.Len(t, nodes, 2)
+}
 
-		aggregated := handler.aggregateResults(results)
-		aggMap := aggregated.(map[string]interface{})
+func TestAggregateResults_PartialSuccess(t *testing.T) {
+	handler := &ProxyHandler{toolName: "test"}
 
-		if aggMap["status"] != "partial" {
-			t.Errorf("expected partial status, got %v", aggMap["status"])
-		}
-		if aggMap["success_count"] != 1 {
-			t.Errorf("expected 1 success, got %v", aggMap["success_count"])
-		}
-		if aggMap["error_count"] != 1 {
-			t.Errorf("expected 1 error, got %v", aggMap["error_count"])
-		}
-	})
+	results := []NodeResult{
+		{
+			NodeName: "node-1",
+			PodName:  "pod-1",
+			Response: []byte(`{"jsonrpc":"2.0","id":1,"result":{` +
+				`"content":[{"type":"text","text":"{\"gpus\":1}"}]}}`),
+		},
+		{
+			NodeName: "node-2",
+			PodName:  "pod-2",
+			Error:    "connection failed",
+		},
+	}
 
-	t.Run("all error", func(t *testing.T) {
-		results := []NodeResult{
-			{
-				NodeName: "node-1",
-				PodName:  "pod-1",
-				Error:    "connection failed",
-			},
-			{
-				NodeName: "node-2",
-				PodName:  "pod-2",
-				Error:    "timeout",
-			},
-		}
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
 
-		aggregated := handler.aggregateResults(results)
-		aggMap := aggregated.(map[string]interface{})
+	assert.Equal(t, "partial", aggMap["status"])
+	assert.Equal(t, 1, aggMap["success_count"])
+	assert.Equal(t, 1, aggMap["error_count"])
+}
 
-		if aggMap["status"] != "error" {
-			t.Errorf("expected error status, got %v", aggMap["status"])
-		}
-		if aggMap["success_count"] != 0 {
-			t.Errorf("expected 0 success, got %v", aggMap["success_count"])
-		}
-		if aggMap["error_count"] != 2 {
-			t.Errorf("expected 2 errors, got %v", aggMap["error_count"])
-		}
-	})
+func TestAggregateResults_AllError(t *testing.T) {
+	handler := &ProxyHandler{toolName: "test"}
+
+	results := []NodeResult{
+		{
+			NodeName: "node-1",
+			PodName:  "pod-1",
+			Error:    "connection failed",
+		},
+		{
+			NodeName: "node-2",
+			PodName:  "pod-2",
+			Error:    "timeout",
+		},
+	}
+
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "error", aggMap["status"])
+	assert.Equal(t, 0, aggMap["success_count"])
+	assert.Equal(t, 2, aggMap["error_count"])
+}
+
+func TestAggregateResults_Empty(t *testing.T) {
+	handler := &ProxyHandler{toolName: "test"}
+
+	results := []NodeResult{}
+
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+	assert.Equal(t, 0, aggMap["success_count"])
+	assert.Equal(t, 0, aggMap["error_count"])
+	assert.Equal(t, 0, aggMap["node_count"])
 }
