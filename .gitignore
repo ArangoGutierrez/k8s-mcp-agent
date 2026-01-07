@@ -70,3 +70,9 @@ desktop.ini
 agent
 k8s-mcp-agent
 
+# npm package artifacts
+npm/bin/
+!npm/bin/.gitkeep
+npm/node_modules/
+npm/*.tgz
+

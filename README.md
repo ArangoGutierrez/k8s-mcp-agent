@@ -34,7 +34,47 @@ Kubernetes APIs cannot detect.
 
 ## 🚀 Quick Start
 
-### Install
+### One-Line Installation
+
+```bash
+# Using npx (recommended)
+npx k8s-gpu-mcp-server@latest
+
+# Or install globally
+npm install -g k8s-gpu-mcp-server
+```
+
+### Use with Cursor
+
+Add to your Cursor MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "k8s-gpu": {
+      "command": "npx",
+      "args": ["-y", "k8s-gpu-mcp-server@latest"]
+    }
+  }
+}
+```
+
+### Use with Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "k8s-gpu": {
+      "command": "npx",
+      "args": ["-y", "k8s-gpu-mcp-server@latest"]
+    }
+  }
+}
+```
+
+### Install from Source
 
 ```bash
 # Clone and build
@@ -215,6 +255,16 @@ make dist
 ---
 
 ## 📦 Installation
+
+### Using npm (Recommended)
+
+```bash
+# Run directly with npx
+npx k8s-gpu-mcp-server@latest
+
+# Or install globally
+npm install -g k8s-gpu-mcp-server
+```
 
 ### From Source
 
