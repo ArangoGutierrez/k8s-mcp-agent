@@ -34,6 +34,7 @@ type NodeResult struct {
 }
 
 // RouteToNode sends an MCP request to a specific node's agent.
+// This performs a pod lookup by node name first.
 func (r *Router) RouteToNode(
 	ctx context.Context,
 	nodeName string,
@@ -47,19 +48,30 @@ func (r *Router) RouteToNode(
 		return nil, fmt.Errorf("node not found: %w", err)
 	}
 
+	return r.routeToGPUNode(ctx, *node, mcpRequest)
+}
+
+// routeToGPUNode sends an MCP request to a known GPU node's agent.
+// This is more efficient when the GPUNode is already known (e.g., from
+// ListGPUNodes) as it avoids an extra API call.
+func (r *Router) routeToGPUNode(
+	ctx context.Context,
+	node k8s.GPUNode,
+	mcpRequest []byte,
+) ([]byte, error) {
 	if !node.Ready {
-		return nil, fmt.Errorf("agent on node %s is not ready", nodeName)
+		return nil, fmt.Errorf("agent on node %s is not ready", node.Name)
 	}
 
 	// Execute agent in pod with MCP request as stdin
 	stdin := bytes.NewReader(mcpRequest)
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
 	if err != nil {
-		return nil, fmt.Errorf("exec failed on node %s: %w", nodeName, err)
+		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
 	log.Printf(`{"level":"debug","msg":"node response received",`+
-		`"node":"%s","response_size":%d}`, nodeName, len(response))
+		`"node":"%s","response_size":%d}`, node.Name, len(response))
 
 	return response, nil
 }
@@ -92,7 +104,8 @@ func (r *Router) RouteToAllNodes(
 		go func(n k8s.GPUNode) {
 			defer wg.Done()
 
-			response, err := r.RouteToNode(ctx, n.Name, mcpRequest)
+			// Use routeToGPUNode directly to avoid redundant API call
+			response, err := r.routeToGPUNode(ctx, n, mcpRequest)
 
 			mu.Lock()
 			defer mu.Unlock()

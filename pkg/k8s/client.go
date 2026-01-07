@@ -114,6 +114,10 @@ func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 
 // ExecInPod executes the agent binary in a pod with MCP request as stdin.
 // Returns the stdout and any error encountered.
+//
+// Note: This function is tested via integration tests rather than unit tests
+// because the fake K8s clientset does not support the exec subresource.
+// See the integration testing section in docs/quickstart.md.
 func (c *Client) ExecInPod(
 	ctx context.Context,
 	podName string,
@@ -155,22 +159,42 @@ func (c *Client) ExecInPod(
 }
 
 // GetPodForNode returns the GPU agent pod running on a specific node.
+// Uses a field selector for efficient lookup in large clusters.
 func (c *Client) GetPodForNode(
 	ctx context.Context,
 	nodeName string,
 ) (*GPUNode, error) {
-	nodes, err := c.ListGPUNodes(ctx)
+	// Use field selector to query directly by node name for efficiency
+	pods, err := c.clientset.CoreV1().Pods(c.namespace).List(ctx,
+		metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/name=k8s-gpu-mcp-server",
+			FieldSelector: fmt.Sprintf("spec.nodeName=%s", nodeName),
+		})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list pods for node %s: %w",
+			nodeName, err)
 	}
 
-	for _, node := range nodes {
-		if node.Name == nodeName {
-			return &node, nil
+	if len(pods.Items) == 0 {
+		return nil, fmt.Errorf("no GPU agent found on node %s", nodeName)
+	}
+
+	pod := pods.Items[0]
+	ready := false
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady &&
+			cond.Status == corev1.ConditionTrue {
+			ready = true
+			break
 		}
 	}
 
-	return nil, fmt.Errorf("no GPU agent found on node %s", nodeName)
+	return &GPUNode{
+		Name:    pod.Spec.NodeName,
+		PodName: pod.Name,
+		PodIP:   pod.Status.PodIP,
+		Ready:   ready,
+	}, nil
 }
 
 // Namespace returns the configured namespace.
