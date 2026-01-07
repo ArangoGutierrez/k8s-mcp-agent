@@ -15,7 +15,8 @@ bugs, or completing other project work.
 
 | Prompt | Issue | Status | Description |
 |--------|-------|--------|-------------|
-| [npm-package-distribution.md](npm-package-distribution.md) | #74 | 🟡 Ready | npm package for one-liner installation |
+| [http-sse-transport.md](http-sse-transport.md) | #71 | 🔴 P0-Blocker | HTTP/SSE transport for remote MCP access |
+| [npm-package-distribution.md](npm-package-distribution.md) | #74 | ✅ Done | npm package for one-liner installation |
 
 ## Template
 
