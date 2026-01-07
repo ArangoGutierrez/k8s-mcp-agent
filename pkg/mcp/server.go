@@ -13,6 +13,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/gateway"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
@@ -118,12 +119,27 @@ func New(cfg Config) (*Server, error) {
 	mcpServer.AddTool(echoTool, s.handleEchoTest)
 
 	if cfg.GatewayMode {
-		// Gateway mode: register list_gpu_nodes tool
+		// Gateway mode: register all tools with proxy handlers
+
+		// list_gpu_nodes - handled directly by gateway (no proxy needed)
 		listNodesHandler := tools.NewListGPUNodesHandler(cfg.K8sClient)
 		mcpServer.AddTool(tools.GetListGPUNodesTool(), listNodesHandler.Handle)
 
+		// GPU tools - proxied to node agents
+		inventoryProxy := gateway.NewProxyHandler(cfg.K8sClient,
+			"get_gpu_inventory")
+		mcpServer.AddTool(tools.GetGPUInventoryTool(), inventoryProxy.Handle)
+
+		healthProxy := gateway.NewProxyHandler(cfg.K8sClient, "get_gpu_health")
+		mcpServer.AddTool(tools.GetGPUHealthTool(), healthProxy.Handle)
+
+		xidProxy := gateway.NewProxyHandler(cfg.K8sClient, "analyze_xid_errors")
+		mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidProxy.Handle)
+
 		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
 			`"mode":"%s","gateway":true,"namespace":"%s",`+
+			`"tools":["list_gpu_nodes","get_gpu_inventory",`+
+			`"get_gpu_health","analyze_xid_errors"],`+
 			`"version":"%s","commit":"%s"}`,
 			cfg.Mode, cfg.Namespace, cfg.Version, cfg.GitCommit)
 	} else {
