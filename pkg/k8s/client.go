@@ -81,10 +81,11 @@ func NewClientWithConfig(
 
 // ListGPUNodes returns all nodes running the GPU agent DaemonSet.
 func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
-	// List pods with the GPU agent label
+	// List pods with the GPU agent label, excluding gateway pods
 	pods, err := c.clientset.CoreV1().Pods(c.namespace).List(ctx,
 		metav1.ListOptions{
-			LabelSelector: "app.kubernetes.io/name=k8s-gpu-mcp-server",
+			LabelSelector: "app.kubernetes.io/name=k8s-gpu-mcp-server," +
+				"app.kubernetes.io/component!=gateway",
 		})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pods: %w", err)
