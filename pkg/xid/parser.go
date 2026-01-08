@@ -61,7 +61,9 @@ func (p *Parser) ParseKernelLogs(ctx context.Context) ([]XIDEvent, error) {
 
 	// Try /dev/kmsg first (works in distroless containers)
 	kmsgReader := NewKmsgReader()
-	if kmsgReader.IsAvailable() {
+	kmsgAvailable := kmsgReader.IsAvailable()
+
+	if kmsgAvailable {
 		log.Printf(`{"level":"debug","msg":"reading kernel logs from /dev/kmsg"}`)
 		messages, err := kmsgReader.ReadMessages(ctx)
 		if err == nil {
@@ -78,7 +80,19 @@ func (p *Parser) ParseKernelLogs(ctx context.Context) ([]XIDEvent, error) {
 	}
 
 	// Fall back to dmesg command
-	return p.ParseDmesg(ctx)
+	events, err := p.ParseDmesg(ctx)
+	if err != nil {
+		// If both methods failed, provide a helpful error message
+		if !kmsgAvailable {
+			return nil, fmt.Errorf("%w. "+
+				"Note: /dev/kmsg was not accessible. In Kubernetes, this requires "+
+				"securityContext.privileged=true due to cgroup v2 device restrictions. "+
+				"Ensure the Helm chart has xidAnalysis.enabled=true and "+
+				"securityContext.privileged=true", err)
+		}
+		return nil, err
+	}
+	return events, nil
 }
 
 // parseMessages extracts XID events from a slice of kernel log messages.
