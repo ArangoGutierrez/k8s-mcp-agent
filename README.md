@@ -34,6 +34,12 @@ Kubernetes APIs cannot detect.
 
 ## 🚀 Quick Start
 
+### One-Click Install
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=k8s-gpu-mcp&config=eyJtY3BTZXJ2ZXJzIjp7Ims4cy1ncHUtbWNwIjp7ImNvbW1hbmQiOiJucHgiLCJhcmdzIjpbIi15IiwiazhzLWdwdS1tY3Atc2VydmVyQGxhdGVzdCJdfX19Cg==)
+
+Click the button above to install automatically in Cursor.
+
 ### One-Line Installation
 
 ```bash
@@ -44,14 +50,15 @@ npx k8s-gpu-mcp-server@latest
 npm install -g k8s-gpu-mcp-server
 ```
 
-### Use with Cursor
+<details>
+<summary><strong>📋 Manual Configuration: Cursor / VS Code</strong></summary>
 
-Add to your Cursor MCP configuration:
+Add to `~/.cursor/mcp.json` (Cursor) or VS Code MCP config:
 
 ```json
 {
   "mcpServers": {
-    "k8s-gpu": {
+    "k8s-gpu-mcp": {
       "command": "npx",
       "args": ["-y", "k8s-gpu-mcp-server@latest"]
     }
@@ -59,20 +66,26 @@ Add to your Cursor MCP configuration:
 }
 ```
 
-### Use with Claude Desktop
+</details>
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+<details>
+<summary><strong>📋 Manual Configuration: Claude Desktop</strong></summary>
+
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
-    "k8s-gpu": {
+    "k8s-gpu-mcp": {
       "command": "npx",
       "args": ["-y", "k8s-gpu-mcp-server@latest"]
     }
   }
 }
 ```
+
+</details>
 
 ### Install from Source
 
@@ -111,22 +124,22 @@ kubectl exec -it -n gpu-diagnostics $POD -- /agent --mode=read-only
 > GPU Operator or nvidia-ctk. For clusters without RuntimeClass, use fallback:
 > `--set gpu.runtimeClass.enabled=false --set gpu.resourceRequest.enabled=true`
 
-### Use with Claude Desktop
+### Configure Claude Desktop with kubectl (Advanced)
 
-Add to your Claude Desktop configuration:
+For deployed agents, add to your Claude Desktop configuration:
 
 ```json
 {
   "mcpServers": {
     "k8s-gpu-agent": {
       "command": "kubectl",
-      "args": ["debug", "node/gpu-node-5", "--image=...", "--", "/agent"]
+      "args": ["exec", "-i", "deploy/k8s-gpu-mcp-server", "-n", "gpu-diagnostics", "--", "/agent"]
     }
   }
 }
 ```
 
-Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
+Then ask Claude: *"What's the temperature of the GPUs?"*
 
 📖 **[Full Quick Start Guide →](docs/quickstart.md)**
 
