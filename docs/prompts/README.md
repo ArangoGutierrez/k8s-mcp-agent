@@ -15,11 +15,7 @@ bugs, or completing other project work.
 
 | Prompt | Issue | Status | Description |
 |--------|-------|--------|-------------|
-| [remove-echo-test.md](remove-echo-test.md) | #100 | 🟡 P2 | Remove echo_test tool from production |
-| [one-click-install-buttons.md](one-click-install-buttons.md) | #87 | 🟢 P3 | One-click install buttons for Cursor/VSCode |
-| [gateway-mode.md](gateway-mode.md) | #72 | ✅ Done | Gateway mode for multi-node clusters |
-| [gateway-tool-proxy.md](gateway-tool-proxy.md) | #98 | ✅ Done | Proxy all GPU tools via gateway |
-| [real-cluster-integration-testing.md](real-cluster-integration-testing.md) | - | ✅ Done | Integration testing guide |
+| [consolidate-gpu-inventory.md](consolidate-gpu-inventory.md) | #99 | 🟡 P2 | Consolidate list_gpu_nodes into get_gpu_inventory |
 
 ## Template
 
@@ -31,6 +27,11 @@ Completed prompts are moved to `archive/` for reference:
 
 | Prompt | Related Issue/PR | Completed |
 |--------|-----------------|-----------|
+| remove-echo-test.md | #100, PR #105 | Jan 2026 |
+| one-click-install-buttons.md | #87, PR #106 | Jan 2026 |
+| gateway-tool-proxy.md | #98, PR #101 | Jan 2026 |
+| gateway-mode.md | #72, PR #94 | Jan 2026 |
+| real-cluster-integration-testing.md | Testing guide | Jan 2026 |
 | http-sse-transport.md | #71, PR #93 | Jan 2026 |
 | npm-package-distribution.md | #74, PR #92 | Jan 2026 |
 | daemonset-manifests.md | PR #67 | Jan 2026 |
