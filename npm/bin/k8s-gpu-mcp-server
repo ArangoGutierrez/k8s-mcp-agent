@@ -1,0 +1,270 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const http = require('http');
+const readline = require('readline');
+
+// Configuration via environment variables
+const NAMESPACE = process.env.K8S_GPU_MCP_NAMESPACE || 'gpu-diagnostics';
+const SERVICE = process.env.K8S_GPU_MCP_SERVICE || 'gpu-mcp-gateway';
+const SERVICE_PORT = process.env.K8S_GPU_MCP_SERVICE_PORT || '8080';
+const LOCAL_PORT = process.env.K8S_GPU_MCP_LOCAL_PORT || '0'; // 0 = auto-select
+const KUBECONFIG = process.env.KUBECONFIG || '';
+const CONTEXT = process.env.K8S_GPU_MCP_CONTEXT || '';
+
+/**
+ * KubectlBridge manages kubectl port-forward and bridges stdio to HTTP.
+ *
+ * Flow:
+ * 1. Discover or use configured gateway service
+ * 2. Spawn kubectl port-forward in background
+ * 3. Read JSON-RPC from stdin, POST to gateway, write response to stdout
+ * 4. Clean up port-forward on exit
+ */
+class KubectlBridge {
+  constructor() {
+    this.portForward = null;
+    this.localPort = null;
+    this.ready = false;
+  }
+
+  async start() {
+    // Discover gateway if not explicitly configured
+    const { namespace, service } = await this.discoverGateway();
+
+    // Start port-forward
+    this.localPort = await this.startPortForward(namespace, service);
+    this.ready = true;
+
+    // Set up stdio bridge
+    await this.bridgeStdio();
+  }
+
+  /**
+   * Discover gateway service by Kubernetes label if not configured.
+   */
+  discoverGateway() {
+    return new Promise((resolve) => {
+      // If explicitly configured, use those values
+      if (process.env.K8S_GPU_MCP_NAMESPACE && process.env.K8S_GPU_MCP_SERVICE) {
+        console.error(`[k8s-gpu-mcp] Using configured gateway: ${NAMESPACE}/${SERVICE}`);
+        resolve({ namespace: NAMESPACE, service: SERVICE });
+        return;
+      }
+
+      const args = [
+        'get', 'svc', '-A',
+        '-l', 'app.kubernetes.io/name=k8s-gpu-mcp-server',
+        '-o', 'jsonpath={.items[0].metadata.namespace}/{.items[0].metadata.name}'
+      ];
+
+      if (CONTEXT) {
+        args.unshift('--context', CONTEXT);
+      }
+
+      if (KUBECONFIG) {
+        args.unshift('--kubeconfig', KUBECONFIG);
+      }
+
+      const kubectl = spawn('kubectl', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+      let stdout = '';
+      let stderr = '';
+      kubectl.stdout.on('data', (data) => { stdout += data; });
+      kubectl.stderr.on('data', (data) => { stderr += data; });
+
+      kubectl.on('exit', (code) => {
+        if (code !== 0 || !stdout.trim() || stdout.trim() === '/') {
+          // Fall back to defaults
+          console.error(`[k8s-gpu-mcp] Discovery failed, using defaults: ${NAMESPACE}/${SERVICE}`);
+          resolve({ namespace: NAMESPACE, service: SERVICE });
+        } else {
+          const parts = stdout.trim().split('/');
+          if (parts.length === 2 && parts[0] && parts[1]) {
+            const [namespace, service] = parts;
+            console.error(`[k8s-gpu-mcp] Discovered gateway: ${namespace}/${service}`);
+            resolve({ namespace, service });
+          } else {
+            console.error(`[k8s-gpu-mcp] Invalid discovery result, using defaults`);
+            resolve({ namespace: NAMESPACE, service: SERVICE });
+          }
+        }
+      });
+
+      kubectl.on('error', () => {
+        console.error(`[k8s-gpu-mcp] Discovery error, using defaults: ${NAMESPACE}/${SERVICE}`);
+        resolve({ namespace: NAMESPACE, service: SERVICE });
+      });
+    });
+  }
+
+  startPortForward(namespace, service) {
+    return new Promise((resolve, reject) => {
+      const args = ['port-forward', '-n', namespace, `svc/${service}`];
+
+      // Use random local port if not specified
+      const localPort = LOCAL_PORT === '0' ? '' : LOCAL_PORT;
+      args.push(`${localPort}:${SERVICE_PORT}`);
+
+      // Add context if specified
+      if (CONTEXT) {
+        args.unshift('--context', CONTEXT);
+      }
+
+      // Add kubeconfig if specified
+      if (KUBECONFIG) {
+        args.unshift('--kubeconfig', KUBECONFIG);
+      }
+
+      console.error(`[k8s-gpu-mcp] Starting: kubectl ${args.join(' ')}`);
+
+      this.portForward = spawn('kubectl', args, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let resolved = false;
+
+      // Parse stdout for the assigned port
+      this.portForward.stdout.on('data', (data) => {
+        const output = data.toString();
+        console.error(`[k8s-gpu-mcp] ${output.trim()}`);
+
+        // Parse: "Forwarding from 127.0.0.1:XXXXX -> 8080"
+        const match = output.match(/Forwarding from 127\.0\.0\.1:(\d+)/);
+        if (match && !resolved) {
+          resolved = true;
+          resolve(parseInt(match[1], 10));
+        }
+      });
+
+      this.portForward.stderr.on('data', (data) => {
+        console.error(`[k8s-gpu-mcp] stderr: ${data.toString().trim()}`);
+      });
+
+      this.portForward.on('error', (err) => {
+        if (!resolved) {
+          reject(new Error(`Failed to start kubectl: ${err.message}`));
+        }
+      });
+
+      this.portForward.on('exit', (code) => {
+        if (!resolved) {
+          reject(new Error(`kubectl exited with code ${code}`));
+        }
+        console.error(`[k8s-gpu-mcp] Port-forward exited with code ${code}`);
+        process.exit(code || 1);
+      });
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          this.cleanup();
+          reject(new Error('Timeout waiting for port-forward'));
+        }
+      }, 30000);
+    });
+  }
+
+  async bridgeStdio() {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      terminal: false
+    });
+
+    // Handle each line as a JSON-RPC message
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+
+      try {
+        const response = await this.sendRequest(line);
+        console.log(response);
+      } catch (err) {
+        // Try to extract request id for proper error response
+        let id = null;
+        try {
+          const parsed = JSON.parse(line);
+          id = parsed.id || null;
+        } catch {
+          // Ignore parse errors
+        }
+
+        // Return JSON-RPC error
+        const errorResponse = {
+          jsonrpc: '2.0',
+          id: id,
+          error: {
+            code: -32603,
+            message: err.message
+          }
+        };
+        console.log(JSON.stringify(errorResponse));
+      }
+    }
+
+    // Stdin closed, cleanup
+    this.cleanup();
+  }
+
+  sendRequest(jsonLine) {
+    return new Promise((resolve, reject) => {
+      const postData = jsonLine;
+
+      const options = {
+        hostname: '127.0.0.1',
+        port: this.localPort,
+        path: '/mcp',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          } else {
+            resolve(data);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+  }
+
+  cleanup() {
+    if (this.portForward) {
+      console.error('[k8s-gpu-mcp] Cleaning up port-forward...');
+      this.portForward.kill('SIGTERM');
+      this.portForward = null;
+    }
+  }
+}
+
+// Create bridge instance
+const bridge = new KubectlBridge();
+
+// Handle signals for cleanup
+process.on('SIGINT', () => {
+  bridge.cleanup();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  bridge.cleanup();
+  process.exit(0);
+});
+
+process.on('exit', () => bridge.cleanup());
+
+// Start the bridge
+bridge.start().catch((err) => {
+  console.error(`[k8s-gpu-mcp] Error: ${err.message}`);
+  process.exit(1);
+});
