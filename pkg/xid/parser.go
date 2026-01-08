@@ -6,6 +6,7 @@ package xid
 import (
 	"context"
 	"fmt"
+	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -50,8 +51,67 @@ func NewParser() *Parser {
 	}
 }
 
+// ParseKernelLogs reads XID events from kernel logs.
+// Prefers /dev/kmsg when available, falls back to dmesg command.
+func (p *Parser) ParseKernelLogs(ctx context.Context) ([]XIDEvent, error) {
+	// Check context before expensive operation
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
+
+	// Try /dev/kmsg first (works in distroless containers)
+	kmsgReader := NewKmsgReader()
+	kmsgAvailable := kmsgReader.IsAvailable()
+
+	if kmsgAvailable {
+		log.Printf(`{"level":"debug","msg":"reading kernel logs from /dev/kmsg"}`)
+		messages, err := kmsgReader.ReadMessages(ctx)
+		if err == nil {
+			log.Printf(`{"level":"debug","msg":"read kernel messages",`+
+				`"count":%d,"source":"/dev/kmsg"}`, len(messages))
+			return p.parseMessages(messages), nil
+		}
+		// Log warning and fall back to dmesg
+		log.Printf(`{"level":"warn","msg":"failed to read /dev/kmsg, `+
+			`falling back to dmesg","error":"%s"}`, err)
+	} else {
+		log.Printf(`{"level":"debug","msg":"/dev/kmsg not available, ` +
+			`using dmesg"}`)
+	}
+
+	// Fall back to dmesg command
+	events, err := p.ParseDmesg(ctx)
+	if err != nil {
+		// If both methods failed, provide a helpful error message
+		if !kmsgAvailable {
+			return nil, fmt.Errorf("%w. "+
+				"Note: /dev/kmsg was not accessible. In Kubernetes, this requires "+
+				"securityContext.privileged=true due to cgroup v2 device restrictions. "+
+				"Ensure the Helm chart has xidAnalysis.enabled=true and "+
+				"securityContext.privileged=true", err)
+		}
+		return nil, err
+	}
+	return events, nil
+}
+
+// parseMessages extracts XID events from a slice of kernel log messages.
+func (p *Parser) parseMessages(messages []string) []XIDEvent {
+	var events []XIDEvent
+	for _, msg := range messages {
+		if !strings.Contains(msg, "Xid") {
+			continue
+		}
+		if event := p.parseXIDLine(msg); event != nil {
+			events = append(events, *event)
+		}
+	}
+	return events
+}
+
 // ParseDmesg executes dmesg and parses XID error events.
 // Returns empty slice if no XIDs found or if dmesg is not accessible.
+// Deprecated: Use ParseKernelLogs instead, which prefers /dev/kmsg.
 func (p *Parser) ParseDmesg(ctx context.Context) ([]XIDEvent, error) {
 	// Check context before expensive operation
 	if err := ctx.Err(); err != nil {

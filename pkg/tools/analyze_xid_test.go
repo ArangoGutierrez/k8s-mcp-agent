@@ -21,7 +21,9 @@ type mockXIDParser struct {
 	err    error
 }
 
-func (m *mockXIDParser) ParseDmesg(ctx context.Context) ([]xid.XIDEvent, error) {
+func (m *mockXIDParser) ParseKernelLogs(
+	ctx context.Context,
+) ([]xid.XIDEvent, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

@@ -127,4 +127,17 @@ spec:
           {{- /* RuntimeClass: No GPU resource request - monitors all GPUs */}}
           {{- toYaml .Values.resources | nindent 10 }}
           {{- end }}
+        {{- if .Values.xidAnalysis.enabled }}
+        volumeMounts:
+        - name: kmsg
+          mountPath: /dev/kmsg
+          readOnly: true
+        {{- end }}
+      {{- if .Values.xidAnalysis.enabled }}
+      volumes:
+      - name: kmsg
+        hostPath:
+          path: /dev/kmsg
+          type: CharDevice
+      {{- end }}
 
