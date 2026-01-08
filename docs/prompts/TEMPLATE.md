@@ -88,11 +88,15 @@ package example
 - [ ] Criterion 1
 - [ ] Criterion 2
 
+> 💡 **Commit after completing this task** before moving to the next one.
+
 ---
 
 ### Task 2: [Second Task Title]
 
 Continue with subsequent tasks...
+
+> 💡 **Commit after completing this task** before moving to the next one.
 
 ---
 
@@ -152,6 +156,48 @@ make all
 
 ## Commit and Push
 
+### Atomic Commits (IMPORTANT)
+
+> **⚠️ Prefer many small commits over one large commit.**
+
+Each commit should represent **one logical change**. A PR with 10-20 focused
+commits is better than a single massive commit. This provides:
+
+- **Better traceability** - Easy to find when/why a change was introduced
+- **Easier reviews** - Reviewers can understand changes incrementally
+- **Simpler rollbacks** - Revert specific changes without losing everything
+- **Cleaner history** - `git log` and `git bisect` become useful tools
+
+**Good commit practices:**
+```bash
+# Each commit is one logical change
+git commit -s -S -m "feat(gateway): add ProxyHandler struct"
+git commit -s -S -m "feat(gateway): implement buildMCPRequest helper"
+git commit -s -S -m "feat(gateway): add response aggregation logic"
+git commit -s -S -m "test(gateway): add ProxyHandler unit tests"
+git commit -s -S -m "feat(mcp): register proxy handlers in gateway mode"
+```
+
+**Bad commit practices:**
+```bash
+# One massive commit with everything
+git commit -s -S -m "feat(gateway): implement full gateway proxy with tests"
+
+# Vague or meaningless messages
+git commit -s -S -m "WIP"
+git commit -s -S -m "fixes"
+git commit -s -S -m "updates"
+```
+
+**When to commit:**
+- After completing a function or method
+- After adding tests for a component
+- After fixing a specific bug
+- After updating configuration or docs
+- Before switching to a different logical task
+
+---
+
 ### Commit Message Format
 
 All commits MUST be signed with DCO (`-s`) and GPG (`-S`):
@@ -183,9 +229,20 @@ git commit -s -S -m "docs(readme): add one-click install buttons"
 
 ### Push to Remote
 
+Push frequently - don't wait until everything is done. This provides:
+- **Backup** - Your work is safe on the remote
+- **Early CI feedback** - Catch issues sooner
+- **Visibility** - Others can see progress
+
 ```bash
+# First push (sets upstream)
 git push -u origin <your-branch-name>
+
+# Subsequent pushes
+git push
 ```
+
+> 💡 **Push after every 2-3 commits** or after completing a logical milestone.
 
 ---
 
@@ -388,17 +445,21 @@ gh pr merge <PR#> --merge --delete-branch
 
 ```
 1. Create branch (Step 0) ─────────────────────────────► feat/<name>
-2. Implement tasks ────────────────────────────────────► Code changes
+2. Implement ONE logical change ───────────────────────► Code changes
 3. Run pre-commit checks ──────────────────────────────► make all
 4. Commit with DCO + GPG ──────────────────────────────► git commit -s -S
-5. Push to remote ─────────────────────────────────────► git push
-6. Create PR with labels + milestone ──────────────────► gh pr create
-7. Wait for CI ────────────────────────────────────────► gh pr checks --watch
-8. Address Copilot/review comments ────────────────────► Fix → Push
-9. Merge PR ───────────────────────────────────────────► gh pr merge
+5. Repeat steps 2-4 for each logical change ───────────► Atomic commits
+6. Push to remote ─────────────────────────────────────► git push
+7. Create PR with labels + milestone ──────────────────► gh pr create
+8. Wait for CI ────────────────────────────────────────► gh pr checks --watch
+9. Address Copilot/review comments ────────────────────► Fix → Push
+10. Merge PR ──────────────────────────────────────────► gh pr merge
 ```
+
+> 💡 **Remember:** 10-20 atomic commits > 1 massive commit
 
 ---
 
 **Reply "GO" when ready to start implementation.** 🚀
+
 
