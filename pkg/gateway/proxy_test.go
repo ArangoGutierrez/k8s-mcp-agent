@@ -249,3 +249,171 @@ func TestAggregateResults_Empty(t *testing.T) {
 	assert.Equal(t, 0, aggMap["error_count"])
 	assert.Equal(t, 0, aggMap["node_count"])
 }
+
+func TestAggregateGPUInventory_ClusterSummary(t *testing.T) {
+	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+
+	// Mock response from two nodes with different GPU types
+	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
+		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
+		`"text":"{\"driver_version\":\"575.57\",\"cuda_version\":\"12.9\",` +
+		`\"device_count\":1,\"devices\":[{\"name\":\"Tesla T4\",` +
+		`\"index\":0,\"uuid\":\"GPU-xxx\"}]}"}]}}`
+	node2Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
+		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
+		`"text":"{\"driver_version\":\"575.57\",\"cuda_version\":\"12.9\",` +
+		`\"device_count\":2,\"devices\":[{\"name\":\"A100\",\"index\":0,` +
+		`\"uuid\":\"GPU-yyy\"},{\"name\":\"A100\",\"index\":1,` +
+		`\"uuid\":\"GPU-zzz\"}]}"}]}}`
+
+	results := []NodeResult{
+		{NodeName: "node1", PodName: "pod1", Response: []byte(node1Response)},
+		{NodeName: "node2", PodName: "pod2", Response: []byte(node2Response)},
+	}
+
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+
+	// Check cluster summary
+	summary := aggMap["cluster_summary"].(map[string]interface{})
+	assert.Equal(t, 2, summary["total_nodes"])
+	assert.Equal(t, 2, summary["ready_nodes"])
+	assert.Equal(t, 3, summary["total_gpus"])
+
+	gpuTypes := summary["gpu_types"].([]string)
+	assert.Len(t, gpuTypes, 2)
+	assert.Contains(t, gpuTypes, "Tesla T4")
+	assert.Contains(t, gpuTypes, "A100")
+
+	// Check nodes array
+	nodes := aggMap["nodes"].([]interface{})
+	assert.Len(t, nodes, 2)
+
+	node1Data := nodes[0].(map[string]interface{})
+	assert.Equal(t, "node1", node1Data["name"])
+	assert.Equal(t, "ready", node1Data["status"])
+	assert.Equal(t, "575.57", node1Data["driver_version"])
+}
+
+func TestAggregateGPUInventory_WithErrors(t *testing.T) {
+	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+
+	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
+		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
+		`"text":"{\"device_count\":1,\"devices\":[{\"name\":\"Tesla T4\",` +
+		`\"index\":0}]}"}]}}`
+
+	results := []NodeResult{
+		{NodeName: "node1", PodName: "pod1", Response: []byte(node1Response)},
+		{NodeName: "node2", PodName: "pod2", Error: "connection refused"},
+	}
+
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+
+	summary := aggMap["cluster_summary"].(map[string]interface{})
+	assert.Equal(t, 2, summary["total_nodes"])
+	assert.Equal(t, 1, summary["ready_nodes"])
+	assert.Equal(t, 1, summary["total_gpus"])
+
+	nodes := aggMap["nodes"].([]interface{})
+	node2Data := nodes[1].(map[string]interface{})
+	assert.Equal(t, "error", node2Data["status"])
+	assert.Equal(t, "connection refused", node2Data["error"])
+}
+
+func TestAggregateGPUInventory_Empty(t *testing.T) {
+	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+
+	results := []NodeResult{}
+
+	aggregated := handler.aggregateResults(results)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+
+	summary := aggMap["cluster_summary"].(map[string]interface{})
+	assert.Equal(t, 0, summary["total_nodes"])
+	assert.Equal(t, 0, summary["ready_nodes"])
+	assert.Equal(t, 0, summary["total_gpus"])
+
+	gpuTypes := summary["gpu_types"].([]string)
+	assert.Len(t, gpuTypes, 0)
+}
+
+func TestFlattenGPUInfo(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   map[string]interface{}
+		checkFn func(*testing.T, map[string]interface{})
+	}{
+		{
+			name:  "nil input",
+			input: nil,
+			checkFn: func(t *testing.T, result map[string]interface{}) {
+				assert.Contains(t, result, "error")
+			},
+		},
+		{
+			name: "basic fields",
+			input: map[string]interface{}{
+				"index": 0,
+				"name":  "Tesla T4",
+				"uuid":  "GPU-xxx",
+			},
+			checkFn: func(t *testing.T, result map[string]interface{}) {
+				assert.Equal(t, 0, result["index"])
+				assert.Equal(t, "Tesla T4", result["name"])
+				assert.Equal(t, "GPU-xxx", result["uuid"])
+			},
+		},
+		{
+			name: "with memory flattening",
+			input: map[string]interface{}{
+				"name": "Tesla T4",
+				"memory": map[string]interface{}{
+					"total_bytes": float64(16106127360),
+				},
+			},
+			checkFn: func(t *testing.T, result map[string]interface{}) {
+				memGB := result["memory_total_gb"].(float64)
+				assert.InDelta(t, 15.0, memGB, 0.5)
+			},
+		},
+		{
+			name: "with temperature flattening",
+			input: map[string]interface{}{
+				"name": "Tesla T4",
+				"temperature": map[string]interface{}{
+					"current_celsius": float64(45),
+				},
+			},
+			checkFn: func(t *testing.T, result map[string]interface{}) {
+				assert.Equal(t, 45, result["temperature_c"])
+			},
+		},
+		{
+			name: "with utilization flattening",
+			input: map[string]interface{}{
+				"name": "Tesla T4",
+				"utilization": map[string]interface{}{
+					"gpu_percent": float64(85),
+				},
+			},
+			checkFn: func(t *testing.T, result map[string]interface{}) {
+				assert.Equal(t, 85, result["utilization_percent"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := flattenGPUInfo(tt.input)
+			tt.checkFn(t, result)
+		})
+	}
+}

@@ -221,8 +221,11 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 func GetGPUInventoryTool() mcp.Tool {
 	return mcp.NewTool("get_gpu_inventory",
 		mcp.WithDescription(
-			"Returns static hardware inventory for all GPU devices "+
-				"including model, UUID, bus ID, and current telemetry",
+			"Returns GPU inventory for all devices. "+
+				"In agent mode: returns local GPU hardware details. "+
+				"In gateway mode: returns cluster-wide inventory with "+
+				"summary (total nodes, GPUs, types) and per-node GPU list. "+
+				"Includes model, UUID, memory, temperature, and utilization.",
 		),
 	)
 }
