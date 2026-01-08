@@ -18,7 +18,7 @@ go.work
 go.work.sum
 
 # Build directories
-bin/
+/bin/
 dist/
 build/
 out/
@@ -70,9 +70,9 @@ desktop.ini
 agent
 k8s-mcp-agent
 
-# npm package artifacts
-npm/bin/
+# npm package artifacts (track bridge script, ignore downloaded binaries)
+npm/bin/*
 !npm/bin/.gitkeep
+!npm/bin/k8s-gpu-mcp-server
 npm/node_modules/
 npm/*.tgz
-
