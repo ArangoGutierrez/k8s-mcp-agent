@@ -15,9 +15,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// xidParser is an interface for parsing XID events from dmesg.
+// xidParser is an interface for parsing XID events from kernel logs.
 type xidParser interface {
-	ParseDmesg(ctx context.Context) ([]xid.XIDEvent, error)
+	ParseKernelLogs(ctx context.Context) ([]xid.XIDEvent, error)
 }
 
 // AnalyzeXIDHandler handles the analyze_xid_errors tool.
@@ -84,16 +84,16 @@ func (h *AnalyzeXIDHandler) Handle(
 			fmt.Sprintf("operation cancelled: %s", err)), nil
 	}
 
-	// Parse dmesg for XID events
-	events, err := h.parser.ParseDmesg(ctx)
+	// Parse kernel logs for XID events (prefers /dev/kmsg, falls back to dmesg)
+	events, err := h.parser.ParseKernelLogs(ctx)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to parse dmesg",`+
+		log.Printf(`{"level":"error","msg":"failed to parse kernel logs",`+
 			`"error":"%s"}`, err)
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to parse kernel logs: %s", err)), nil
 	}
 
-	log.Printf(`{"level":"debug","msg":"parsed dmesg",`+
+	log.Printf(`{"level":"debug","msg":"parsed kernel logs",`+
 		`"event_count":%d}`, len(events))
 
 	// If no errors found, return success immediately
