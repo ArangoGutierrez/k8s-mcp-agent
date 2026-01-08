@@ -266,6 +266,26 @@ echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory
 
 ## Available Tools
 
+### XID Error Analysis Requirements
+
+The `analyze_xid_errors` tool reads kernel logs to detect NVIDIA XID errors.
+It uses two methods:
+
+1. **`/dev/kmsg`** (preferred) - Direct kernel log access, works in
+   distroless containers when `/dev/kmsg` is mounted from the host.
+
+2. **`dmesg` command** (fallback) - Used when `/dev/kmsg` is not available.
+   Requires a non-distroless container with `dmesg` installed.
+
+**Helm configuration:**
+```yaml
+xidAnalysis:
+  enabled: true  # Mounts /dev/kmsg from host
+```
+
+When deployed with the Helm chart, `/dev/kmsg` is mounted by default, enabling
+XID error analysis in distroless containers without external dependencies.
+
 ### get_gpu_inventory
 
 **Purpose:** Get complete GPU hardware inventory with telemetry
