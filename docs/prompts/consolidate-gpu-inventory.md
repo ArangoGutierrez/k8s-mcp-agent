@@ -36,7 +36,8 @@ single tool that provides complete GPU visibility across the cluster.
 > **⚠️ REQUIRED FIRST STEP - DO NOT SKIP**
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
+# Navigate to your local clone of the repository
+cd <your-workspace>/k8s-gpu-mcp-server
 git checkout main
 git pull origin main
 git checkout -b feat/consolidate-gpu-inventory
@@ -135,10 +136,13 @@ Update the `aggregateResults` method to create a cluster summary when proxying
 
 ```go
 // aggregateResults combines results from multiple nodes.
-func (p *ProxyHandler) aggregateResults(results []NodeResult) interface{} {
+func (p *ProxyHandler) aggregateResults(
+    ctx context.Context,
+    results []NodeResult,
+) interface{} {
     // Special handling for get_gpu_inventory - create cluster summary
     if p.toolName == "get_gpu_inventory" {
-        return p.aggregateGPUInventory(results)
+        return p.aggregateGPUInventory(ctx, results)
     }
     
     // Default aggregation for other tools
@@ -146,13 +150,26 @@ func (p *ProxyHandler) aggregateResults(results []NodeResult) interface{} {
 }
 
 // aggregateGPUInventory creates a cluster-wide GPU inventory with summary.
-func (p *ProxyHandler) aggregateGPUInventory(results []NodeResult) interface{} {
+func (p *ProxyHandler) aggregateGPUInventory(
+    ctx context.Context,
+    results []NodeResult,
+) interface{} {
     totalGPUs := 0
     readyNodes := 0
     gpuTypes := make(map[string]bool)
     nodes := make([]interface{}, 0, len(results))
     
     for _, result := range results {
+        // Check for context cancellation
+        select {
+        case <-ctx.Done():
+            return map[string]interface{}{
+                "status": "error",
+                "error":  fmt.Sprintf("operation cancelled: %v", ctx.Err()),
+            }
+        default:
+        }
+        
         nodeData := map[string]interface{}{
             "name": result.NodeName,
         }
@@ -217,29 +234,41 @@ func (p *ProxyHandler) aggregateGPUInventory(results []NodeResult) interface{} {
 }
 
 // flattenGPUInfo simplifies GPU info for cluster view.
+// Returns a flattened GPU info map with proper nil handling.
 func flattenGPUInfo(dev map[string]interface{}) map[string]interface{} {
-    gpu := map[string]interface{}{
-        "index": dev["index"],
-        "name":  dev["name"],
-        "uuid":  dev["uuid"],
+    if dev == nil {
+        return map[string]interface{}{"error": "nil device data"}
     }
     
-    // Flatten memory
-    if mem, ok := dev["memory"].(map[string]interface{}); ok {
+    gpu := make(map[string]interface{})
+    
+    // Copy basic fields with nil checks
+    if v, ok := dev["index"]; ok {
+        gpu["index"] = v
+    }
+    if v, ok := dev["name"]; ok {
+        gpu["name"] = v
+    }
+    if v, ok := dev["uuid"]; ok {
+        gpu["uuid"] = v
+    }
+    
+    // Flatten memory with proper type checking
+    if mem, ok := dev["memory"].(map[string]interface{}); ok && mem != nil {
         if total, ok := mem["total_bytes"].(float64); ok {
             gpu["memory_total_gb"] = total / (1024 * 1024 * 1024)
         }
     }
     
-    // Flatten temperature
-    if temp, ok := dev["temperature"].(map[string]interface{}); ok {
+    // Flatten temperature with proper type checking
+    if temp, ok := dev["temperature"].(map[string]interface{}); ok && temp != nil {
         if curr, ok := temp["current_celsius"].(float64); ok {
             gpu["temperature_c"] = int(curr)
         }
     }
     
-    // Flatten utilization
-    if util, ok := dev["utilization"].(map[string]interface{}); ok {
+    // Flatten utilization with proper type checking
+    if util, ok := dev["utilization"].(map[string]interface{}); ok && util != nil {
         if gpuPct, ok := util["gpu_percent"].(float64); ok {
             gpu["utilization_percent"] = int(gpuPct)
         }
@@ -405,7 +434,8 @@ Update docs to reflect the consolidated tool.
 ### Local Testing (Mock Mode)
 
 ```bash
-cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
+# Navigate to your local clone
+cd <your-workspace>/k8s-gpu-mcp-server
 
 # Run all checks
 make all
