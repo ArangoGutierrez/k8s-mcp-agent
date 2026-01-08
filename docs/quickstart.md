@@ -159,24 +159,7 @@ allowing the agent to monitor all GPUs without blocking the scheduler.
 
 Once the agent is running, you can call these MCP tools:
 
-### 1. Echo Test
-**Purpose:** Validate MCP protocol connectivity
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "echo_test",
-    "arguments": {
-      "message": "Hello!"
-    }
-  },
-  "id": 1
-}
-```
-
-### 2. GPU Inventory
+### 1. GPU Inventory
 **Purpose:** Get hardware inventory and current telemetry
 
 ```json

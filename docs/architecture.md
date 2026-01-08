@@ -217,8 +217,8 @@ helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
 ┌──────────────────▼──────────────────────┐
 │  Tool Layer (pkg/tools/)                │
 │  - get_gpu_inventory                     │
-│  - echo_test                             │
-│  - [Future: analyze_xid, telemetry]     │
+│  - get_gpu_health                        │
+│  - analyze_xid_errors                    │
 └──────────────────┬──────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
@@ -715,7 +715,8 @@ k8s-gpu-mcp-server/
 ├── examples/               # Sample requests
 │   ├── initialize.json
 │   ├── gpu_inventory.json
-│   └── echo_test.json
+│   ├── gpu_health.json
+│   └── analyze_xid.json
 │
 └── docs/                   # Documentation
     ├── quickstart.md

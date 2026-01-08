@@ -164,7 +164,6 @@ Then ask Claude: *"What's the temperature of the GPUs on node gpu-node-5?"*
 
 | Tool | Description | Status |
 |------|-------------|--------|
-| `echo_test` | MCP protocol validation | ✅ Available |
 | `get_gpu_inventory` | Hardware inventory + telemetry | ✅ Available |
 | `analyze_xid_errors` | Parse GPU XID error codes from kernel logs | ✅ Available |
 | `get_gpu_health` | GPU health monitoring with scoring | ✅ Available |

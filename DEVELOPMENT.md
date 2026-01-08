@@ -34,8 +34,9 @@ k8s-gpu-mcp-server/
 ├── internal/               # Private implementation details
 │   └── info/               # Build-time version info
 ├── examples/               # Example JSON-RPC requests
-│   ├── echo_test.json
 │   ├── gpu_inventory.json
+│   ├── gpu_health.json
+│   ├── analyze_xid.json
 │   └── initialize.json
 ├── .github/
 │   └── workflows/
@@ -319,7 +320,7 @@ The agent is built with:
 LOG_LEVEL=debug ./bin/agent --mode=read-only
 
 # Test with specific JSON-RPC request
-cat examples/echo_test.json | ./bin/agent 2>agent.log
+cat examples/gpu_inventory.json | ./bin/agent 2>agent.log
 
 # Check logs (stderr)
 cat agent.log | jq .
@@ -334,7 +335,7 @@ Use the MCP Inspector (if available) or manual JSON-RPC:
 echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":0}' | ./bin/agent
 
 # Call tool
-echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"echo_test","arguments":{"message":"test"}},"id":1}' | ./bin/agent
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory","arguments":{}},"id":1}' | ./bin/agent
 ```
 
 ## CI/CD

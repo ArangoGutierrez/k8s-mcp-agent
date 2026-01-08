@@ -48,7 +48,6 @@ Add to your Claude Desktop configuration
 - `get_gpu_inventory` - Hardware inventory and telemetry
 - `get_gpu_health` - GPU health monitoring with scoring
 - `analyze_xid_errors` - Parse GPU XID errors from kernel logs
-- `echo_test` - MCP protocol validation
 
 ## Documentation
 

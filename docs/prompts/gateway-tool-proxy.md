@@ -9,9 +9,9 @@
 
 ## Background
 
-The gateway currently only exposes `echo_test` and `list_gpu_nodes` tools. Users cannot
-access the core GPU tools (`get_gpu_inventory`, `get_gpu_health`, `analyze_xid_errors`)
-without connecting directly to node agents.
+The gateway currently only exposes `list_gpu_nodes` tool. Users cannot access the core
+GPU tools (`get_gpu_inventory`, `get_gpu_health`, `analyze_xid_errors`) without
+connecting directly to node agents.
 
 **Current architecture (broken UX):**
 ```
@@ -642,7 +642,6 @@ through the gateway without connecting directly to agents.
 
 - **#96** - list_gpu_nodes includes gateway pod (fixed in Task 4)
 - **#99** - Consolidate list_gpu_nodes into get_gpu_inventory (future work)
-- **#100** - Remove echo_test (can do after this PR)
 
 ---
 

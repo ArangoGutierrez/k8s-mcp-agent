@@ -27,8 +27,8 @@ echo
     cat "${SCRIPT_DIR}/initialize.json"
     echo
     
-    echo "==> Sending echo_test request"
-    cat "${SCRIPT_DIR}/echo_test.json"
+    echo "==> Sending get_gpu_inventory request"
+    cat "${SCRIPT_DIR}/gpu_inventory.json"
     echo
 } | "$AGENT_BIN" 2>&1 | tee /tmp/mcp_test_output.log
 
@@ -37,5 +37,4 @@ echo "=== Test Complete ==="
 echo "Output saved to: /tmp/mcp_test_output.log"
 echo
 echo "Tip: To test interactively, run:"
-echo "  cat examples/echo_test.json | ./bin/agent"
-
+echo "  cat examples/gpu_inventory.json | ./bin/agent"
