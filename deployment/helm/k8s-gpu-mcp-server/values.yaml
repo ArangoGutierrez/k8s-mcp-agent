@@ -163,6 +163,12 @@ service:
   # -- Service port
   port: 8080
 
+# XID error analysis configuration
+xidAnalysis:
+  # -- Enable /dev/kmsg mount for XID error detection
+  # Required for analyze_xid_errors tool in distroless containers
+  enabled: true
+
 # Gateway configuration
 # Gateway provides a single MCP entry point for multi-node GPU clusters
 gateway:
