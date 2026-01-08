@@ -11,13 +11,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/gateway"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -107,16 +105,6 @@ func New(cfg Config) (*Server, error) {
 		"k8s-gpu-mcp-server",
 		cfg.Version,
 	)
-
-	// Register the echo test tool
-	echoTool := mcp.NewTool("echo_test",
-		mcp.WithDescription("Echo test tool for validating MCP protocol"),
-		mcp.WithString("message",
-			mcp.Required(),
-			mcp.Description("Message to echo back"),
-		),
-	)
-	mcpServer.AddTool(echoTool, s.handleEchoTest)
 
 	if cfg.GatewayMode {
 		// Gateway mode: register all tools with proxy handlers
@@ -218,49 +206,6 @@ func (s *Server) Shutdown() error {
 
 	log.Printf(`{"level":"info","msg":"MCP server shutdown complete"}`)
 	return nil
-}
-
-// handleEchoTest implements the echo_test tool handler.
-func (s *Server) handleEchoTest(
-	ctx context.Context,
-	request mcp.CallToolRequest,
-) (*mcp.CallToolResult, error) {
-	// Extract arguments as map
-	args, ok := request.Params.Arguments.(map[string]interface{})
-	if !ok {
-		return mcp.NewToolResultError("arguments must be an object"), nil
-	}
-
-	// Extract message from arguments
-	message, ok := args["message"].(string)
-	if !ok {
-		return mcp.NewToolResultError("message parameter must be a string"),
-			nil
-	}
-
-	log.Printf(`{"level":"debug","msg":"echo_test invoked",`+
-		`"message":"%s"}`, message)
-
-	// Create response
-	response := map[string]interface{}{
-		"echo":      message,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"mode":      s.mode,
-	}
-
-	// Marshal to JSON
-	jsonBytes, err := json.Marshal(response)
-	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
-		return mcp.NewToolResultError(
-			fmt.Sprintf("failed to marshal response: %s", err)), nil
-	}
-
-	log.Printf(`{"level":"info","msg":"echo_test completed",`+
-		`"response_size":%d}`, len(jsonBytes))
-
-	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 // LogToStderr logs a structured message to stderr.

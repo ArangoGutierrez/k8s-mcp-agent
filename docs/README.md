@@ -82,7 +82,6 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 All code examples are available in the [`examples/`](../examples/) directory:
 
 - `initialize.json` - MCP session initialization
-- `echo_test.json` - Protocol validation
 - `gpu_inventory.json` - GPU inventory request
 - `gpu_health.json` - GPU health check request
 - `analyze_xid.json` - XID error analysis request

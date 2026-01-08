@@ -127,16 +127,7 @@ POD=$(kubectl get pods -n gpu-diagnostics \
 
 echo "Testing pod: $POD"
 
-# Test 1.1: Echo test
-kubectl exec -n gpu-diagnostics $POD -- /bin/sh -c \
-  'echo '"'"'{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":0}
-{"jsonrpc":"2.0","method":"tools/call","params":{"name":"echo_test","arguments":{"message":"Hello from real cluster!"}},"id":1}'"'"' | /agent --nvml-mode=real'
-```
-
-**Expected output:** JSON response with echoed message
-
-```bash
-# Test 1.2: GPU Inventory (REAL NVML)
+# Test 1.1: GPU Inventory (REAL NVML)
 kubectl exec -n gpu-diagnostics $POD -- /bin/sh -c \
   'echo '"'"'{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":0}
 {"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory","arguments":{}},"id":1}'"'"' | /agent --nvml-mode=real'
@@ -165,7 +156,6 @@ kubectl exec -n gpu-diagnostics $POD -- /bin/sh -c \
 ### Acceptance Criteria - Test 1
 
 - [ ] Pods running on all GPU nodes (DaemonSet)
-- [ ] `echo_test` returns response
 - [ ] `get_gpu_inventory` shows REAL GPU data (not mock)
 - [ ] `get_gpu_health` returns health status
 - [ ] `analyze_xid_errors` completes without error
@@ -399,7 +389,7 @@ kubectl exec -n gpu-diagnostics $POD -- /bin/sh -c \
 
 # Test 5.2: Missing initialize
 kubectl exec -n gpu-diagnostics $POD -- /bin/sh -c \
-  'echo '"'"'{"jsonrpc":"2.0","method":"tools/call","params":{"name":"echo_test","arguments":{"message":"test"}},"id":1}'"'"' | /agent --nvml-mode=real'
+  'echo '"'"'{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory","arguments":{}},"id":1}'"'"' | /agent --nvml-mode=real'
 
 # Expected: Error or tool result (implementation dependent)
 ```
@@ -462,10 +452,9 @@ Fill this out after running tests:
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 1.1 | echo_test via stdio | ⬜ | |
-| 1.2 | get_gpu_inventory (real NVML) | ⬜ | |
-| 1.3 | get_gpu_health | ⬜ | |
-| 1.4 | analyze_xid_errors | ⬜ | |
+| 1.1 | get_gpu_inventory (real NVML) | ⬜ | |
+| 1.2 | get_gpu_health | ⬜ | |
+| 1.3 | analyze_xid_errors | ⬜ | |
 | 2.1 | /healthz HTTP | ⬜ | |
 | 2.2 | /readyz HTTP | ⬜ | |
 | 2.3 | /version HTTP | ⬜ | |

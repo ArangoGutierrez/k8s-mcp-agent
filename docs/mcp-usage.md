@@ -214,22 +214,24 @@ echo '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}' | ./bin/agent
   "result": {
     "tools": [
       {
-        "name": "echo_test",
-        "description": "Echo test tool for validating MCP protocol",
+        "name": "get_gpu_inventory",
+        "description": "Returns static hardware inventory for all GPU devices...",
         "inputSchema": {
           "type": "object",
-          "properties": {
-            "message": {
-              "type": "string",
-              "description": "Message to echo back"
-            }
-          },
-          "required": ["message"]
+          "properties": {}
         }
       },
       {
-        "name": "get_gpu_inventory",
-        "description": "Returns static hardware inventory for all GPU devices...",
+        "name": "get_gpu_health",
+        "description": "GPU health monitoring with scoring...",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "analyze_xid_errors",
+        "description": "Parse GPU XID error codes from kernel logs...",
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -263,37 +265,6 @@ echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory
 ```
 
 ## Available Tools
-
-### echo_test
-
-**Purpose:** Protocol validation and connectivity test
-
-**Arguments:**
-- `message` (string, required): Message to echo back
-
-**Example:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "echo_test",
-    "arguments": {
-      "message": "Hello, MCP!"
-    }
-  },
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "echo": "Hello, MCP!",
-  "timestamp": "2026-01-03T15:00:00Z",
-  "mode": "read-only"
-}
-```
 
 ### get_gpu_inventory
 
@@ -655,8 +626,8 @@ Send multiple tool calls in sequence:
 ```bash
 {
   echo '{"jsonrpc":"2.0","method":"initialize",...,"id":0}'
-  echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"echo_test",...},"id":1}'
-  echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory",...},"id":2}'
+  echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory",...},"id":1}'
+  echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_health",...},"id":2}'
 } | ./bin/agent --nvml-mode=real
 ```
 
