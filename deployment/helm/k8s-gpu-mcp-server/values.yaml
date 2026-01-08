@@ -112,9 +112,10 @@ securityContext:
   capabilities:
     drop:
       - ALL
-    # Uncomment if profiling metrics are needed (like dcgm-exporter)
-    # add:
-    #   - SYS_ADMIN
+    # CAP_SYSLOG required for /dev/kmsg access (XID error analysis)
+    # SYS_ADMIN required for profiling metrics (like dcgm-exporter)
+    add:
+      - SYSLOG
 
 # Resource limits
 resources:
@@ -167,6 +168,7 @@ service:
 xidAnalysis:
   # -- Enable /dev/kmsg mount for XID error detection
   # Required for analyze_xid_errors tool in distroless containers
+  # Note: Also requires privileged: true in securityContext to read /dev/kmsg
   enabled: true
 
 # Gateway configuration

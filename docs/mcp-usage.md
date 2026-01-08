@@ -281,10 +281,17 @@ It uses two methods:
 ```yaml
 xidAnalysis:
   enabled: true  # Mounts /dev/kmsg from host
+
+securityContext:
+  privileged: true  # Required to read /dev/kmsg
 ```
 
 When deployed with the Helm chart, `/dev/kmsg` is mounted by default, enabling
 XID error analysis in distroless containers without external dependencies.
+
+**Note:** Reading `/dev/kmsg` requires privileged mode due to kernel security
+restrictions (seccomp/AppArmor). The CAP_SYSLOG capability alone is not
+sufficient in most Kubernetes deployments.
 
 ### get_gpu_inventory
 
