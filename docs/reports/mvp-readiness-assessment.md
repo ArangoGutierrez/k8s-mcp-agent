@@ -46,7 +46,7 @@ Once HTTP transport (#71) and Gateway mode (#72) are implemented, we can cut v0.
 | HTTP/SSE Transport | #71 | P0 | **Yes** | 🔴 Not Started |
 | Gateway Mode | #72 | P0 | **Yes** | 🔴 Not Started |
 | K8s Client Integration | #28 | P1 | **Yes** | 🔴 Not Started |
-| list_gpu_nodes | #29 | P1 | **Yes** | 🔴 Not Started |
+| ~~list_gpu_nodes~~ | #29 | P1 | **Yes** | ✅ Consolidated into get_gpu_inventory (#99) |
 | get_pod_gpu_allocation | #30 | P1 | **Yes** | 🔴 Not Started |
 | correlate_gpu_workload | #31 | P2 | **Yes** | 🔴 Not Started |
 | Multi-platform Binaries | #76 | P0 | Yes | ✅ Done |
@@ -169,7 +169,7 @@ Release chain: `git tag v0.1.0` → GoReleaser → Container Image → npm publi
 ### 🟡 Phase 3: K8s Integration (MVP)
 
 6. **#28 - K8s Client** (1 day)
-7. **#29 - list_gpu_nodes** (1 day)
+7. **#99 - Consolidate list_gpu_nodes into get_gpu_inventory** (Done)
 8. **#30 - get_pod_gpu_allocation** (1 day)
 9. **#31 - correlate_gpu_workload** (2 days)
 
@@ -220,7 +220,7 @@ Release chain: `git tag v0.1.0` → GoReleaser → Container Image → npm publi
 | HTTP transport (#71) | ⬜ Required |
 | Gateway mode (#72) | ⬜ Required |
 | K8s client integration (#28) | ⬜ Required |
-| list_gpu_nodes tool (#29) | ⬜ Required |
+| ~~list_gpu_nodes~~ tool (#29→#99) | ✅ Consolidated |
 
 **Explicitly NOT in MVP v0.1.0:**
 - Multi-cluster support (#73) - post-MVP feature

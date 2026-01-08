@@ -107,13 +107,10 @@ func New(cfg Config) (*Server, error) {
 	)
 
 	if cfg.GatewayMode {
-		// Gateway mode: register all tools with proxy handlers
+		// Gateway mode: register GPU tools with proxy handlers
+		// Note: list_gpu_nodes was consolidated into get_gpu_inventory
+		// which now returns cluster summary with node info
 
-		// list_gpu_nodes - handled directly by gateway (no proxy needed)
-		listNodesHandler := tools.NewListGPUNodesHandler(cfg.K8sClient)
-		mcpServer.AddTool(tools.GetListGPUNodesTool(), listNodesHandler.Handle)
-
-		// GPU tools - proxied to node agents
 		inventoryProxy := gateway.NewProxyHandler(cfg.K8sClient,
 			"get_gpu_inventory")
 		mcpServer.AddTool(tools.GetGPUInventoryTool(), inventoryProxy.Handle)
@@ -126,8 +123,7 @@ func New(cfg Config) (*Server, error) {
 
 		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
 			`"mode":"%s","gateway":true,"namespace":"%s",`+
-			`"tools":["list_gpu_nodes","get_gpu_inventory",`+
-			`"get_gpu_health","analyze_xid_errors"],`+
+			`"tools":["get_gpu_inventory","get_gpu_health","analyze_xid_errors"],`+
 			`"version":"%s","commit":"%s"}`,
 			cfg.Mode, cfg.Namespace, cfg.Version, cfg.GitCommit)
 	} else {
