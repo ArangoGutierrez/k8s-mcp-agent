@@ -190,9 +190,10 @@ func ParseStdioResponse(response []byte) (interface{}, error) {
 // SplitJSONObjects splits a byte slice containing multiple JSON objects into
 // individual objects. Uses brace counting to find object boundaries.
 //
-// Note: This is a simple parser that works for well-formed MCP JSON-RPC
-// responses. It does not handle escaped braces within string values.
-// For production use with untrusted input, consider a streaming JSON decoder.
+// Note: This parser handles string boundaries and escape sequences, only
+// counting braces that appear outside of string literals. It works correctly
+// for well-formed MCP JSON-RPC responses. For production use with untrusted
+// input, consider a streaming JSON decoder.
 func SplitJSONObjects(data []byte) [][]byte {
 	var objects [][]byte
 	var current []byte

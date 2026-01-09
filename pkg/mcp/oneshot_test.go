@@ -65,8 +65,8 @@ func TestNewOneshotTransport_MissingMCPServer(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing MCPServer")
 	}
-	if !strings.Contains(err.Error(), "MCPServer") {
-		t.Errorf("error should mention MCPServer: %v", err)
+	if !strings.Contains(err.Error(), "mcpServer") {
+		t.Errorf("error should mention mcpServer: %v", err)
 	}
 }
 
@@ -82,8 +82,8 @@ func TestNewOneshotTransport_MissingReader(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing Reader")
 	}
-	if !strings.Contains(err.Error(), "Reader") {
-		t.Errorf("error should mention Reader: %v", err)
+	if !strings.Contains(err.Error(), "reader") {
+		t.Errorf("error should mention reader: %v", err)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestNewOneshotTransport_MissingWriter(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing Writer")
 	}
-	if !strings.Contains(err.Error(), "Writer") {
-		t.Errorf("error should mention Writer: %v", err)
+	if !strings.Contains(err.Error(), "writer") {
+		t.Errorf("error should mention writer: %v", err)
 	}
 }
 
@@ -353,10 +353,10 @@ func TestOneshotTransport_RespectsContextCancellation(t *testing.T) {
 
 	// Write one request, then close the pipe (simulating EOF)
 	go func() {
-		pw.Write([]byte(`{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test"}},"id":1}` + "\n"))
+		_, _ = pw.Write([]byte(`{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test"}},"id":1}` + "\n"))
 		// Close after a small delay to simulate EOF before maxRequests
 		time.Sleep(50 * time.Millisecond)
-		pw.Close()
+		_ = pw.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)

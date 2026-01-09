@@ -57,13 +57,13 @@ type OneshotResult struct {
 // Returns an error if configuration is invalid.
 func NewOneshotTransport(cfg OneshotConfig) (*OneshotTransport, error) {
 	if cfg.MCPServer == nil {
-		return nil, fmt.Errorf("MCPServer is required")
+		return nil, fmt.Errorf("mcpServer is required")
 	}
 	if cfg.Reader == nil {
-		return nil, fmt.Errorf("Reader is required")
+		return nil, fmt.Errorf("reader is required")
 	}
 	if cfg.Writer == nil {
-		return nil, fmt.Errorf("Writer is required")
+		return nil, fmt.Errorf("writer is required")
 	}
 	if cfg.MaxRequests < 1 {
 		return nil, fmt.Errorf("MaxRequests must be >= 1, got %d",
@@ -180,12 +180,18 @@ func (t *OneshotTransport) writeErrorResponse(id json.RawMessage, code int,
 	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		// Last resort: write a hardcoded error
-		fmt.Fprintf(t.writer, `{"jsonrpc":"2.0","id":null,"error":`+
-			`{"code":-32603,"message":"marshal error"}}`+"\n")
+		if _, writeErr := fmt.Fprintf(t.writer, `{"jsonrpc":"2.0","id":null,"error":`+
+			`{"code":-32603,"message":"marshal error"}}`+"\n"); writeErr != nil {
+			log.Printf(`{"level":"error","msg":"failed to write fallback error",`+
+				`"error":"%v"}`, writeErr)
+		}
 		return
 	}
 
-	fmt.Fprintf(t.writer, "%s\n", respBytes)
+	if _, err := fmt.Fprintf(t.writer, "%s\n", respBytes); err != nil {
+		log.Printf(`{"level":"error","msg":"failed to write error response",`+
+			`"error":"%v"}`, err)
+	}
 }
 
 // jsonRPCRequest is a minimal JSON-RPC request structure for parsing.

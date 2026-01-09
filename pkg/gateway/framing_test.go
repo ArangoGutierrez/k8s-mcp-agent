@@ -369,6 +369,6 @@ func BenchmarkParseStdioResponse(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ParseStdioResponse(input)
+		_, _ = ParseStdioResponse(input)
 	}
 }
