@@ -11,17 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildMCPRequest(t *testing.T) {
+func TestBuildMCPRequest_Proxy(t *testing.T) {
 	args := map[string]interface{}{"filter": "healthy"}
-	request := buildMCPRequest("get_gpu_health", args)
+	request, err := BuildMCPRequest("get_gpu_health", args)
+	require.NoError(t, err, "BuildMCPRequest should not error")
 
 	// Should contain two JSON objects
-	lines := splitJSONLines(request)
+	lines := SplitJSONObjects(request)
 	require.Len(t, lines, 2, "expected 2 JSON objects")
 
 	// First should be initialize
 	var init map[string]interface{}
-	err := json.Unmarshal(lines[0], &init)
+	err = json.Unmarshal(lines[0], &init)
 	require.NoError(t, err, "failed to parse init request")
 	assert.Equal(t, "initialize", init["method"])
 
@@ -37,14 +38,15 @@ func TestBuildMCPRequest(t *testing.T) {
 	assert.Equal(t, "get_gpu_health", params["name"])
 }
 
-func TestBuildMCPRequest_NilArguments(t *testing.T) {
-	request := buildMCPRequest("get_gpu_inventory", nil)
+func TestBuildMCPRequest_NilArgumentsProxy(t *testing.T) {
+	request, err := BuildMCPRequest("get_gpu_inventory", nil)
+	require.NoError(t, err)
 
-	lines := splitJSONLines(request)
+	lines := SplitJSONObjects(request)
 	require.Len(t, lines, 2)
 
 	var tool map[string]interface{}
-	err := json.Unmarshal(lines[1], &tool)
+	err = json.Unmarshal(lines[1], &tool)
 	require.NoError(t, err)
 
 	params := tool["params"].(map[string]interface{})
@@ -111,7 +113,7 @@ func TestParseToolResponse(t *testing.T) {
 	}
 }
 
-func TestSplitJSONLines(t *testing.T) {
+func TestSplitJSONObjects_Proxy(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -151,7 +153,7 @@ func TestSplitJSONLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lines := splitJSONLines([]byte(tt.input))
+			lines := SplitJSONObjects([]byte(tt.input))
 			assert.Len(t, lines, tt.expected)
 		})
 	}

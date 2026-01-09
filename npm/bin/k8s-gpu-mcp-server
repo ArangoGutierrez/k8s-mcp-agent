@@ -19,13 +19,15 @@ const CONTEXT = process.env.K8S_GPU_MCP_CONTEXT || '';
  * 1. Discover or use configured gateway service
  * 2. Spawn kubectl port-forward in background
  * 3. Read JSON-RPC from stdin, POST to gateway, write response to stdout
- * 4. Clean up port-forward on exit
+ * 4. Maintain MCP session ID for Streamable HTTP transport
+ * 5. Clean up port-forward on exit
  */
 class KubectlBridge {
   constructor() {
     this.portForward = null;
     this.localPort = null;
     this.ready = false;
+    this.sessionId = null; // MCP session ID for Streamable HTTP
   }
 
   async start() {
@@ -209,21 +211,35 @@ class KubectlBridge {
     return new Promise((resolve, reject) => {
       const postData = jsonLine;
 
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      };
+
+      // Include session ID if we have one (for Streamable HTTP transport)
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+
       const options = {
         hostname: '127.0.0.1',
         port: this.localPort,
         path: '/mcp',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
-        }
+        headers: headers
       };
 
       const req = http.request(options, (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
+          // Extract session ID from response headers if present
+          const newSessionId = res.headers['mcp-session-id'];
+          if (newSessionId && !this.sessionId) {
+            this.sessionId = newSessionId;
+            console.error(`[k8s-gpu-mcp] Session established: ${this.sessionId}`);
+          }
+
           if (res.statusCode !== 200) {
             reject(new Error(`HTTP ${res.statusCode}: ${data}`));
           } else {
