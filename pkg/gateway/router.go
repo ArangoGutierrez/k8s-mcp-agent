@@ -63,6 +63,10 @@ func (r *Router) routeToGPUNode(
 		return nil, fmt.Errorf("agent on node %s is not ready", node.Name)
 	}
 
+	log.Printf(`{"level":"debug","msg":"exec starting","node":"%s",`+
+		`"pod":"%s","request_size":%d}`,
+		node.Name, node.PodName, len(mcpRequest))
+
 	// Execute agent in pod with MCP request as stdin
 	stdin := bytes.NewReader(mcpRequest)
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
@@ -70,8 +74,8 @@ func (r *Router) routeToGPUNode(
 		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
-	log.Printf(`{"level":"debug","msg":"node response received",`+
-		`"node":"%s","response_size":%d}`, node.Name, len(response))
+	log.Printf(`{"level":"info","msg":"node exec completed","node":"%s",`+
+		`"response_size":%d}`, node.Name, len(response))
 
 	return response, nil
 }
@@ -86,8 +90,16 @@ func (r *Router) RouteToAllNodes(
 		return nil, fmt.Errorf("failed to list GPU nodes: %w", err)
 	}
 
-	log.Printf(`{"level":"debug","msg":"routing to all nodes",`+
-		`"node_count":%d}`, len(nodes))
+	// Count ready nodes for logging
+	readyCount := 0
+	for _, n := range nodes {
+		if n.Ready {
+			readyCount++
+		}
+	}
+
+	log.Printf(`{"level":"info","msg":"routing to nodes",`+
+		`"total_nodes":%d,"ready_nodes":%d}`, len(nodes), readyCount)
 
 	results := make([]NodeResult, 0, len(nodes))
 	var mu sync.Mutex

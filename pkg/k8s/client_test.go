@@ -6,6 +6,7 @@ package k8s
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -219,4 +220,25 @@ func TestGetPodForNode(t *testing.T) {
 func TestNamespace(t *testing.T) {
 	client := NewClientWithConfig(nil, nil, "test-namespace")
 	assert.Equal(t, "test-namespace", client.Namespace())
+}
+
+func TestClientOptions_DefaultExecTimeout(t *testing.T) {
+	client := NewClientWithConfig(nil, nil, "test-namespace")
+	assert.Equal(t, DefaultExecTimeout, client.ExecTimeout())
+}
+
+func TestClientOptions_WithExecTimeout(t *testing.T) {
+	customTimeout := 60 * time.Second
+	client := NewClientWithConfig(nil, nil, "test-namespace",
+		WithExecTimeout(customTimeout))
+	assert.Equal(t, customTimeout, client.ExecTimeout())
+}
+
+func TestClientOptions_MultipleOptions(t *testing.T) {
+	customTimeout := 45 * time.Second
+	client := NewClientWithConfig(nil, nil, "test-namespace",
+		WithExecTimeout(customTimeout))
+
+	assert.Equal(t, "test-namespace", client.Namespace())
+	assert.Equal(t, customTimeout, client.ExecTimeout())
 }

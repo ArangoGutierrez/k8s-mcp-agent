@@ -39,6 +39,7 @@ type Server struct {
 	version     string
 	gatewayMode bool
 	k8sClient   *k8s.Client
+	oneshot     int
 }
 
 // Config holds server configuration.
@@ -61,6 +62,8 @@ type Config struct {
 	Namespace string
 	// K8sClient is the Kubernetes client (gateway mode only)
 	K8sClient *k8s.Client
+	// Oneshot exits after processing N requests (0=disabled)
+	Oneshot int
 }
 
 // New creates a new MCP server instance.
@@ -98,6 +101,7 @@ func New(cfg Config) (*Server, error) {
 		version:     cfg.Version,
 		gatewayMode: cfg.GatewayMode,
 		k8sClient:   cfg.K8sClient,
+		oneshot:     cfg.Oneshot,
 	}
 
 	// Create MCP server
@@ -163,7 +167,29 @@ func (s *Server) runStdio(ctx context.Context) error {
 	log.Printf(`{"level":"info","msg":"MCP server starting",`+
 		`"transport":"stdio","mode":"%s"}`, s.mode)
 
-	// Run server with stdio transport in a goroutine
+	// Oneshot mode: use OneshotTransport for deterministic exit
+	if s.oneshot > 0 {
+		transport, err := NewOneshotTransport(OneshotConfig{
+			MCPServer:   s.mcpServer,
+			Reader:      os.Stdin,
+			Writer:      os.Stdout,
+			MaxRequests: s.oneshot,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create oneshot transport: %w", err)
+		}
+
+		result, err := transport.Run(ctx)
+		if err != nil {
+			return err
+		}
+
+		log.Printf(`{"level":"info","msg":"oneshot completed",`+
+			`"processed":%d,"errors":%d}`, result.Processed, result.Errors)
+		return nil
+	}
+
+	// Standard mode: run server with stdio transport in a goroutine
 	errCh := make(chan error, 1)
 	go func() {
 		if err := server.ServeStdio(s.mcpServer); err != nil {

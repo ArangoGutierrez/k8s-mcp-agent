@@ -1,6 +1,6 @@
 {
   "name": "k8s-gpu-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for NVIDIA GPU diagnostics in Kubernetes clusters",
   "keywords": [
     "mcp",
@@ -25,25 +25,11 @@
   "bin": {
     "k8s-gpu-mcp-server": "./bin/k8s-gpu-mcp-server"
   },
-  "scripts": {
-    "postinstall": "node scripts/postinstall.js"
-  },
   "files": [
     "bin/",
-    "scripts/",
     "README.md"
   ],
   "engines": {
     "node": ">=18.0.0"
-  },
-  "os": [
-    "darwin",
-    "linux",
-    "win32"
-  ],
-  "cpu": [
-    "x64",
-    "arm64"
-  ]
+  }
 }
-

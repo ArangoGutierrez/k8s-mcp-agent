@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info"
@@ -18,6 +19,36 @@ import (
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/mcp"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 )
+
+// ValidLogLevels are the accepted log levels.
+var ValidLogLevels = []string{"debug", "info", "warn", "error"}
+
+// resolveLogLevel determines the effective log level from env var and flag.
+// Priority: LOG_LEVEL env var > --log-level flag > default ("info")
+func resolveLogLevel(flagValue string) string {
+	// Check environment variable first
+	if envLevel := os.Getenv("LOG_LEVEL"); envLevel != "" {
+		level := strings.ToLower(strings.TrimSpace(envLevel))
+		if isValidLogLevel(level) {
+			return level
+		}
+		// Invalid env value - log warning and fall back to flag
+		log.Printf(`{"level":"warn","msg":"invalid LOG_LEVEL env var",`+
+			`"value":"%s","valid":%q,"using":"%s"}`,
+			envLevel, ValidLogLevels, flagValue)
+	}
+	return flagValue
+}
+
+// isValidLogLevel checks if a log level is valid.
+func isValidLogLevel(level string) bool {
+	for _, valid := range ValidLogLevels {
+		if level == valid {
+			return true
+		}
+	}
+	return false
+}
 
 const (
 	// ModeReadOnly enables only read-only operations (default)
@@ -43,6 +74,10 @@ func main() {
 			"Enable gateway mode (routes to node agents via K8s pod exec)")
 		namespace = flag.String("namespace", "gpu-diagnostics",
 			"Namespace for GPU agent pods (gateway mode)")
+
+		// Oneshot mode for exec-based invocations
+		oneshot = flag.Int("oneshot", 0,
+			"Exit after processing N requests (0=disabled, 2=init+tool)")
 	)
 	flag.Parse()
 
@@ -64,6 +99,13 @@ func main() {
 	if !*gatewayMode && *nvmlMode != "mock" && *nvmlMode != "real" {
 		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode",`+
 			`"nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
+	}
+
+	// Resolve log level from env var and flag
+	effectiveLogLevel := resolveLogLevel(*logLevel)
+	if !isValidLogLevel(effectiveLogLevel) {
+		log.Fatalf(`{"level":"fatal","msg":"invalid log-level",`+
+			`"log_level":"%s","valid":%q}`, effectiveLogLevel, ValidLogLevels)
 	}
 
 	// Validate and configure transport mode
@@ -88,12 +130,12 @@ func main() {
 		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
 			`"version":"%s","commit":"%s","mode":"%s","gateway":true,`+
 			`"namespace":"%s","log_level":"%s"}`,
-			info.Version(), info.GitCommit(), *mode, *namespace, *logLevel)
+			info.Version(), info.GitCommit(), *mode, *namespace, effectiveLogLevel)
 	} else {
 		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
 			`"version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s",`+
 			`"log_level":"%s"}`,
-			info.Version(), info.GitCommit(), *mode, *nvmlMode, *logLevel)
+			info.Version(), info.GitCommit(), *mode, *nvmlMode, effectiveLogLevel)
 	}
 
 	// Setup context with cancellation for graceful shutdown
@@ -117,6 +159,7 @@ func main() {
 		HTTPAddr:    httpAddr,
 		GatewayMode: *gatewayMode,
 		Namespace:   *namespace,
+		Oneshot:     *oneshot,
 	}
 
 	if *gatewayMode {

@@ -9,8 +9,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,11 +23,25 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
+// DefaultExecTimeout is the default timeout for pod exec operations.
+const DefaultExecTimeout = 30 * time.Second
+
 // Client wraps the Kubernetes clientset for GPU agent operations.
 type Client struct {
-	clientset  kubernetes.Interface
-	restConfig *rest.Config
-	namespace  string
+	clientset   kubernetes.Interface
+	restConfig  *rest.Config
+	namespace   string
+	execTimeout time.Duration
+}
+
+// ClientOption configures a Client.
+type ClientOption func(*Client)
+
+// WithExecTimeout sets the timeout for pod exec operations.
+func WithExecTimeout(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.execTimeout = d
+	}
 }
 
 // GPUNode represents a node with GPU agents.
@@ -38,7 +54,7 @@ type GPUNode struct {
 
 // NewClient creates a new Kubernetes client.
 // Uses in-cluster config if available, falls back to kubeconfig.
-func NewClient(namespace string) (*Client, error) {
+func NewClient(namespace string, opts ...ClientOption) (*Client, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		// Fall back to kubeconfig
@@ -58,11 +74,19 @@ func NewClient(namespace string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 
-	return &Client{
-		clientset:  clientset,
-		restConfig: config,
-		namespace:  namespace,
-	}, nil
+	c := &Client{
+		clientset:   clientset,
+		restConfig:  config,
+		namespace:   namespace,
+		execTimeout: DefaultExecTimeout,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c, nil
 }
 
 // NewClientWithConfig creates a new Kubernetes client with provided config.
@@ -71,12 +95,21 @@ func NewClientWithConfig(
 	clientset kubernetes.Interface,
 	restConfig *rest.Config,
 	namespace string,
+	opts ...ClientOption,
 ) *Client {
-	return &Client{
-		clientset:  clientset,
-		restConfig: restConfig,
-		namespace:  namespace,
+	c := &Client{
+		clientset:   clientset,
+		restConfig:  restConfig,
+		namespace:   namespace,
+		execTimeout: DefaultExecTimeout,
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // ListGPUNodes returns all nodes running the GPU agent DaemonSet.
@@ -116,6 +149,9 @@ func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 // ExecInPod executes the agent binary in a pod with MCP request as stdin.
 // Returns the stdout and any error encountered.
 //
+// The exec operation uses a configurable timeout (default 30s) to prevent
+// hanging on unresponsive pods. The timeout can be set via WithExecTimeout.
+//
 // Note: This function is tested via integration tests rather than unit tests
 // because the fake K8s clientset does not support the exec subresource.
 // See the integration testing section in docs/quickstart.md.
@@ -125,12 +161,19 @@ func (c *Client) ExecInPod(
 	container string,
 	stdin io.Reader,
 ) ([]byte, error) {
+	// Apply exec timeout
+	execCtx, cancel := context.WithTimeout(ctx, c.execTimeout)
+	defer cancel()
+
+	startTime := time.Now()
+
 	execOpts := &corev1.PodExecOptions{
 		Container: container,
-		Command:   []string{"/agent", "--nvml-mode=real"},
-		Stdin:     stdin != nil,
-		Stdout:    true,
-		Stderr:    true,
+		// Use --oneshot=2 to process exactly 2 requests (init + tool) then exit
+		Command: []string{"/agent", "--nvml-mode=real", "--oneshot=2"},
+		Stdin:   stdin != nil,
+		Stdout:  true,
+		Stderr:  true,
 	}
 
 	req := c.clientset.CoreV1().RESTClient().Post().
@@ -146,17 +189,36 @@ func (c *Client) ExecInPod(
 	}
 
 	var stdout, stderr bytes.Buffer
-	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+	err = exec.StreamWithContext(execCtx, remotecommand.StreamOptions{
 		Stdin:  stdin,
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
+
+	duration := time.Since(startTime)
+
 	if err != nil {
+		// Check if it was a timeout
+		if execCtx.Err() == context.DeadlineExceeded {
+			log.Printf(`{"level":"error","msg":"exec timeout","pod":"%s",`+
+				`"timeout":"%s","duration":"%s"}`,
+				podName, c.execTimeout, duration)
+			return nil, fmt.Errorf("exec timeout after %s", c.execTimeout)
+		}
 		return nil, fmt.Errorf("exec failed: %w (stderr: %s)",
 			err, stderr.String())
 	}
 
+	log.Printf(`{"level":"debug","msg":"exec completed","pod":"%s",`+
+		`"duration":"%s","stdout_size":%d}`,
+		podName, duration, stdout.Len())
+
 	return stdout.Bytes(), nil
+}
+
+// ExecTimeout returns the configured exec timeout.
+func (c *Client) ExecTimeout() time.Duration {
+	return c.execTimeout
 }
 
 // GetPodForNode returns the GPU agent pod running on a specific node.
