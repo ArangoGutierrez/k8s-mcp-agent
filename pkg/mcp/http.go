@@ -47,14 +47,19 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 	// Version endpoint
 	mux.HandleFunc("/version", h.handleVersion)
 
-	// Create server before starting goroutine to avoid race condition
+	// Create server before starting goroutine to avoid race condition.
+	// WriteTimeout (90s) must exceed exec timeout (60s) plus response
+	// marshaling buffer (30s buffer) to prevent race conditions causing
+	// "socket hang up" errors.
+	// IdleTimeout (120s) exceeds WriteTimeout to avoid prematurely closing
+	// keep-alive connections during long-running operations.
 	h.httpServer = &http.Server{
 		Addr:              h.addr,
 		Handler:           mux,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      90 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	log.Printf(`{"level":"info","msg":"HTTP server starting","addr":"%s"}`, h.addr)

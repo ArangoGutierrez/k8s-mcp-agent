@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 )
@@ -63,6 +64,8 @@ func (r *Router) routeToGPUNode(
 		return nil, fmt.Errorf("agent on node %s is not ready", node.Name)
 	}
 
+	startTime := time.Now()
+
 	log.Printf(`{"level":"debug","msg":"exec starting","node":"%s",`+
 		`"pod":"%s","request_size":%d}`,
 		node.Name, node.PodName, len(mcpRequest))
@@ -70,12 +73,19 @@ func (r *Router) routeToGPUNode(
 	// Execute agent in pod with MCP request as stdin
 	stdin := bytes.NewReader(mcpRequest)
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
+
+	duration := time.Since(startTime)
+
 	if err != nil {
+		log.Printf(`{"level":"error","msg":"exec failed","node":"%s",`+
+			`"pod":"%s","duration_ms":%d,"error":"%v"}`,
+			node.Name, node.PodName, duration.Milliseconds(), err)
 		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
-	log.Printf(`{"level":"info","msg":"node exec completed","node":"%s",`+
-		`"response_size":%d}`, node.Name, len(response))
+	log.Printf(`{"level":"info","msg":"exec completed","node":"%s",`+
+		`"pod":"%s","duration_ms":%d,"response_bytes":%d}`,
+		node.Name, node.PodName, duration.Milliseconds(), len(response))
 
 	return response, nil
 }
@@ -85,6 +95,8 @@ func (r *Router) RouteToAllNodes(
 	ctx context.Context,
 	mcpRequest []byte,
 ) ([]NodeResult, error) {
+	startTime := time.Now()
+
 	nodes, err := r.k8sClient.ListGPUNodes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list GPU nodes: %w", err)
@@ -104,6 +116,8 @@ func (r *Router) RouteToAllNodes(
 	results := make([]NodeResult, 0, len(nodes))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	successCount := 0
+	failCount := 0
 
 	for _, node := range nodes {
 		if !node.Ready {
@@ -128,10 +142,10 @@ func (r *Router) RouteToAllNodes(
 			}
 			if err != nil {
 				result.Error = err.Error()
-				log.Printf(`{"level":"error","msg":"node routing failed",`+
-					`"node":"%s","error":"%s"}`, n.Name, err)
+				failCount++
 			} else {
 				result.Response = response
+				successCount++
 			}
 			results = append(results, result)
 		}(node)
@@ -139,8 +153,11 @@ func (r *Router) RouteToAllNodes(
 
 	wg.Wait()
 
-	log.Printf(`{"level":"info","msg":"aggregation complete",`+
-		`"total_nodes":%d,"results":%d}`, len(nodes), len(results))
+	totalDuration := time.Since(startTime)
+
+	log.Printf(`{"level":"info","msg":"routing complete",`+
+		`"total_nodes":%d,"success":%d,"failed":%d,"duration_ms":%d}`,
+		len(nodes), successCount, failCount, totalDuration.Milliseconds())
 
 	return results, nil
 }

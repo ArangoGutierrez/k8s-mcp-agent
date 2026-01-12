@@ -24,7 +24,41 @@ import (
 )
 
 // DefaultExecTimeout is the default timeout for pod exec operations.
-const DefaultExecTimeout = 30 * time.Second
+// Can be overridden via EXEC_TIMEOUT environment variable (e.g., "60s").
+var DefaultExecTimeout = 60 * time.Second
+
+func init() {
+	if envTimeout := os.Getenv("EXEC_TIMEOUT"); envTimeout != "" {
+		DefaultExecTimeout = parseExecTimeout(envTimeout, DefaultExecTimeout)
+	}
+}
+
+// parseExecTimeout parses a duration string for exec timeout configuration.
+// Returns the parsed duration on success, or the fallback on parse error.
+// Validates that the duration is within reasonable bounds (1s to 300s).
+func parseExecTimeout(value string, fallback time.Duration) time.Duration {
+	const minTimeout = 1 * time.Second
+	const maxTimeout = 300 * time.Second
+
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		log.Printf(`{"level":"warn","msg":"invalid EXEC_TIMEOUT",`+
+			`"value":"%s","error":"%v","using_default":"%s"}`,
+			value, err, fallback)
+		return fallback
+	}
+
+	if d < minTimeout || d > maxTimeout {
+		log.Printf(`{"level":"warn","msg":"EXEC_TIMEOUT out of bounds",`+
+			`"value":"%s","min":"%s","max":"%s","using_default":"%s"}`,
+			d, minTimeout, maxTimeout, fallback)
+		return fallback
+	}
+
+	log.Printf(`{"level":"info","msg":"exec timeout configured",`+
+		`"timeout":"%s","source":"env"}`, d)
+	return d
+}
 
 // Client wraps the Kubernetes clientset for GPU agent operations.
 type Client struct {

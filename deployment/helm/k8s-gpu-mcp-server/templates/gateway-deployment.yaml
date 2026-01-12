@@ -42,6 +42,9 @@ spec:
         - "--port={{ .Values.gateway.port }}"
         - "--namespace={{ include "k8s-gpu-mcp-server.namespace" . }}"
         - "--mode={{ .Values.agent.mode }}"
+        env:
+        - name: EXEC_TIMEOUT
+          value: {{ .Values.gateway.execTimeout | default "60s" | quote }}
         ports:
         - name: http
           containerPort: {{ .Values.gateway.port }}

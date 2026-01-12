@@ -184,6 +184,10 @@ gateway:
   # -- Gateway HTTP port
   port: 8080
 
+  # -- Timeout for kubectl exec operations to agent pods.
+  # Must be less than HTTP WriteTimeout (90s) to prevent race conditions.
+  execTimeout: "60s"
+
   # -- Gateway service configuration
   service:
     # -- Service type for gateway
