@@ -118,13 +118,15 @@ securityContext:
       - SYSLOG
 
 # Resource limits
+# Note: HTTP mode requires more baseline memory since agent stays resident
+# Oneshot/stdio mode has lower baseline but higher peak during requests
 resources:
   requests:
-    cpu: 1m
-    memory: 10Mi
+    cpu: 10m
+    memory: 32Mi
   limits:
     cpu: 100m
-    memory: 50Mi
+    memory: 128Mi
 
 # Pod annotations
 podAnnotations: {}
@@ -142,11 +144,23 @@ updateStrategy:
     maxUnavailable: 1
 
 # Transport configuration
+#
+# HTTP Mode (default, recommended for production):
+#   - Agent runs as persistent HTTP server
+#   - NVML initialized once at startup (~50-100ms)
+#   - Per-request latency: 12-57ms
+#   - Memory: constant ~15-20MB
+#   - Use case: Gateway routing, high-frequency queries
+#
+# Stdio Mode (legacy, for debugging):
+#   - Agent spawned per kubectl exec
+#   - NVML initialized per request
+#   - Per-request latency: 130-290ms
+#   - Memory: spiky (5MB idle → 200MB peak)
+#   - Use case: Direct kubectl debugging, SRE access
 transport:
-  # -- Transport mode: stdio or http
-  # stdio: Uses kubectl exec for interaction (default)
-  # http: Exposes HTTP endpoint for MCP access
-  mode: stdio
+  # -- Transport mode: http (recommended) or stdio (legacy)
+  mode: http
 
   # HTTP mode settings (only used if mode: http)
   http:
@@ -157,8 +171,9 @@ transport:
 
 # Service configuration (for HTTP mode)
 service:
-  # -- Enable service (required for HTTP mode)
-  enabled: false
+  # -- Enable service for agent pods (should be enabled when transport.mode=http)
+  # Required for gateway to discover agent endpoints
+  enabled: true
   # -- Service type
   type: ClusterIP
   # -- Service port
