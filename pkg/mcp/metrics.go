@@ -4,73 +4,40 @@
 package mcp
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
 )
+
+// Re-export metrics from the metrics package for backwards compatibility.
+// The metrics are defined in pkg/metrics to avoid import cycles.
 
 var (
 	// RequestsTotal counts total MCP requests by tool and status.
-	RequestsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "mcp_requests_total",
-			Help: "Total MCP requests processed",
-		},
-		[]string{"tool", "status"},
-	)
+	RequestsTotal = metrics.RequestsTotal
 
 	// RequestDuration tracks MCP request latency.
-	RequestDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "mcp_request_duration_seconds",
-			Help:    "MCP request duration in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"tool"},
-	)
+	RequestDuration = metrics.RequestDuration
 
 	// NodeHealth tracks per-node health status.
-	NodeHealth = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "mcp_node_health",
-			Help: "Node health status (1=healthy, 0=unhealthy)",
-		},
-		[]string{"node"},
-	)
+	NodeHealth = metrics.NodeHealth
 
 	// CircuitBreakerState tracks circuit breaker state per node.
-	CircuitBreakerState = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "mcp_circuit_breaker_state",
-			Help: "Circuit breaker state (0=closed, 1=open, 2=half-open)",
-		},
-		[]string{"node"},
-	)
+	CircuitBreakerState = metrics.CircuitBreakerState
 
 	// ActiveRequests tracks in-flight requests.
-	ActiveRequests = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "mcp_active_requests",
-			Help: "Number of active MCP requests",
-		},
-	)
+	ActiveRequests = metrics.ActiveRequests
 )
 
 // RecordRequest records metrics for a completed request.
 func RecordRequest(tool, status string, durationSeconds float64) {
-	RequestsTotal.WithLabelValues(tool, status).Inc()
-	RequestDuration.WithLabelValues(tool).Observe(durationSeconds)
+	metrics.RecordRequest(tool, status, durationSeconds)
 }
 
 // SetNodeHealth sets the health status for a node.
 func SetNodeHealth(node string, healthy bool) {
-	value := 0.0
-	if healthy {
-		value = 1.0
-	}
-	NodeHealth.WithLabelValues(node).Set(value)
+	metrics.SetNodeHealth(node, healthy)
 }
 
 // SetCircuitState sets the circuit breaker state for a node.
 func SetCircuitState(node string, state int) {
-	CircuitBreakerState.WithLabelValues(node).Set(float64(state))
+	metrics.SetCircuitState(node, state)
 }

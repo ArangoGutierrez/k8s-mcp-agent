@@ -22,13 +22,18 @@ const (
 
 // CircuitBreaker tracks node health and prevents requests to failing nodes.
 type CircuitBreaker struct {
-	mu           sync.RWMutex
-	failures     map[string]int
-	lastFailure  map[string]time.Time
-	state        map[string]CircuitState
-	threshold    int
-	resetTimeout time.Duration
+	mu            sync.RWMutex
+	failures      map[string]int
+	lastFailure   map[string]time.Time
+	state         map[string]CircuitState
+	threshold     int
+	resetTimeout  time.Duration
+	onStateChange MetricsCallback
 }
+
+// MetricsCallback is called when circuit breaker state changes.
+// Parameters: node name, circuit state (0=closed, 1=open, 2=half-open), healthy
+type MetricsCallback func(node string, state int, healthy bool)
 
 // CircuitBreakerConfig configures the circuit breaker behavior.
 type CircuitBreakerConfig struct {
@@ -36,6 +41,8 @@ type CircuitBreakerConfig struct {
 	Threshold int
 	// ResetTimeout is how long to wait before trying a half-open request.
 	ResetTimeout time.Duration
+	// OnStateChange is called when circuit state changes (optional).
+	OnStateChange MetricsCallback
 }
 
 // DefaultCircuitBreakerConfig returns sensible defaults.
@@ -49,11 +56,12 @@ func DefaultCircuitBreakerConfig() CircuitBreakerConfig {
 // NewCircuitBreaker creates a new circuit breaker.
 func NewCircuitBreaker(cfg CircuitBreakerConfig) *CircuitBreaker {
 	return &CircuitBreaker{
-		failures:     make(map[string]int),
-		lastFailure:  make(map[string]time.Time),
-		state:        make(map[string]CircuitState),
-		threshold:    cfg.Threshold,
-		resetTimeout: cfg.ResetTimeout,
+		failures:      make(map[string]int),
+		lastFailure:   make(map[string]time.Time),
+		state:         make(map[string]CircuitState),
+		threshold:     cfg.Threshold,
+		resetTimeout:  cfg.ResetTimeout,
+		onStateChange: cfg.OnStateChange,
 	}
 }
 
@@ -70,6 +78,7 @@ func (cb *CircuitBreaker) Allow(node string) bool {
 		// Check if reset timeout has passed
 		if time.Since(cb.lastFailure[node]) > cb.resetTimeout {
 			cb.state[node] = CircuitHalfOpen
+			cb.notifyStateChange(node, CircuitHalfOpen, false)
 			return true
 		}
 		return false
@@ -91,6 +100,7 @@ func (cb *CircuitBreaker) RecordSuccess(node string) {
 
 	cb.failures[node] = 0
 	cb.state[node] = CircuitClosed
+	cb.notifyStateChange(node, CircuitClosed, true)
 }
 
 // RecordFailure records a failed request to a node.
@@ -104,6 +114,14 @@ func (cb *CircuitBreaker) RecordFailure(node string) {
 
 	if cb.failures[node] >= cb.threshold {
 		cb.state[node] = CircuitOpen
+		cb.notifyStateChange(node, CircuitOpen, false)
+	}
+}
+
+// notifyStateChange calls the metrics callback if configured.
+func (cb *CircuitBreaker) notifyStateChange(node string, state CircuitState, healthy bool) {
+	if cb.onStateChange != nil {
+		cb.onStateChange(node, int(state), healthy)
 	}
 }
 

@@ -14,7 +14,7 @@ spec:
   podSelector:
     matchLabels:
       {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: agent
+      app.kubernetes.io/component: gpu-diagnostics
   policyTypes:
   - Ingress
   ingress:
@@ -75,6 +75,7 @@ spec:
     - podSelector:
         matchLabels:
           {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: gpu-diagnostics
     ports:
     - protocol: TCP
       port: {{ .Values.transport.http.port }}

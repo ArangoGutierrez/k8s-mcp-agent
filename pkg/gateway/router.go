@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
 )
 
 // RoutingMode specifies how the gateway communicates with agents.
@@ -53,11 +54,18 @@ func WithCircuitBreaker(cb *CircuitBreaker) RouterOption {
 
 // NewRouter creates a new gateway router.
 func NewRouter(k8sClient *k8s.Client, opts ...RouterOption) *Router {
+	// Configure circuit breaker with metrics callback
+	cbConfig := DefaultCircuitBreakerConfig()
+	cbConfig.OnStateChange = func(node string, state int, healthy bool) {
+		metrics.SetCircuitState(node, state)
+		metrics.SetNodeHealth(node, healthy)
+	}
+
 	r := &Router{
 		k8sClient:      k8sClient,
 		httpClient:     NewAgentHTTPClient(),
 		routingMode:    RoutingModeHTTP, // Default to HTTP
-		circuitBreaker: NewCircuitBreaker(DefaultCircuitBreakerConfig()),
+		circuitBreaker: NewCircuitBreaker(cbConfig),
 	}
 	for _, opt := range opts {
 		opt(r)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 )
 
 // correlationIDKeyType is the context key type for correlation IDs.
@@ -15,9 +16,14 @@ type correlationIDKeyType struct{}
 var correlationIDKey = correlationIDKeyType{}
 
 // NewCorrelationID generates a new correlation ID.
+// Returns a hex-encoded random ID. On entropy failure, logs a warning and
+// returns an ID with available bytes (may be less random).
 func NewCorrelationID() string {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		log.Printf(`{"level":"warn","msg":"failed to generate correlation ID",`+
+			`"error":"%v"}`, err)
+	}
 	return hex.EncodeToString(b)
 }
 
