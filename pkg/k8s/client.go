@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,12 +79,29 @@ func WithExecTimeout(d time.Duration) ClientOption {
 	}
 }
 
+// AgentHTTPPort is the default port agents listen on in HTTP mode.
+const AgentHTTPPort = 8080
+
 // GPUNode represents a node with GPU agents.
 type GPUNode struct {
 	Name    string `json:"name"`
 	PodName string `json:"pod_name"`
 	PodIP   string `json:"pod_ip"`
 	Ready   bool   `json:"ready"`
+}
+
+// GetAgentHTTPEndpoint returns the HTTP endpoint for an agent pod.
+// Returns empty string if the pod has no IP assigned.
+// IPv6 addresses are wrapped in brackets per RFC 3986.
+func (n GPUNode) GetAgentHTTPEndpoint() string {
+	if n.PodIP == "" {
+		return ""
+	}
+	// IPv6 addresses contain colons and must be bracketed in URLs
+	if strings.Contains(n.PodIP, ":") {
+		return fmt.Sprintf("http://[%s]:%d", n.PodIP, AgentHTTPPort)
+	}
+	return fmt.Sprintf("http://%s:%d", n.PodIP, AgentHTTPPort)
 }
 
 // NewClient creates a new Kubernetes client.

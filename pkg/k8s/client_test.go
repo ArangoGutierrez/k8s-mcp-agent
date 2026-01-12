@@ -325,3 +325,54 @@ func TestDefaultExecTimeout_Value(t *testing.T) {
 	// Verify the default timeout is 60 seconds as per the fix
 	assert.Equal(t, 60*time.Second, DefaultExecTimeout)
 }
+
+func TestGPUNode_GetAgentHTTPEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		node     GPUNode
+		expected string
+	}{
+		{
+			name: "pod with IP",
+			node: GPUNode{
+				Name:    "gpu-node-1",
+				PodName: "gpu-agent-abc123",
+				PodIP:   "10.0.0.5",
+				Ready:   true,
+			},
+			expected: "http://10.0.0.5:8080",
+		},
+		{
+			name: "pod without IP",
+			node: GPUNode{
+				Name:    "gpu-node-2",
+				PodName: "gpu-agent-pending",
+				PodIP:   "",
+				Ready:   false,
+			},
+			expected: "",
+		},
+		{
+			name: "pod with IPv6",
+			node: GPUNode{
+				Name:    "gpu-node-3",
+				PodName: "gpu-agent-ipv6",
+				PodIP:   "fd00::1",
+				Ready:   true,
+			},
+			expected: "http://[fd00::1]:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.node.GetAgentHTTPEndpoint()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAgentHTTPPort(t *testing.T) {
+	// Verify the port constant matches the Helm default
+	assert.Equal(t, 8080, AgentHTTPPort)
+}
