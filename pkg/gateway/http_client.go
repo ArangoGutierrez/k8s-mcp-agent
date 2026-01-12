@@ -128,7 +128,7 @@ func (c *AgentHTTPClient) doRequest(
 }
 
 // calculateBackoff returns the delay for a retry attempt using exponential
-// backoff with jitter.
+// backoff. Delays are capped at MaxDelay.
 func (c *AgentHTTPClient) calculateBackoff(attempt int) time.Duration {
 	delay := c.retryPolicy.BaseDelay * time.Duration(1<<uint(attempt-1))
 	if delay > c.retryPolicy.MaxDelay {

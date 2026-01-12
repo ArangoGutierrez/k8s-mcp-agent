@@ -110,6 +110,14 @@ func main() {
 			`"log_level":"%s","valid":%q}`, effectiveLogLevel, ValidLogLevels)
 	}
 
+	// Validate routing mode if in gateway mode (fail fast before logging)
+	if *gatewayMode {
+		if *routingMode != "http" && *routingMode != "exec" {
+			log.Fatalf(`{"level":"fatal","msg":"invalid routing-mode",`+
+				`"routing_mode":"%s","valid":["http","exec"]}`, *routingMode)
+		}
+	}
+
 	// Validate and configure transport mode
 	var transport mcp.TransportType
 	var httpAddr string
@@ -151,14 +159,6 @@ func main() {
 
 	// Channel to coordinate shutdown
 	done := make(chan error, 1)
-
-	// Validate routing mode if in gateway mode
-	if *gatewayMode {
-		if *routingMode != "http" && *routingMode != "exec" {
-			log.Fatalf(`{"level":"fatal","msg":"invalid routing-mode",`+
-				`"routing_mode":"%s","valid":["http","exec"]}`, *routingMode)
-		}
-	}
 
 	// Build MCP server config
 	buildInfo := info.GetInfo()
