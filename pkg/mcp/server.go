@@ -64,6 +64,8 @@ type Config struct {
 	K8sClient *k8s.Client
 	// Oneshot exits after processing N requests (0=disabled)
 	Oneshot int
+	// RoutingMode specifies gateway routing: "http" (default) or "exec"
+	RoutingMode string
 }
 
 // New creates a new MCP server instance.
@@ -115,21 +117,34 @@ func New(cfg Config) (*Server, error) {
 		// Note: list_gpu_nodes was consolidated into get_gpu_inventory
 		// which now returns cluster summary with node info
 
+		// Determine routing mode option
+		var routerOpts []gateway.RouterOption
+		if cfg.RoutingMode == "exec" {
+			routerOpts = append(routerOpts,
+				gateway.WithRoutingMode(gateway.RoutingModeExec))
+		} else {
+			// Default to HTTP
+			routerOpts = append(routerOpts,
+				gateway.WithRoutingMode(gateway.RoutingModeHTTP))
+		}
+
 		inventoryProxy := gateway.NewProxyHandler(cfg.K8sClient,
-			"get_gpu_inventory")
+			"get_gpu_inventory", routerOpts...)
 		mcpServer.AddTool(tools.GetGPUInventoryTool(), inventoryProxy.Handle)
 
-		healthProxy := gateway.NewProxyHandler(cfg.K8sClient, "get_gpu_health")
+		healthProxy := gateway.NewProxyHandler(cfg.K8sClient,
+			"get_gpu_health", routerOpts...)
 		mcpServer.AddTool(tools.GetGPUHealthTool(), healthProxy.Handle)
 
-		xidProxy := gateway.NewProxyHandler(cfg.K8sClient, "analyze_xid_errors")
+		xidProxy := gateway.NewProxyHandler(cfg.K8sClient,
+			"analyze_xid_errors", routerOpts...)
 		mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidProxy.Handle)
 
 		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
-			`"mode":"%s","gateway":true,"namespace":"%s",`+
+			`"mode":"%s","gateway":true,"namespace":"%s","routing_mode":"%s",`+
 			`"tools":["get_gpu_inventory","get_gpu_health","analyze_xid_errors"],`+
 			`"version":"%s","commit":"%s"}`,
-			cfg.Mode, cfg.Namespace, cfg.Version, cfg.GitCommit)
+			cfg.Mode, cfg.Namespace, cfg.RoutingMode, cfg.Version, cfg.GitCommit)
 	} else {
 		// Regular mode: register GPU tools with NVML
 		gpuInventoryHandler := tools.NewGPUInventoryHandler(cfg.NVMLClient)

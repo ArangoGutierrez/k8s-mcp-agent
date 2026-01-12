@@ -351,6 +351,161 @@ func TestValidateMCPRequest_WrongJSONRPCVersion(t *testing.T) {
 	}
 }
 
+// Tests for HTTP mode request/response functions
+
+func TestBuildHTTPToolRequest_Valid(t *testing.T) {
+	data, err := BuildHTTPToolRequest("get_gpu_inventory", map[string]interface{}{
+		"filter": "all",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Parse and verify structure
+	var req MCPRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		t.Fatalf("failed to parse request: %v", err)
+	}
+
+	if req.JSONRPC != "2.0" {
+		t.Errorf("expected jsonrpc '2.0', got %s", req.JSONRPC)
+	}
+	if req.Method != "tools/call" {
+		t.Errorf("expected method 'tools/call', got %s", req.Method)
+	}
+	if req.ID != float64(1) {
+		t.Errorf("expected ID 1, got %v", req.ID)
+	}
+}
+
+func TestBuildHTTPToolRequest_EmptyToolName(t *testing.T) {
+	_, err := BuildHTTPToolRequest("", nil)
+	if err == nil {
+		t.Fatal("expected error for empty tool name")
+	}
+	if !strings.Contains(err.Error(), "toolName") {
+		t.Errorf("error should mention toolName: %v", err)
+	}
+}
+
+func TestBuildHTTPToolRequest_NilArguments(t *testing.T) {
+	data, err := BuildHTTPToolRequest("test_tool", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should produce valid JSON
+	var req MCPRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		t.Errorf("request should be valid JSON: %v", err)
+	}
+}
+
+func TestBuildHTTPToolRequest_SingleObject(t *testing.T) {
+	data, err := BuildHTTPToolRequest("test", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// HTTP mode should be a single JSON object (no newline-delimited framing)
+	objects := SplitJSONObjects(data)
+	if len(objects) != 1 {
+		t.Errorf("expected 1 JSON object, got %d", len(objects))
+	}
+}
+
+func TestParseHTTPResponse_ValidToolResult(t *testing.T) {
+	response := `{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"status\":\"ok\",\"count\":2}"}]}}`
+
+	data, err := ParseHTTPResponse([]byte(response))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result, ok := data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", data)
+	}
+
+	if result["status"] != "ok" {
+		t.Errorf("expected status 'ok', got %v", result["status"])
+	}
+	if result["count"] != float64(2) {
+		t.Errorf("expected count 2, got %v", result["count"])
+	}
+}
+
+func TestParseHTTPResponse_EmptyResponse(t *testing.T) {
+	_, err := ParseHTTPResponse([]byte{})
+	if err == nil {
+		t.Fatal("expected error for empty response")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("error should mention 'empty': %v", err)
+	}
+}
+
+func TestParseHTTPResponse_MCPError(t *testing.T) {
+	response := `{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"internal error"}}`
+
+	_, err := ParseHTTPResponse([]byte(response))
+	if err == nil {
+		t.Fatal("expected error for MCP error response")
+	}
+	if !strings.Contains(err.Error(), "internal error") {
+		t.Errorf("error should contain message: %v", err)
+	}
+}
+
+func TestParseHTTPResponse_ToolError(t *testing.T) {
+	response := `{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"something went wrong"}],"isError":true}}`
+
+	_, err := ParseHTTPResponse([]byte(response))
+	if err == nil {
+		t.Fatal("expected error for tool error")
+	}
+	if !strings.Contains(err.Error(), "something went wrong") {
+		t.Errorf("error should contain tool error message: %v", err)
+	}
+}
+
+func TestParseHTTPResponse_NonJSONContent(t *testing.T) {
+	response := `{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Hello, World!"}]}}`
+
+	data, err := ParseHTTPResponse([]byte(response))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	str, ok := data.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T", data)
+	}
+	if str != "Hello, World!" {
+		t.Errorf("expected 'Hello, World!', got %s", str)
+	}
+}
+
+func TestParseHTTPResponse_EmptyContent(t *testing.T) {
+	response := `{"jsonrpc":"2.0","id":1,"result":{"content":[]}}`
+
+	data, err := ParseHTTPResponse([]byte(response))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if data != nil {
+		t.Errorf("expected nil for empty content, got %v", data)
+	}
+}
+
+func TestParseHTTPResponse_MalformedJSON(t *testing.T) {
+	_, err := ParseHTTPResponse([]byte(`{"incomplete`))
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+}
+
 // Benchmark for performance-critical path
 func BenchmarkSplitJSONObjects(b *testing.B) {
 	// Typical MCP response
@@ -370,5 +525,23 @@ func BenchmarkParseStdioResponse(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = ParseStdioResponse(input)
+	}
+}
+
+func BenchmarkBuildHTTPToolRequest(b *testing.B) {
+	args := map[string]interface{}{"filter": "all"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = BuildHTTPToolRequest("get_gpu_inventory", args)
+	}
+}
+
+func BenchmarkParseHTTPResponse(b *testing.B) {
+	input := []byte(`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"status\":\"ok\"}"}]}}`)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ParseHTTPResponse(input)
 	}
 }

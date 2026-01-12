@@ -74,6 +74,8 @@ func main() {
 			"Enable gateway mode (routes to node agents via K8s pod exec)")
 		namespace = flag.String("namespace", "gpu-diagnostics",
 			"Namespace for GPU agent pods (gateway mode)")
+		routingMode = flag.String("routing-mode", "http",
+			"Gateway routing mode: http (default, direct HTTP) or exec (legacy)")
 
 		// Oneshot mode for exec-based invocations
 		oneshot = flag.Int("oneshot", 0,
@@ -129,8 +131,9 @@ func main() {
 	if *gatewayMode {
 		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
 			`"version":"%s","commit":"%s","mode":"%s","gateway":true,`+
-			`"namespace":"%s","log_level":"%s"}`,
-			info.Version(), info.GitCommit(), *mode, *namespace, effectiveLogLevel)
+			`"namespace":"%s","routing_mode":"%s","log_level":"%s"}`,
+			info.Version(), info.GitCommit(), *mode, *namespace,
+			*routingMode, effectiveLogLevel)
 	} else {
 		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
 			`"version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s",`+
@@ -149,6 +152,14 @@ func main() {
 	// Channel to coordinate shutdown
 	done := make(chan error, 1)
 
+	// Validate routing mode if in gateway mode
+	if *gatewayMode {
+		if *routingMode != "http" && *routingMode != "exec" {
+			log.Fatalf(`{"level":"fatal","msg":"invalid routing-mode",`+
+				`"routing_mode":"%s","valid":["http","exec"]}`, *routingMode)
+		}
+	}
+
 	// Build MCP server config
 	buildInfo := info.GetInfo()
 	mcpCfg := mcp.Config{
@@ -160,6 +171,7 @@ func main() {
 		GatewayMode: *gatewayMode,
 		Namespace:   *namespace,
 		Oneshot:     *oneshot,
+		RoutingMode: *routingMode,
 	}
 
 	if *gatewayMode {

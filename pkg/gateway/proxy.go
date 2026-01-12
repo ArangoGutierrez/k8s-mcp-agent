@@ -21,9 +21,13 @@ type ProxyHandler struct {
 }
 
 // NewProxyHandler creates a handler that proxies a specific tool to agents.
-func NewProxyHandler(k8sClient *k8s.Client, toolName string) *ProxyHandler {
+func NewProxyHandler(
+	k8sClient *k8s.Client,
+	toolName string,
+	opts ...RouterOption,
+) *ProxyHandler {
 	return &ProxyHandler{
-		router:   NewRouter(k8sClient),
+		router:   NewRouter(k8sClient, opts...),
 		toolName: toolName,
 	}
 }
@@ -33,11 +37,21 @@ func (p *ProxyHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"proxy_tool invoked","tool":"%s"}`,
-		p.toolName)
+	log.Printf(`{"level":"info","msg":"proxy_tool invoked","tool":"%s",`+
+		`"routing_mode":"%s"}`, p.toolName, p.router.RoutingMode())
 
-	// Build MCP request to send to agents using framing utilities
-	mcpRequest, err := BuildMCPRequest(p.toolName, request.GetArguments())
+	var mcpRequest []byte
+	var err error
+
+	if p.router.RoutingMode() == RoutingModeHTTP {
+		// HTTP mode: Build single tool call request (no init needed)
+		mcpRequest, err = BuildHTTPToolRequest(
+			p.toolName, request.GetArguments())
+	} else {
+		// Exec mode: Build init + tool framing for oneshot agents
+		mcpRequest, err = BuildMCPRequest(p.toolName, request.GetArguments())
+	}
+
 	if err != nil {
 		log.Printf(`{"level":"error","msg":"failed to build MCP request",`+
 			`"tool":"%s","error":"%v"}`, p.toolName, err)
@@ -52,7 +66,7 @@ func (p *ProxyHandler) Handle(
 			fmt.Sprintf("failed to route to nodes: %v", err)), nil
 	}
 
-	// Aggregate results
+	// Aggregate results (parsing differs by mode)
 	aggregated := p.aggregateResults(results)
 
 	jsonBytes, err := json.MarshalIndent(aggregated, "", "  ")
@@ -239,9 +253,19 @@ func flattenGPUInfo(dev map[string]interface{}) map[string]interface{} {
 
 // parseToolResponse extracts the tool result from the MCP response.
 // Uses the framing utilities for robust JSON parsing.
+// This function handles both stdio (multi-line) and HTTP (single-line) responses.
 func parseToolResponse(response []byte) interface{} {
-	// Use ParseStdioResponse for proper error handling
-	data, err := ParseStdioResponse(response)
+	// Try HTTP mode first (single JSON object)
+	data, err := ParseHTTPResponse(response)
+	if err == nil {
+		if data == nil {
+			return nil
+		}
+		return data
+	}
+
+	// Fall back to stdio mode (multi-line response)
+	data, err = ParseStdioResponse(response)
 	if err != nil {
 		return map[string]interface{}{"error": err.Error()}
 	}
