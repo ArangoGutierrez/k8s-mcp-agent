@@ -224,3 +224,15 @@ gateway:
       cpu: 100m
       memory: 128Mi
 
+# NetworkPolicy configuration
+# Controls pod-to-pod communication security
+networkPolicy:
+  # -- Enable NetworkPolicy for pod-to-pod communication security
+  enabled: false
+
+  # -- Allow Prometheus to scrape agent metrics
+  allowPrometheus: false
+
+  # -- Namespace selector for Prometheus (if allowPrometheus: true)
+  prometheusNamespaceSelector:
+    kubernetes.io/metadata.name: monitoring
