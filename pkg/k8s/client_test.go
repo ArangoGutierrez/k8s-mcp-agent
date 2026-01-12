@@ -242,3 +242,86 @@ func TestClientOptions_MultipleOptions(t *testing.T) {
 	assert.Equal(t, "test-namespace", client.Namespace())
 	assert.Equal(t, customTimeout, client.ExecTimeout())
 }
+
+func TestParseExecTimeout(t *testing.T) {
+	fallback := 60 * time.Second
+
+	tests := []struct {
+		name     string
+		value    string
+		expected time.Duration
+	}{
+		{
+			name:     "valid seconds",
+			value:    "45s",
+			expected: 45 * time.Second,
+		},
+		{
+			name:     "valid minutes",
+			value:    "2m",
+			expected: 2 * time.Minute,
+		},
+		{
+			name:     "valid complex duration",
+			value:    "1m30s",
+			expected: 90 * time.Second,
+		},
+		{
+			name:     "valid max boundary",
+			value:    "300s",
+			expected: 300 * time.Second,
+		},
+		{
+			name:     "valid min boundary",
+			value:    "1s",
+			expected: 1 * time.Second,
+		},
+		{
+			name:     "invalid duration returns fallback",
+			value:    "not-a-duration",
+			expected: fallback,
+		},
+		{
+			name:     "empty string returns fallback",
+			value:    "",
+			expected: fallback,
+		},
+		{
+			name:     "number without unit returns fallback",
+			value:    "45",
+			expected: fallback,
+		},
+		{
+			name:     "zero duration returns fallback",
+			value:    "0s",
+			expected: fallback,
+		},
+		{
+			name:     "negative duration returns fallback",
+			value:    "-10s",
+			expected: fallback,
+		},
+		{
+			name:     "exceeds max returns fallback",
+			value:    "999999h",
+			expected: fallback,
+		},
+		{
+			name:     "below min returns fallback",
+			value:    "500ms",
+			expected: fallback,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseExecTimeout(tt.value, fallback)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDefaultExecTimeout_Value(t *testing.T) {
+	// Verify the default timeout is 60 seconds as per the fix
+	assert.Equal(t, 60*time.Second, DefaultExecTimeout)
+}
