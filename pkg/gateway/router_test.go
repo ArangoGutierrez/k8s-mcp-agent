@@ -141,3 +141,60 @@ func TestNewRouter(t *testing.T) {
 	router := NewRouter(k8sClient)
 	assert.NotNil(t, router)
 }
+
+func TestNewRouter_DefaultHTTPMode(t *testing.T) {
+	k8sClient := k8s.NewClientWithConfig(nil, nil, "test-ns")
+	router := NewRouter(k8sClient)
+
+	// Default routing mode should be HTTP
+	assert.Equal(t, RoutingModeHTTP, router.RoutingMode())
+	assert.NotNil(t, router.httpClient)
+}
+
+func TestWithRoutingMode(t *testing.T) {
+	k8sClient := k8s.NewClientWithConfig(nil, nil, "test-ns")
+
+	// Test HTTP mode
+	routerHTTP := NewRouter(k8sClient, WithRoutingMode(RoutingModeHTTP))
+	assert.Equal(t, RoutingModeHTTP, routerHTTP.RoutingMode())
+
+	// Test Exec mode
+	routerExec := NewRouter(k8sClient, WithRoutingMode(RoutingModeExec))
+	assert.Equal(t, RoutingModeExec, routerExec.RoutingMode())
+}
+
+func TestRoutingMode_Constants(t *testing.T) {
+	// Ensure constants have expected values
+	assert.Equal(t, RoutingMode("http"), RoutingModeHTTP)
+	assert.Equal(t, RoutingMode("exec"), RoutingModeExec)
+}
+
+func TestRouter_HTTPClient_Initialized(t *testing.T) {
+	k8sClient := k8s.NewClientWithConfig(nil, nil, "test-ns")
+	router := NewRouter(k8sClient)
+
+	// HTTP client should be initialized even in exec mode
+	// (for potential fallback scenarios)
+	assert.NotNil(t, router.httpClient)
+}
+
+func TestRouter_ExecMode_Configuration(t *testing.T) {
+	// Verify exec mode is correctly configured via option
+	k8sClient := k8s.NewClientWithConfig(nil, nil, "test-ns")
+	router := NewRouter(k8sClient, WithRoutingMode(RoutingModeExec))
+
+	// Verify routing mode is exec
+	assert.Equal(t, RoutingModeExec, router.RoutingMode())
+
+	// HTTP client should still be initialized (for potential future fallback)
+	assert.NotNil(t, router.httpClient)
+}
+
+func TestRouter_HTTPMode_Configuration(t *testing.T) {
+	// Verify HTTP mode is correctly configured via option
+	k8sClient := k8s.NewClientWithConfig(nil, nil, "test-ns")
+	router := NewRouter(k8sClient, WithRoutingMode(RoutingModeHTTP))
+
+	// Verify routing mode is HTTP
+	assert.Equal(t, RoutingModeHTTP, router.RoutingMode())
+}

@@ -240,6 +240,69 @@ func SplitJSONObjects(data []byte) [][]byte {
 	return objects
 }
 
+// BuildHTTPToolRequest creates a JSON-RPC request for HTTP mode agents.
+// Unlike BuildMCPRequest, this does not include init framing since HTTP
+// agents maintain persistent sessions.
+func BuildHTTPToolRequest(toolName string, arguments interface{}) ([]byte, error) {
+	if toolName == "" {
+		return nil, fmt.Errorf("toolName is required")
+	}
+
+	req := MCPRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: MCPToolCallParams{
+			Name:      toolName,
+			Arguments: arguments,
+		},
+		ID: 1,
+	}
+
+	return json.Marshal(req)
+}
+
+// ParseHTTPResponse extracts the tool result from an HTTP mode response.
+// HTTP responses contain a single JSON-RPC response (no multi-line parsing).
+func ParseHTTPResponse(response []byte) (interface{}, error) {
+	if len(response) == 0 {
+		return nil, fmt.Errorf("empty response")
+	}
+
+	var mcpResp MCPResponse
+	if err := json.Unmarshal(response, &mcpResp); err != nil {
+		return nil, fmt.Errorf("failed to parse MCP response: %w", err)
+	}
+
+	if mcpResp.Error != nil {
+		return nil, fmt.Errorf("MCP error %d: %s",
+			mcpResp.Error.Code, mcpResp.Error.Message)
+	}
+
+	var toolResult MCPToolResult
+	if err := json.Unmarshal(mcpResp.Result, &toolResult); err != nil {
+		return nil, fmt.Errorf("failed to parse tool result: %w", err)
+	}
+
+	if toolResult.IsError {
+		if len(toolResult.Content) > 0 {
+			return nil, fmt.Errorf("tool error: %s", toolResult.Content[0].Text)
+		}
+		return nil, fmt.Errorf("tool error: unknown")
+	}
+
+	if len(toolResult.Content) == 0 {
+		return nil, nil
+	}
+
+	text := toolResult.Content[0].Text
+	var data interface{}
+	if err := json.Unmarshal([]byte(text), &data); err != nil {
+		return text, nil
+	}
+
+	return data, nil
+}
+
 // ValidateMCPRequest checks if a byte slice contains a valid MCP request.
 // Returns an error describing any validation failures.
 func ValidateMCPRequest(data []byte) error {
