@@ -7,6 +7,20 @@
 
 # [Title: Brief Description of the Task]
 
+<context>
+<!-- 
+PROMPT ENGINEERING NOTES (delete this block in your actual prompt):
+
+This template follows Claude best practices:
+1. XML-style tags for clear section boundaries
+2. Explicit context setting before instructions
+3. Step-by-step task breakdown with clear acceptance criteria
+4. Testing-first emphasis (test before documenting)
+5. Real cluster testing when KUBECONFIG is available
+6. Atomic commits for better traceability
+-->
+</context>
+
 ## Autonomous Mode (Ralph Wiggum Pattern)
 
 > **🔁 KEEP WORKING UNTIL DONE - READ THIS FIRST**
@@ -207,28 +221,108 @@ Continue with subsequent tasks...
 
 ## Testing Requirements
 
-### Local Testing (Mock Mode)
+<testing_philosophy>
+**⚠️ TESTING-FIRST APPROACH**
+
+This project follows a testing-first philosophy:
+1. **Write tests BEFORE documenting** - Verify functionality works before writing docs
+2. **Test in real cluster when possible** - Mock tests are good, real cluster tests are better
+3. **Run full test suite frequently** - `make all` after every significant change
+4. **Fix tests before moving on** - Never leave broken tests for later
+</testing_philosophy>
+
+### Unit Testing (Always Required)
 
 ```bash
 cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
 
-# Run all checks
+# Run all checks (fmt, vet, lint, test)
 make all
 
 # Run tests with race detector
 make test
 
-# Build and test manually
-make agent
-./bin/agent --nvml-mode=mock < examples/your_example.json
+# Run specific package tests
+go test -v ./pkg/gateway/...
+go test -v ./pkg/tools/...
 ```
 
-### Integration Testing (if applicable)
+### Real Cluster Testing (When KUBECONFIG Available)
 
-Describe any integration tests needed, including:
-- Remote machine access (if GPU testing required)
-- Kubernetes cluster testing
-- External service dependencies
+> **🎯 PRIORITY:** If `KUBECONFIG` is set and a real cluster is available,
+> **always test against the real cluster** before documenting or claiming completion.
+
+```bash
+# Verify cluster access
+kubectl cluster-info
+kubectl get nodes
+
+# Check if GPU agents are running
+kubectl get pods -n gpu-diagnostics -l app.kubernetes.io/name=k8s-gpu-mcp-server
+
+# Test gateway connectivity (if deployed)
+kubectl port-forward -n gpu-diagnostics svc/gpu-mcp-gateway 8080:8080 &
+curl -s http://localhost:8080/healthz
+
+# Test MCP tools via gateway
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+### Helm Chart Testing
+
+```bash
+# Lint the chart
+helm lint deployment/helm/k8s-gpu-mcp-server
+
+# Template rendering (dry-run)
+helm template gpu-mcp deployment/helm/k8s-gpu-mcp-server \
+  --namespace gpu-diagnostics \
+  --set gateway.enabled=true
+
+# Install/upgrade in real cluster
+helm upgrade --install gpu-mcp deployment/helm/k8s-gpu-mcp-server \
+  --namespace gpu-diagnostics \
+  --create-namespace \
+  --set gateway.enabled=true
+
+# Verify deployment
+kubectl rollout status -n gpu-diagnostics deployment/gpu-mcp-gateway
+kubectl rollout status -n gpu-diagnostics daemonset/gpu-mcp-agent
+```
+
+### Mock Mode Testing (When No Cluster Available)
+
+```bash
+# Build and test with mock NVML
+make agent
+./bin/agent --nvml-mode=mock < examples/get_gpu_inventory.json
+```
+
+---
+
+## Documentation Updates (AFTER Testing)
+
+<documentation_order>
+**⚠️ DOCUMENTATION COMES LAST**
+
+Only update documentation AFTER:
+1. ✅ Code is implemented and working
+2. ✅ Unit tests pass
+3. ✅ Real cluster testing passes (if applicable)
+4. ✅ `make all` succeeds
+
+This ensures documentation reflects actual behavior, not aspirational behavior.
+</documentation_order>
+
+### Documentation Checklist
+
+- [ ] README.md updated (if user-facing changes)
+- [ ] Architecture docs updated (if structural changes)
+- [ ] Workspace rules updated (if conventions changed)
+- [ ] API/tool documentation updated (if tools changed)
+- [ ] Helm values.yaml comments updated (if config changed)
 
 ---
 
