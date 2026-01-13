@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
 )
 
 // RoutingMode specifies how the gateway communicates with agents.
@@ -28,9 +29,10 @@ const (
 
 // Router forwards MCP requests to node agents.
 type Router struct {
-	k8sClient   *k8s.Client
-	httpClient  *AgentHTTPClient
-	routingMode RoutingMode
+	k8sClient      *k8s.Client
+	httpClient     *AgentHTTPClient
+	routingMode    RoutingMode
+	circuitBreaker *CircuitBreaker
 }
 
 // RouterOption configures a Router.
@@ -43,12 +45,27 @@ func WithRoutingMode(mode RoutingMode) RouterOption {
 	}
 }
 
+// WithCircuitBreaker sets a custom circuit breaker.
+func WithCircuitBreaker(cb *CircuitBreaker) RouterOption {
+	return func(r *Router) {
+		r.circuitBreaker = cb
+	}
+}
+
 // NewRouter creates a new gateway router.
 func NewRouter(k8sClient *k8s.Client, opts ...RouterOption) *Router {
+	// Configure circuit breaker with metrics callback
+	cbConfig := DefaultCircuitBreakerConfig()
+	cbConfig.OnStateChange = func(node string, state int, healthy bool) {
+		metrics.SetCircuitState(node, state)
+		metrics.SetNodeHealth(node, healthy)
+	}
+
 	r := &Router{
-		k8sClient:   k8sClient,
-		httpClient:  NewAgentHTTPClient(),
-		routingMode: RoutingModeHTTP, // Default to HTTP
+		k8sClient:      k8sClient,
+		httpClient:     NewAgentHTTPClient(),
+		routingMode:    RoutingModeHTTP, // Default to HTTP
+		circuitBreaker: NewCircuitBreaker(cbConfig),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -99,20 +116,41 @@ func (r *Router) routeToGPUNode(
 		return nil, fmt.Errorf("agent on node %s is not ready", node.Name)
 	}
 
+	// Check circuit breaker before routing
+	if !r.circuitBreaker.Allow(node.Name) {
+		log.Printf(`{"level":"warn","msg":"circuit open, skipping node",`+
+			`"node":"%s","state":"%s"}`,
+			node.Name, r.circuitBreaker.State(node.Name))
+		return nil, fmt.Errorf("circuit open for node %s", node.Name)
+	}
+
 	startTime := time.Now()
+	var response []byte
+	var err error
 
 	// Try HTTP routing if enabled and pod has IP
 	if r.routingMode == RoutingModeHTTP {
 		endpoint := node.GetAgentHTTPEndpoint()
 		if endpoint != "" {
-			return r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
+			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
+		} else {
+			log.Printf(`{"level":"warn","msg":"pod has no IP, falling back to exec",`+
+				`"node":"%s","pod":"%s"}`, node.Name, node.PodName)
+			response, err = r.routeViaExec(ctx, node, mcpRequest, startTime)
 		}
-		log.Printf(`{"level":"warn","msg":"pod has no IP, falling back to exec",`+
-			`"node":"%s","pod":"%s"}`, node.Name, node.PodName)
+	} else {
+		// Fall back to exec routing
+		response, err = r.routeViaExec(ctx, node, mcpRequest, startTime)
 	}
 
-	// Fall back to exec routing
-	return r.routeViaExec(ctx, node, mcpRequest, startTime)
+	// Record result with circuit breaker
+	if err != nil {
+		r.circuitBreaker.RecordFailure(node.Name)
+		return nil, err
+	}
+
+	r.circuitBreaker.RecordSuccess(node.Name)
+	return response, nil
 }
 
 // routeViaHTTP sends request via HTTP to agent pod.
@@ -176,6 +214,7 @@ func (r *Router) routeViaExec(
 }
 
 // RouteToAllNodes sends an MCP request to all nodes and aggregates results.
+// Returns partial success: results from healthy nodes even if some fail.
 func (r *Router) RouteToAllNodes(
 	ctx context.Context,
 	mcpRequest []byte,
@@ -204,11 +243,29 @@ func (r *Router) RouteToAllNodes(
 	var wg sync.WaitGroup
 	successCount := 0
 	failCount := 0
+	skippedCount := 0
 
 	for _, node := range nodes {
 		if !node.Ready {
 			log.Printf(`{"level":"warn","msg":"skipping unready node",`+
 				`"node":"%s"}`, node.Name)
+			continue
+		}
+
+		// Check circuit breaker before spawning goroutine
+		if !r.circuitBreaker.Allow(node.Name) {
+			log.Printf(`{"level":"warn","msg":"circuit open, skipping node",`+
+				`"node":"%s"}`, node.Name)
+			skippedCount++
+
+			mu.Lock()
+			results = append(results, NodeResult{
+				NodeName: node.Name,
+				PodName:  node.PodName,
+				Error: fmt.Sprintf("circuit open (state: %s)",
+					r.circuitBreaker.State(node.Name)),
+			})
+			mu.Unlock()
 			continue
 		}
 
@@ -242,8 +299,16 @@ func (r *Router) RouteToAllNodes(
 	totalDuration := time.Since(startTime)
 
 	log.Printf(`{"level":"info","msg":"routing complete",`+
-		`"total_nodes":%d,"success":%d,"failed":%d,"duration_ms":%d}`,
-		len(nodes), successCount, failCount, totalDuration.Milliseconds())
+		`"total_nodes":%d,"success":%d,"failed":%d,"skipped":%d,`+
+		`"duration_ms":%d}`,
+		len(nodes), successCount, failCount, skippedCount,
+		totalDuration.Milliseconds())
+
+	// Partial success: return results even if some failed.
+	// Only return error if ALL nodes failed.
+	if successCount == 0 && len(results) > 0 {
+		return results, fmt.Errorf("all %d nodes failed", len(results))
+	}
 
 	return results, nil
 }

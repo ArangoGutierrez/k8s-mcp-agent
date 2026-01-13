@@ -1,5 +1,40 @@
 # Gateway HTTP Routing to Agent Pods
 
+## Autonomous Mode (Ralph Wiggum Pattern)
+
+> **🔁 KEEP WORKING UNTIL DONE - READ THIS FIRST**
+>
+> This prompt is designed for iterative execution in Cursor. When you invoke
+> this prompt with `@docs/prompts/gateway-http-routing.md`, the agent MUST
+> continue working until ALL tasks reach `[DONE]` status.
+>
+> **If tasks remain incomplete, re-invoke:** `@docs/prompts/gateway-http-routing.md`
+
+### Progress Tracker
+
+<!-- UPDATE THIS SECTION AS YOU WORK -->
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 0 | Create feature branch | `[TODO]` | `feat/gateway-http-routing` |
+| 1 | Create AgentHTTPClient | `[TODO]` | `pkg/gateway/http_client.go` |
+| 2 | Add HTTP client tests | `[TODO]` | `pkg/gateway/http_client_test.go` |
+| 3 | Update Router with HTTP mode | `[TODO]` | `pkg/gateway/router.go` |
+| 4 | Add HTTP request builder | `[TODO]` | `pkg/gateway/framing.go` |
+| 5 | Update Helm values | `[TODO]` | `values.yaml` |
+| 6 | Update gateway deployment | `[TODO]` | `gateway-deployment.yaml` |
+| 7 | Add --routing-mode flag | `[TODO]` | `cmd/agent/main.go` |
+| 8 | Add router tests | `[TODO]` | `pkg/gateway/router_test.go` |
+| 9 | Run tests and verify | `[TODO]` | `make all` |
+| 10 | Create pull request | `[TODO]` | |
+| 11 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
+| 12 | Address review comments | `[TODO]` | |
+| 13 | Merge after reviews | `[TODO]` | |
+
+**Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
+
+---
+
 ## Issue Reference
 
 - **Issue:** [#115 - feat(gateway): Route to agents via HTTP instead of kubectl exec](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/115)
@@ -7,6 +42,7 @@
 - **Labels:** kind/feature, prio/p1-high
 - **Parent Epic:** #112 - HTTP transport refactor
 - **Depends on:** #121 (merged) - HTTP transport as default
+- **Autonomous Mode:** ✅ Enabled
 
 ## Background
 
@@ -109,7 +145,14 @@ git checkout -b feat/gateway-http-routing
 
 ## Implementation Tasks
 
-### Task 1: Create AgentHTTPClient
+<!-- 
+NOTE: Update the Progress Tracker above as you complete each task!
+  - When starting a task: change status to "[WIP]"
+  - When completing a task: change status to "[DONE]"
+  - If blocked: change status to "[BLOCKED:reason]"
+-->
+
+### Task 1: Create AgentHTTPClient `[TODO]`
 
 Create a new HTTP client with connection pooling and retry logic for
 communicating with agent pods.
@@ -260,11 +303,12 @@ func (c *AgentHTTPClient) calculateBackoff(attempt int) time.Duration {
 - [ ] Exponential backoff between retries
 - [ ] Context cancellation respected
 
-> 💡 **Commit:** `feat(gateway): add AgentHTTPClient with connection pooling`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(gateway): add AgentHTTPClient with connection pooling"`
 
 ---
 
-### Task 2: Add Unit Tests for AgentHTTPClient
+### Task 2: Add Unit Tests for AgentHTTPClient `[TODO]`
 
 **File:** `pkg/gateway/http_client_test.go`
 
@@ -396,11 +440,12 @@ func TestAgentHTTPClient_calculateBackoff(t *testing.T) {
 - [ ] Test all retries exhausted
 - [ ] Test backoff calculation
 
-> 💡 **Commit:** `test(gateway): add AgentHTTPClient unit tests`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "test(gateway): add AgentHTTPClient unit tests"`
 
 ---
 
-### Task 3: Update Router with HTTP Routing Mode
+### Task 3: Update Router with HTTP Routing Mode `[TODO]`
 
 Modify the Router to support both HTTP and exec routing modes.
 
@@ -550,11 +595,12 @@ func (r *Router) routeViaExec(
 - [ ] Falls back to exec if pod has no IP
 - [ ] Structured logging for both modes
 
-> 💡 **Commit:** `feat(gateway): add HTTP routing mode to Router`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(gateway): add HTTP routing mode to Router"`
 
 ---
 
-### Task 4: Update ProxyHandler for HTTP Mode
+### Task 4: Update ProxyHandler for HTTP Mode `[TODO]`
 
 When using HTTP mode, the proxy doesn't need to build init+tool framing.
 The agent HTTP server handles the full MCP session.
@@ -605,7 +651,7 @@ func (p *ProxyHandler) Handle(
 
 ---
 
-### Task 5: Add HTTP Request Builder
+### Task 5: Add HTTP Request Builder `[TODO]`
 
 Add a builder for HTTP mode requests (simpler than stdio framing).
 
@@ -683,11 +729,12 @@ func ParseHTTPResponse(response []byte) (interface{}, error) {
 - [ ] `ParseHTTPResponse()` handles single-object response
 - [ ] No newline framing needed for HTTP mode
 
-> 💡 **Commit:** `feat(gateway): add HTTP request/response helpers`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(gateway): add HTTP request/response helpers"`
 
 ---
 
-### Task 6: Add Helm Configuration for Routing Mode
+### Task 6: Add Helm Configuration for Routing Mode `[TODO]`
 
 **File:** `deployment/helm/k8s-gpu-mcp-server/values.yaml`
 
@@ -720,11 +767,12 @@ gateway:
 - [ ] `gateway.routingMode` defaults to `http`
 - [ ] Comment explains relationship to `transport.mode`
 
-> 💡 **Commit:** `feat(helm): add gateway.routingMode configuration`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(helm): add gateway.routingMode configuration"`
 
 ---
 
-### Task 7: Update Gateway Deployment Template
+### Task 7: Update Gateway Deployment Template `[TODO]`
 
 **File:** `deployment/helm/k8s-gpu-mcp-server/templates/gateway-deployment.yaml`
 
@@ -742,11 +790,12 @@ args:
 **Acceptance criteria:**
 - [ ] `--routing-mode` flag passed to gateway
 
-> 💡 **Commit:** `feat(helm): pass routing-mode to gateway deployment`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(helm): pass routing-mode to gateway deployment"`
 
 ---
 
-### Task 8: Update Agent Main to Accept Routing Mode Flag
+### Task 8: Update Agent Main to Accept Routing Mode Flag `[TODO]`
 
 **File:** `cmd/agent/main.go`
 
@@ -765,11 +814,12 @@ router := gateway.NewRouter(k8sClient,
 - [ ] `--routing-mode` flag added
 - [ ] Passed to Router via option
 
-> 💡 **Commit:** `feat(agent): add --routing-mode flag for gateway`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "feat(agent): add --routing-mode flag for gateway"`
 
 ---
 
-### Task 9: Update Router Unit Tests
+### Task 9: Update Router Unit Tests `[TODO]`
 
 **File:** `pkg/gateway/router_test.go`
 
@@ -794,7 +844,8 @@ func TestRouter_ExecModeOnly(t *testing.T) {
 - [ ] Test exec fallback
 - [ ] Test explicit exec mode
 
-> 💡 **Commit:** `test(gateway): add router routing mode tests`
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit:
+> `git commit -s -S -m "test(gateway): add router routing mode tests"`
 
 ---
 
@@ -965,6 +1016,78 @@ using stdio transport mode.
 - HTTP mode requires agents running in HTTP transport mode (#121)
 - Connection pooling significantly reduces latency for repeated requests
 - Retry with exponential backoff handles transient network issues
+
+---
+
+## Agent Self-Check (Before Ending Each Turn)
+
+Before you finish ANY response, perform this self-check:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ SELF-CHECK: Can I end this turn?                            │
+├─────────────────────────────────────────────────────────────┤
+│ □ Have I made progress on at least one task?                │
+│ □ Did I update the Progress Tracker above?                  │
+│ □ Did I commit my changes? (if code was modified)           │
+│ □ Are there any [TODO] tasks I can continue working on?     │
+├─────────────────────────────────────────────────────────────┤
+│ If tasks remain → Tell user to re-invoke this prompt        │
+│ If ALL [DONE] → Congratulate and suggest archiving prompt   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+> ⚠️ **IMPORTANT:** Copilot reviews take 1-2 minutes to appear after PR creation.
+> Do NOT merge until Copilot review is complete and all comments are addressed.
+
+---
+
+## End-of-Turn Status Report
+
+**Always end your turn with this format:**
+
+```markdown
+## 📊 Status Report
+
+**Completed this turn:**
+- [x] Task X - description
+- [x] Task Y - description
+
+**Remaining tasks:**
+- [ ] Task Z (next priority)
+- [ ] Task W
+
+**Next invocation will:** [describe what happens next]
+
+➡️ **Re-invoke to continue:** `@docs/prompts/gateway-http-routing.md`
+```
+
+---
+
+## Completion Protocol
+
+### When All Tasks Are Done
+
+Once ALL tasks show `[DONE]`:
+- ✅ All code implemented and tests pass
+- ✅ PR created and CI is green
+- ✅ Copilot review appeared (waited 1-2 min)
+- ✅ All review comments addressed
+- ✅ PR merged
+
+**Final status:**
+```markdown
+## 🎉 ALL TASKS COMPLETE
+
+All tasks in this prompt have been completed successfully.
+
+**Summary:**
+- Branch: `feat/gateway-http-routing`
+- PR: #XXX (merged)
+- Tests: ✅ Passing
+
+**Recommend:** Move this prompt to `archive/`
+```
 
 ---
 

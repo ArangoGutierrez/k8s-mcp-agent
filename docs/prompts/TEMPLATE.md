@@ -7,12 +7,110 @@
 
 # [Title: Brief Description of the Task]
 
+## Autonomous Mode (Ralph Wiggum Pattern)
+
+> **🔁 KEEP WORKING UNTIL DONE - READ THIS FIRST**
+>
+> This prompt is designed for iterative execution in Cursor. When you invoke
+> this prompt with `@docs/prompts/<this-file>.md`, the agent MUST continue
+> working until ALL tasks reach `[DONE]` status.
+>
+> **If tasks remain incomplete, re-invoke the prompt:** `@docs/prompts/<file>.md`
+
+### Iteration Rules (For the Agent)
+
+1. **NEVER STOP EARLY** - If any task is `[TODO]` or `[WIP]`, keep working
+2. **UPDATE STATUS** - Edit this file: mark tasks `[WIP]` → `[DONE]` as you go
+3. **COMMIT PROGRESS** - Commit and push after each completed task
+4. **SELF-CHECK** - Before ending your turn, verify ALL tasks show `[DONE]`
+5. **REPORT STATUS** - End each turn with a status summary of remaining tasks
+
+### Progress Tracker
+
+<!-- UPDATE THIS SECTION AS YOU WORK -->
+<!-- Edit this file directly to track progress between invocations -->
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 0 | Create feature branch | `[TODO]` | |
+| 1 | Task 1 placeholder | `[TODO]` | |
+| 2 | Task 2 placeholder | `[TODO]` | |
+| 3 | Run tests and verify | `[TODO]` | |
+| 4 | Create pull request | `[TODO]` | |
+| 5 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
+| 6 | Address review comments | `[TODO]` | |
+| 7 | Merge after reviews | `[TODO]` | |
+
+**Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
+
+### How to Use (For Humans)
+
+```
+1. Copy this template: cp TEMPLATE.md my-feature.md
+2. Fill in task details
+3. Invoke in Cursor: @docs/prompts/my-feature.md
+4. Let the agent work
+5. If tasks remain, re-invoke: @docs/prompts/my-feature.md
+6. Repeat until all tasks show [DONE]
+```
+
+Typical workflow requires **3-5 invocations** for a complete feature:
+- Invocation 1: Branch + initial implementation
+- Invocation 2: Tests + fixes
+- Invocation 3: PR creation + CI wait
+- Invocation 4: Copilot review + fixes
+- Invocation 5: Final merge
+
+### Agent Self-Check (Before Ending Each Turn)
+
+Before you finish ANY response, perform this self-check:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ SELF-CHECK: Can I end this turn?                            │
+├─────────────────────────────────────────────────────────────┤
+│ □ Have I made progress on at least one task?                │
+│ □ Did I update the Progress Tracker in this file?           │
+│ □ Did I commit my changes? (if code was modified)           │
+│ □ Are there any [TODO] tasks I can continue working on?     │
+├─────────────────────────────────────────────────────────────┤
+│ If tasks remain → Tell user to re-invoke: @prompt <file>    │
+│ If ALL [DONE] → Congratulate and suggest archiving prompt   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### End-of-Turn Status Report
+
+**Always end your turn with this format:**
+
+```markdown
+## 📊 Status Report
+
+**Completed this turn:**
+- [x] Task X
+- [x] Task Y
+
+**Remaining tasks:**
+- [ ] Task Z (next priority)
+- [ ] Task W
+
+**Next invocation will:** [describe what happens next]
+
+➡️ **Re-invoke to continue:** `@docs/prompts/<this-file>.md`
+```
+
+> ⚠️ **IMPORTANT:** Copilot reviews take 1-2 minutes to appear after PR creation.
+> Do NOT merge until Copilot review is complete and all comments are addressed.
+
+---
+
 ## Issue Reference
 
 - **Issue:** [#XX - Title](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/XX)
 - **Priority:** P0-Blocker | P1-High | P2-Medium | P3-Low
 - **Labels:** kind/feature, area/..., ops/...
 - **Milestone:** M1 | M2 | M3 | M4
+- **Autonomous Mode:** ✅ Enabled (max 10 iterations)
 
 ## Background
 
@@ -70,7 +168,14 @@ git branch --show-current
 
 ## Implementation Tasks
 
-### Task 1: [First Task Title]
+<!-- 
+NOTE: Update the Progress Tracker YAML above as you complete each task!
+  - When starting a task: change status to "[WIP]"
+  - When completing a task: change status to "[DONE]"
+  - If blocked: change status to "[BLOCKED:reason]"
+-->
+
+### Task 1: [First Task Title] `[TODO]`
 
 Description of what needs to be done.
 
@@ -88,15 +193,15 @@ package example
 - [ ] Criterion 1
 - [ ] Criterion 2
 
-> 💡 **Commit after completing this task** before moving to the next one.
+> 💡 **After completing:** Update Progress Tracker → `status: "[DONE]"` → Commit
 
 ---
 
-### Task 2: [Second Task Title]
+### Task 2: [Second Task Title] `[TODO]`
 
 Continue with subsequent tasks...
 
-> 💡 **Commit after completing this task** before moving to the next one.
+> 💡 **After completing:** Update Progress Tracker → `status: "[DONE]"` → Commit
 
 ---
 
@@ -349,6 +454,18 @@ git push
 
 ### Copilot/Bot Reviews
 
+> ⚠️ **WAIT FOR COPILOT REVIEW** - Reviews take 1-2 minutes to appear after PR
+> creation. Do NOT proceed to merge until you have checked for Copilot comments.
+
+**After creating the PR, wait and check:**
+```bash
+# Wait 1-2 minutes, then check for Copilot review
+gh pr view <PR-NUMBER> --json reviews
+
+# Or check in browser (look for Copilot's review)
+gh pr view <PR-NUMBER> --web
+```
+
 GitHub Copilot may leave automated review comments. For each comment:
 
 1. **Read carefully** - Understand the suggestion
@@ -363,6 +480,8 @@ git commit -s -S -m "fix(scope): address review feedback"
 git push
 ```
 
+**Re-check after pushing fixes** - Copilot may add more comments on new code.
+
 ### Human Reviews (if required)
 
 - Respond to all review comments
@@ -375,10 +494,27 @@ git push
 
 ### Pre-Merge Checklist
 
+> ⚠️ **WAIT FOR COPILOT REVIEW** - Do NOT merge immediately after PR creation!
+> Copilot reviews take 1-2 minutes to appear. Wait and check for comments.
+
 - [ ] All CI checks pass ✅
-- [ ] Copilot review comments addressed
+- [ ] **Copilot review has appeared** (wait 1-2 min after PR creation)
+- [ ] **ALL Copilot review comments addressed** (fix issues, push, re-check)
 - [ ] Human review approved (if required)
 - [ ] No merge conflicts
+
+### Waiting for Copilot Review
+
+```bash
+# Check if Copilot review has appeared (run after 1-2 minutes)
+gh pr view <PR-NUMBER> --json reviews --jq '.reviews[] | select(.author.login | contains("copilot"))'
+
+# Or check in browser
+gh pr view <PR-NUMBER> --web
+```
+
+If no Copilot review appears after 2 minutes, you can proceed with merge.
+If comments appear, address them before merging.
 
 ### Merge Command
 
@@ -452,8 +588,157 @@ gh pr merge <PR#> --merge --delete-branch
 6. Push to remote ─────────────────────────────────────► git push
 7. Create PR with labels + milestone ──────────────────► gh pr create
 8. Wait for CI ────────────────────────────────────────► gh pr checks --watch
-9. Address Copilot/review comments ────────────────────► Fix → Push
-10. Merge PR ──────────────────────────────────────────► gh pr merge
+9. ⏳ WAIT 1-2 min for Copilot review ─────────────────► Don't rush!
+10. Address ALL Copilot review comments ───────────────► Fix → Push
+11. Merge PR (only after reviews done) ────────────────► gh pr merge
+```
+
+> 💡 **Remember:** 10-20 atomic commits > 1 massive commit
+> ⚠️ **Never merge before Copilot review appears!** (takes 1-2 min)
+
+---
+
+## Completion Protocol
+
+### When All Tasks Are Done
+
+Once you have verified that:
+- ✅ All tasks in the Progress Tracker show `[DONE]`
+- ✅ All tests pass (`make all` succeeds)
+- ✅ PR is created and CI is green
+- ✅ **Copilot review has appeared** (waited 1-2 min after PR creation)
+- ✅ **All Copilot review comments addressed**
+- ✅ PR is merged (or ready for human review)
+
+**Final status report:**
+```markdown
+## 🎉 ALL TASKS COMPLETE
+
+All tasks in this prompt have been completed successfully.
+
+**Summary:**
+- Branch: `feat/xxx`
+- PR: #XXX (merged)
+- Tests: ✅ Passing
+
+**Recommend:** Move this prompt to `archive/`
+```
+
+### If Tasks Remain Incomplete
+
+If ANY task is not `[DONE]`:
+
+1. **Update the Progress Tracker** in this file with current status
+2. **Commit your progress** so the next invocation can continue
+3. **End with a status report** telling the user what remains
+4. **Prompt re-invocation:** Tell user to run `@docs/prompts/<file>.md`
+
+### State Persistence Between Invocations
+
+Between `@prompt` invocations, state persists via:
+- **Git commits** - Code changes are saved
+- **Progress Tracker table** - Updated in this prompt file
+- **GitHub Issues/PR** - Progress visible externally
+
+The agent reads this file on each invocation to know what's done and what remains.
+
+---
+
+## Quick Reference
+
+### Cursor Invocation Commands
+
+```
+# In Cursor chat, invoke the prompt:
+@docs/prompts/my-task.md
+
+# Re-invoke to continue (after agent ends turn):
+@docs/prompts/my-task.md
+
+# Check progress in terminal:
+grep -E '\[TODO\]|\[WIP\]|\[DONE\]' docs/prompts/my-task.md
+```
+
+### Key Commands
+
+```bash
+# Branch creation
+git checkout -b feat/my-feature
+
+# Commit (ALWAYS with -s -S)
+git commit -s -S -m "type(scope): description"
+
+# Push
+git push -u origin feat/my-feature
+
+# Create PR
+gh pr create --title "..." --label "..." --milestone "..."
+
+# Watch CI
+gh pr checks <PR#> --watch
+
+# Merge
+gh pr merge <PR#> --merge --delete-branch
+```
+
+### Workflow Summary (Cursor Iterative Mode)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              RALPH WIGGUM PATTERN (Cursor Native)                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Human: @docs/prompts/my-task.md                                       │
+│                    │                                                    │
+│                    ▼                                                    │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │  AGENT TURN                                                     │   │
+│   │                                                                 │   │
+│   │  1. Read Progress Tracker → Find [TODO] tasks                   │   │
+│   │  2. Work on next task                                           │   │
+│   │  3. Update tracker: [TODO] → [WIP] → [DONE]                     │   │
+│   │  4. Commit progress                                             │   │
+│   │  5. Self-check: more [TODO]s?                                   │   │
+│   │                                                                 │   │
+│   └─────────────────────────┬──────────────────────────────────────┘   │
+│                             │                                           │
+│                             ▼                                           │
+│                  ┌─────────────────────┐                                │
+│                  │   Status Report     │                                │
+│                  │   "Re-invoke to     │                                │
+│                  │    continue..."     │                                │
+│                  └──────────┬──────────┘                                │
+│                             │                                           │
+│              ┌──────────────┴──────────────┐                            │
+│              │                             │                            │
+│              ▼                             ▼                            │
+│     ┌─────────────────┐          ┌─────────────────┐                    │
+│     │  Tasks remain   │          │  ALL [DONE]     │                    │
+│     │                 │          │                 │                    │
+│     │  Human re-      │          │  🎉 Complete!   │                    │
+│     │  invokes prompt │          │  Archive prompt │                    │
+│     └────────┬────────┘          └─────────────────┘                    │
+│              │                                                          │
+│              └──────────► Next turn...                                  │
+│                                                                         │
+│   Typical: 3-5 invocations per feature                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Manual Workflow Summary
+
+```
+1. Create branch (Step 0) ─────────────────────────────► feat/<name>
+2. Implement ONE logical change ───────────────────────► Code changes
+3. Run pre-commit checks ──────────────────────────────► make all
+4. Commit with DCO + GPG ──────────────────────────────► git commit -s -S
+5. Repeat steps 2-4 for each logical change ───────────► Atomic commits
+6. Push to remote ─────────────────────────────────────► git push
+7. Create PR with labels + milestone ──────────────────► gh pr create
+8. Wait for CI ────────────────────────────────────────► gh pr checks --watch
+9. ⏳ WAIT 1-2 min for Copilot review ─────────────────► Don't rush!
+10. Address ALL Copilot review comments ───────────────► Fix → Push
+11. Merge PR (only after reviews done) ────────────────► gh pr merge
 ```
 
 > 💡 **Remember:** 10-20 atomic commits > 1 massive commit
@@ -461,5 +746,10 @@ gh pr merge <PR#> --merge --delete-branch
 ---
 
 **Reply "GO" when ready to start implementation.** 🚀
+
+<!-- 
+COMPLETION MARKER - Do not output until ALL tasks are [DONE]:
+<completion>ALL_TASKS_DONE</completion>
+-->
 
 

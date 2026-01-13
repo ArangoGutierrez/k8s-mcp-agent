@@ -1,0 +1,99 @@
+{{/*
+Copyright 2026 k8s-gpu-mcp-server contributors
+SPDX-License-Identifier: Apache-2.0
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-agent
+  namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
+  labels:
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gpu-diagnostics
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow traffic from gateway pods
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: gateway
+    ports:
+    - protocol: TCP
+      port: {{ .Values.transport.http.port }}
+  {{- if .Values.networkPolicy.allowPrometheus }}
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          {{- toYaml .Values.networkPolicy.prometheusNamespaceSelector | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.transport.http.port }}
+  {{- end }}
+---
+{{- if .Values.gateway.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-gateway
+  namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
+  labels:
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow external traffic to gateway
+  - ports:
+    - protocol: TCP
+      port: {{ .Values.gateway.port }}
+  {{- if .Values.networkPolicy.allowPrometheus }}
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          {{- toYaml .Values.networkPolicy.prometheusNamespaceSelector | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.gateway.port }}
+  {{- end }}
+  egress:
+  # Allow gateway to reach agent pods
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: gpu-diagnostics
+    ports:
+    - protocol: TCP
+      port: {{ .Values.transport.http.port }}
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow access to Kubernetes API for pod discovery
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+{{- end }}

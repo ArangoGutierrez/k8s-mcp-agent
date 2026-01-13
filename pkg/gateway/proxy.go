@@ -37,8 +37,16 @@ func (p *ProxyHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
+	// Generate correlation ID if not present
+	correlationID := CorrelationIDFromContext(ctx)
+	if correlationID == "" {
+		correlationID = NewCorrelationID()
+		ctx = WithCorrelationID(ctx, correlationID)
+	}
+
 	log.Printf(`{"level":"info","msg":"proxy_tool invoked","tool":"%s",`+
-		`"routing_mode":"%s"}`, p.toolName, p.router.RoutingMode())
+		`"routing_mode":"%s","correlation_id":"%s"}`,
+		p.toolName, p.router.RoutingMode(), correlationID)
 
 	var mcpRequest []byte
 	var err error
@@ -76,7 +84,8 @@ func (p *ProxyHandler) Handle(
 	}
 
 	log.Printf(`{"level":"info","msg":"proxy_tool completed","tool":"%s",`+
-		`"node_count":%d}`, p.toolName, len(results))
+		`"node_count":%d,"correlation_id":"%s"}`,
+		p.toolName, len(results), correlationID)
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

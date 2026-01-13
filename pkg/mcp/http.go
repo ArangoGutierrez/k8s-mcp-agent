@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // HTTPServer wraps the MCP server with HTTP transport.
@@ -46,6 +47,9 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 
 	// Version endpoint
 	mux.HandleFunc("/version", h.handleVersion)
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Create server before starting goroutine to avoid race condition.
 	// WriteTimeout (90s) must exceed exec timeout (60s) plus response
