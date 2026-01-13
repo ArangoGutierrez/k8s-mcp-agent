@@ -140,7 +140,7 @@ cp docs/prompts/TEMPLATE.md docs/prompts/feat-new-feature.md
 
 | Prompt | Issue | Status | Description |
 |--------|-------|--------|-------------|
-| [consolidate-gpu-inventory.md](consolidate-gpu-inventory.md) | #99 | 🟡 P2 | Consolidate list_gpu_nodes into get_gpu_inventory |
+| [npm-kubectl-bridge.md](npm-kubectl-bridge.md) | #97 | 🟡 P1 | NPM package kubectl port-forward bridge |
 
 ## Template
 
@@ -152,6 +152,11 @@ Completed prompts are moved to `archive/` for reference:
 
 | Prompt | Related Issue/PR | Completed |
 |--------|-----------------|-----------|
+| gateway-resilience-observability.md | #116, PR #123 | Jan 2026 |
+| gateway-http-routing.md | #115, PR #122 | Jan 2026 |
+| agent-http-default.md | #114, PR #121 | Jan 2026 |
+| fix-timeout-alignment.md | #113, PR #119 | Jan 2026 |
+| consolidate-gpu-inventory.md | #99, PR #108 | Jan 2026 |
 | remove-echo-test.md | #100, PR #105 | Jan 2026 |
 | one-click-install-buttons.md | #87, PR #106 | Jan 2026 |
 | gateway-tool-proxy.md | #98, PR #101 | Jan 2026 |
