@@ -130,12 +130,12 @@ func (r *Router) routeToGPUNode(
 
 	// Try HTTP routing if enabled
 	if r.routingMode == RoutingModeHTTP {
-		// Prefer DNS-based endpoint (uses headless service) for better
-		// cross-node reliability. Falls back to Pod IP if DNS unavailable.
-		endpoint := node.GetAgentDNSEndpoint()
+		// Use Pod IP endpoint directly - works when CNI is properly configured.
+		// DNS-based routing (headless service) is available as fallback if needed.
+		endpoint := node.GetAgentHTTPEndpoint()
 		if endpoint == "" {
-			// Fall back to Pod IP if DNS fields not populated
-			endpoint = node.GetAgentHTTPEndpoint()
+			// Fall back to DNS if Pod IP not available
+			endpoint = node.GetAgentDNSEndpoint()
 		}
 		if endpoint != "" {
 			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
