@@ -122,9 +122,6 @@ curl -s http://localhost:8080/readyz   # Should return {"status":"ready"}
 > persistent HTTP servers and the gateway routes requests via HTTP for
 > low-latency, low-memory operation.
 
-```bash
-```
-
 ### Fallback Mode (No RuntimeClass)
 
 For clusters without RuntimeClass configured (e.g., cri-dockerd):

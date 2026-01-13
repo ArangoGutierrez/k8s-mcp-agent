@@ -65,18 +65,25 @@ Traditional Monitoring:              k8s-gpu-mcp-server:
 
 ### 2. Transport Options
 
-**Transport Modes:**
+The agent supports two transport modes:
 
-1. **Works through kubectl exec** SPDY tunneling
-2. **Works with Docker** direct stdin/stdout
-3. **No network configuration** required
-4. **Firewall-friendly** (no listening ports)
-5. **Simpler security model**
-6. **Standard I/O redirection** compatible
+**HTTP Mode (Default for Gateway):**
+- Persistent HTTP server on port 8080
+- Low memory footprint (~15-20MB resident)
+- Direct pod-to-pod HTTP routing
+- Health endpoints (`/healthz`, `/readyz`, `/metrics`)
+- Ideal for multi-node gateway deployments
+
+**Stdio Mode (Default for Direct Access):**
+- Works through `kubectl exec` SPDY tunneling
+- Works with Docker direct stdin/stdout
+- No network configuration required
+- Firewall-friendly (no listening ports)
+- Ideal for single-node debugging
 
 **Trade-offs:**
-- Cannot be used as standalone HTTP server (by design)
-- Requires MCP-compatible client (Claude Desktop, Cursor, AI agents)
+- HTTP: Requires network connectivity between pods
+- Stdio: Higher per-request overhead (process spawn + NVML init)
 
 ### 3. Interface Abstraction
 
@@ -185,7 +192,7 @@ The gateway routes requests to agents via HTTP for low-overhead communication:
 │  │  │  Gateway Pod    │  HTTP   │  Agent DaemonSet        │    │    │
 │  │  │  :8080          │────────▶│  :8080 (per GPU node)   │    │    │
 │  │  │  - Router       │         │  - NVML Client          │    │    │
-│  │  │  - CircuitBreaker│        │  - GPU Tools            │    │    │
+│  │  │  - Circuit Breaker│       │  - GPU Tools            │    │    │
 │  │  │  - Metrics      │         │  - Health Endpoints     │    │    │
 │  │  └─────────────────┘         └─────────────────────────┘    │    │
 │  └─────────────────────────────────────────────────────────────┘    │
@@ -198,8 +205,6 @@ The gateway routes requests to agents via HTTP for low-overhead communication:
 - **Low memory**: Persistent process (~15-20MB vs 200MB spikes with exec)
 - **Circuit breaker**: Automatic failover for unhealthy nodes
 - **Metrics**: Prometheus-compatible observability
-
-```
 
 ### GPU Access in Kubernetes
 

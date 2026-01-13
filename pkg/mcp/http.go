@@ -38,7 +38,13 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	// MCP endpoint - Streamable HTTP transport
-	streamableServer := server.NewStreamableHTTPServer(h.mcpServer)
+	// Use stateless mode: each request is independent, no session tracking needed.
+	// This allows the gateway to send tool calls directly without session management,
+	// which is appropriate for in-cluster HTTP routing where each request is atomic.
+	streamableServer := server.NewStreamableHTTPServer(
+		h.mcpServer,
+		server.WithStateLess(true),
+	)
 	mux.Handle("/mcp", streamableServer)
 
 	// Health check endpoints
