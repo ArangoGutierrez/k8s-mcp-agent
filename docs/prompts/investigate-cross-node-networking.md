@@ -30,7 +30,7 @@
 | 3 | Test pod-to-pod networking | `[DONE]` | Same-node works, cross-node fails |
 | 4 | Document findings | `[DONE]` | docs/troubleshooting/cross-node-networking.md |
 | 5 | Implement fix (if code change needed) | `[DONE]` | Added DNS routing + headless svc |
-| 6 | Verify HTTP mode works across nodes | `[BLOCKED:infra]` | Needs Calico vxlanMode=Always |
+| 6 | Verify HTTP mode works across nodes | `[DONE]` | Calico vxlanMode=Always applied, 4/4 nodes OK |
 | 7 | Create pull request (if code changes) | `[TODO]` | Ready for PR |
 | 8 | Merge or document infrastructure fix | `[DONE]` | Documented 3 fix options |
 
