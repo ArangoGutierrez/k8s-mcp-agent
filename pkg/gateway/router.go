@@ -128,9 +128,15 @@ func (r *Router) routeToGPUNode(
 	var response []byte
 	var err error
 
-	// Try HTTP routing if enabled and pod has IP
+	// Try HTTP routing if enabled
 	if r.routingMode == RoutingModeHTTP {
-		endpoint := node.GetAgentHTTPEndpoint()
+		// Prefer DNS-based endpoint (uses headless service) for better
+		// cross-node reliability. Falls back to Pod IP if DNS unavailable.
+		endpoint := node.GetAgentDNSEndpoint()
+		if endpoint == "" {
+			// Fall back to Pod IP if DNS fields not populated
+			endpoint = node.GetAgentHTTPEndpoint()
+		}
 		if endpoint != "" {
 			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
 		} else {

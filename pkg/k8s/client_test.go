@@ -376,3 +376,65 @@ func TestAgentHTTPPort(t *testing.T) {
 	// Verify the port constant matches the Helm default
 	assert.Equal(t, 8080, AgentHTTPPort)
 }
+
+func TestGPUNode_GetAgentDNSEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		node     GPUNode
+		expected string
+	}{
+		{
+			name: "complete DNS fields",
+			node: GPUNode{
+				Name:      "gpu-node-1",
+				PodName:   "gpu-mcp-k8s-gpu-mcp-server-abc123",
+				PodIP:     "10.0.0.5",
+				Ready:     true,
+				Namespace: "gpu-diagnostics",
+				Service:   "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "http://gpu-mcp-k8s-gpu-mcp-server-abc123." +
+				"gpu-mcp-k8s-gpu-mcp-server.gpu-diagnostics.svc.cluster.local:8080",
+		},
+		{
+			name: "missing namespace",
+			node: GPUNode{
+				Name:    "gpu-node-2",
+				PodName: "gpu-agent-abc",
+				PodIP:   "10.0.0.6",
+				Ready:   true,
+				Service: "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "",
+		},
+		{
+			name: "missing service",
+			node: GPUNode{
+				Name:      "gpu-node-3",
+				PodName:   "gpu-agent-xyz",
+				PodIP:     "10.0.0.7",
+				Ready:     true,
+				Namespace: "gpu-diagnostics",
+			},
+			expected: "",
+		},
+		{
+			name: "missing pod name",
+			node: GPUNode{
+				Name:      "gpu-node-4",
+				PodIP:     "10.0.0.8",
+				Ready:     true,
+				Namespace: "gpu-diagnostics",
+				Service:   "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.node.GetAgentDNSEndpoint()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

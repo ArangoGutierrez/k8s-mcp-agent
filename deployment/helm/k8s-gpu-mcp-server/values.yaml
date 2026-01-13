@@ -178,6 +178,8 @@ service:
   type: ClusterIP
   # -- Service port
   port: 8080
+  # -- Create headless service (clusterIP: None) for DNS-based pod routing
+  headless: false
 
 # XID error analysis configuration
 xidAnalysis:

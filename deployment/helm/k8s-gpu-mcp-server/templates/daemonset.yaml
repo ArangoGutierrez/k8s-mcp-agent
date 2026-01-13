@@ -53,6 +53,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- /* Enable headless service DNS for per-pod routing */}}
+      {{- if and (eq .Values.transport.mode "http") .Values.service.headless }}
+      subdomain: {{ include "k8s-gpu-mcp-server.fullname" . }}
+      {{- end }}
       {{- /* DRA ResourceClaims (K8s 1.26+) */}}
       {{- if .Values.gpu.resourceClaim.enabled }}
       resourceClaims:

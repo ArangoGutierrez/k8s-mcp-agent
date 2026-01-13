@@ -84,10 +84,12 @@ const AgentHTTPPort = 8080
 
 // GPUNode represents a node with GPU agents.
 type GPUNode struct {
-	Name    string `json:"name"`
-	PodName string `json:"pod_name"`
-	PodIP   string `json:"pod_ip"`
-	Ready   bool   `json:"ready"`
+	Name      string `json:"name"`
+	PodName   string `json:"pod_name"`
+	PodIP     string `json:"pod_ip"`
+	Ready     bool   `json:"ready"`
+	Namespace string `json:"namespace,omitempty"`
+	Service   string `json:"service,omitempty"`
 }
 
 // GetAgentHTTPEndpoint returns the HTTP endpoint for an agent pod.
@@ -102,6 +104,19 @@ func (n GPUNode) GetAgentHTTPEndpoint() string {
 		return fmt.Sprintf("http://[%s]:%d", n.PodIP, AgentHTTPPort)
 	}
 	return fmt.Sprintf("http://%s:%d", n.PodIP, AgentHTTPPort)
+}
+
+// GetAgentDNSEndpoint returns the DNS-based HTTP endpoint for an agent pod.
+// Uses the headless service DNS format:
+// <pod-name>.<service-name>.<namespace>.svc.cluster.local
+// This is more reliable than direct Pod IPs when CNI has cross-node issues.
+// Returns empty string if required fields are missing.
+func (n GPUNode) GetAgentDNSEndpoint() string {
+	if n.PodName == "" || n.Service == "" || n.Namespace == "" {
+		return ""
+	}
+	return fmt.Sprintf("http://%s.%s.%s.svc.cluster.local:%d",
+		n.PodName, n.Service, n.Namespace, AgentHTTPPort)
 }
 
 // NewClient creates a new Kubernetes client.
@@ -164,6 +179,9 @@ func NewClientWithConfig(
 	return c
 }
 
+// DefaultServiceName is the default headless service name for agent pods.
+const DefaultServiceName = "gpu-mcp-k8s-gpu-mcp-server"
+
 // ListGPUNodes returns all nodes running the GPU agent DaemonSet.
 func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 	// List pods with the GPU agent label, excluding gateway pods
@@ -188,10 +206,12 @@ func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 		}
 
 		nodes = append(nodes, GPUNode{
-			Name:    pod.Spec.NodeName,
-			PodName: pod.Name,
-			PodIP:   pod.Status.PodIP,
-			Ready:   ready,
+			Name:      pod.Spec.NodeName,
+			PodName:   pod.Name,
+			PodIP:     pod.Status.PodIP,
+			Ready:     ready,
+			Namespace: c.namespace,
+			Service:   DefaultServiceName,
 		})
 	}
 
@@ -305,10 +325,12 @@ func (c *Client) GetPodForNode(
 	}
 
 	return &GPUNode{
-		Name:    pod.Spec.NodeName,
-		PodName: pod.Name,
-		PodIP:   pod.Status.PodIP,
-		Ready:   ready,
+		Name:      pod.Spec.NodeName,
+		PodName:   pod.Name,
+		PodIP:     pod.Status.PodIP,
+		Ready:     ready,
+		Namespace: c.namespace,
+		Service:   DefaultServiceName,
 	}, nil
 }
 
