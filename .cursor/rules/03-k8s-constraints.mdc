@@ -7,6 +7,44 @@ globs:
 
 # Kubernetes Deployment Standards
 
+## Deployment Patterns
+
+### DaemonSet with HTTP Transport (Primary)
+- One agent pod per GPU node
+- Persistent HTTP server mode (`--port=8080`)
+- Gateway routes via HTTP (low memory footprint)
+- Liveness/readiness probes enabled
+- Near-zero idle overhead when not serving requests
+
+```yaml
+# Agent runs as persistent HTTP server
+command: ["/agent"]
+args:
+- "--nvml-mode=real"
+- "--port=8080"
+- "--mode=read-only"
+```
+
+### Gateway Deployment
+- Single replica deployment (or HA with multiple)
+- Routes MCP requests to agent DaemonSet via HTTP
+- Circuit breaker for resilience
+- Prometheus metrics for observability
+
+```yaml
+# Gateway with HTTP routing
+args:
+- "--gateway"
+- "--port=8080"
+- "--routing-mode=http"
+```
+
+### Stdio Mode (Legacy/Debug)
+- For direct `kubectl exec` debugging
+- Container runs `sleep infinity`
+- Agent spawned per exec session
+- Higher per-request overhead
+
 ## Security Constraints
 - **Run as non-root where possible**
 - NVML operations may require elevated privileges - minimize scope
@@ -14,71 +52,66 @@ globs:
   ```yaml
   securityContext:
     capabilities:
-      add: ["SYS_ADMIN"]  # Only if needed for GPU reset
+      add: ["SYSLOG"]      # For /dev/kmsg XID analysis
       drop: ["ALL"]
     readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
   ```
-- No persistent storage mounts (ephemeral pattern)
-- No network listeners (stdio transport only)
+- No persistent storage mounts (stateless pattern)
 
 ## Binary Constraints
 - **Target size: < 50MB** (stripped binary)
 - Static linking where possible (reduce runtime deps)
 - CGO enabled for NVML (libnvidia-ml.so)
 - Strip debug symbols for production: `go build -ldflags="-s -w"`
-- Compress with UPX if size exceeds target (test compatibility)
 
 ## Container Image
 - **Base:** `gcr.io/distroless/base-debian12`
 - Must contain mount points for:
   - `/usr/lib/x86_64-linux-gnu/libnvidia-ml.so` (NVML library)
-  - `/dev/nvidia*` (device nodes, via hostPath)
+  - `/dev/nvidia*` (device nodes, via RuntimeClass CDI injection)
 - Minimal layers (single COPY for binary)
-- Scan images with Trivy before release
 - Tag with git SHA and semantic version
 
-## Logging Standards
-- **JSON format only** to stderr
-- Required fields:
-  ```json
-  {
-    "timestamp": "2026-01-03T07:37:39Z",
-    "level": "info",
-    "component": "mcp-agent",
-    "msg": "...",
-    "node": "${NODE_NAME}"
-  }
-  ```
-- Include Kubernetes context when available:
-  - Node name (from downward API)
-  - Namespace (if applicable)
-  - Pod UID
-- No sensitive data in logs (PIDs ok, process names sanitized)
-
-## Deployment Pattern
-- **NO DaemonSets** - ephemeral injection only
-- Launch via `kubectl debug node/${NODE} --image=...`
-- Pass environment variables:
-  - `--mode=read-only` (default)
-  - `--mode=operator` (dangerous operations enabled)
-  - `--log-level=info`
-- Example launch command:
-  ```bash
-  kubectl debug node/gpu-node-5 \
-    --image=ghcr.io/arangogutierrez/k8s-mcp-agent:latest \
-    --profile=sysadmin \
-    -- /agent --mode=read-only
-  ```
-
 ## Resource Limits
-- No CPU/memory limits needed (short-lived)
-- Document expected resource usage in README
-- Typical: <100MB RAM, <0.1 CPU
+
+### HTTP Mode (Recommended)
+```yaml
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+```
+- Constant ~15-20MB memory footprint
+- CPU spikes only during tool execution
 
 ## Health & Readiness
-- **No probes needed** (ephemeral, stdio-based)
-- Agent exits on stdio close (kubectl debug disconnect)
-- Cleanup NVML resources on SIGTERM
+
+### HTTP Mode
+- Liveness: `GET /healthz` - returns 200 if process alive
+- Readiness: `GET /readyz` - returns 200 if ready to serve
+- Configure in pod spec:
+  ```yaml
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  ```
+
+### Stdio Mode (Legacy)
+- No probes needed (ephemeral process per exec)
+- Agent exits on stdio close
 
 ## Build & Release
 - Use `goreleaser` for multi-arch builds
@@ -91,17 +124,16 @@ globs:
 ## Testing in K8s
 - E2E tests in kind cluster with GPU operator
 - Test scenarios:
-  - Launch via kubectl debug
-  - Stdio transport validation
+  - HTTP mode agent startup
+  - Gateway HTTP routing to agents
+  - Health/readiness probe validation
   - NVML library detection
   - Graceful degradation (no GPUs)
-- Document prerequisites in `hack/e2e-test.sh`
 
 ## Documentation Requirements
 - README must include:
-  - Launch command examples
-  - Required RBAC permissions (if any)
-  - Image pull instructions
+  - Helm install commands
+  - HTTP mode verification steps
+  - Required RBAC permissions
   - Troubleshooting section
-- Provide `hack/launch.sh` wrapper script
-- Document security implications clearly
+- Document transport mode options clearly

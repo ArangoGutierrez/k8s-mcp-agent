@@ -24,7 +24,7 @@ Kubernetes APIs cannot detect.
 ### ✨ Key Features
 
 - 🎯 **On-Demand Diagnostics** - Agent runs only during `kubectl exec` sessions
-- 🔌 **Stdio Transport** - JSON-RPC 2.0 over `kubectl debug` SPDY tunneling
+- 🔌 **HTTP Transport** - JSON-RPC 2.0 over HTTP/SSE (production default)
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts
 - 🔒 **Secure by Default** - Read-only operations with explicit operator mode
@@ -165,8 +165,8 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 ```
 
 **Design Principles:**
-- **"Syringe Pattern"**: Ephemeral injection, zero idle footprint
-- **Stdio-Only**: No network listeners, firewall-friendly
+- **Low Footprint**: Persistent HTTP server, ~15-20MB memory
+- **HTTP-First**: Gateway routes via HTTP to agent pods
 - **Interface Abstraction**: Testable, flexible, portable
 
 📖 **[Architecture Documentation →](docs/architecture.md)**

@@ -8,11 +8,30 @@ globs:
 
 ## Library & Protocol
 - **Library:** Use `github.com/mark3labs/mcp-go` exclusively
-- **Protocol:** JSON-RPC 2.0 over Standard I/O (Stdio)
-- **NO HTTP/WebSocket listeners** - violates ephemeral design
-- Transport must work through `kubectl debug` SPDY tunneling
+- **Protocol:** JSON-RPC 2.0 over configurable transport
+- **Primary transport:** HTTP/SSE (MCP Streamable HTTP)
+- **Legacy transport:** Stdio (for debugging/direct kubectl exec)
 
-## I/O Separation (CRITICAL)
+## Transport Modes
+
+### HTTP Mode (Production Default)
+- Agent runs as persistent HTTP server on port 8080
+- Used by gateway for pod-to-pod HTTP routing
+- Low memory footprint (~15-20MB resident)
+- NVML initialized once at startup
+- Endpoints:
+  - `/mcp` - MCP Streamable HTTP transport
+  - `/healthz` - Liveness probe
+  - `/readyz` - Readiness probe
+  - `/metrics` - Prometheus metrics
+
+### Stdio Mode (Debug/Legacy)
+- For direct `kubectl exec` access
+- Oneshot mode for single tool calls
+- Higher per-request overhead (process spawn + NVML init)
+- Useful for SRE debugging without gateway
+
+## I/O Separation (Stdio Mode Only)
 - **stdout:** MCP protocol ONLY (JSON-RPC messages)
 - **stderr:** Structured logging, debug output, diagnostics
 - **NEVER** write logs/debug to stdout - breaks protocol parsing
@@ -23,21 +42,9 @@ globs:
 - Format: `{"level":"info","msg":"...", "component":"mcp-server"}`
 - Log levels: `debug`, `info`, `warn`, `error`, `fatal`
 - Include timestamps (ISO 8601) and request IDs when available
-- Example:
-  ```go
-  log.Printf(`{"level":"info","msg":"tool invoked","tool":"get_gpu_health"}`)
-  ```
 
 ## Tool Implementation
 - Each tool returns `application/json` string for complex data
-- Use structured responses:
-  ```go
-  type ToolResponse struct {
-      Status  string      `json:"status"`
-      Data    interface{} `json:"data,omitempty"`
-      Error   string      `json:"error,omitempty"`
-  }
-  ```
 - Validate all inputs before processing
 - Return errors as JSON, not Go error strings
 - Include helpful context in error messages
@@ -49,6 +56,13 @@ globs:
 - Provide default values where sensible
 
 ## Server Lifecycle
+
+### HTTP Mode
+1. **Init:** Parse flags, setup logging (stderr), init NVML
+2. **Run:** Start HTTP server, block on context
+3. **Shutdown:** Graceful HTTP shutdown, cleanup NVML, exit 0
+
+### Stdio Mode
 1. **Init:** Parse flags, setup logging (stderr), init NVML
 2. **Run:** Start MCP stdio server, block on transport
 3. **Shutdown:** Cleanup NVML, flush logs, exit 0
@@ -66,6 +80,7 @@ globs:
 - Test JSON-RPC message parsing separately
 - Validate tool schemas programmatically
 - Integration tests: full stdio round-trip
+- HTTP tests: endpoint validation
 
 ## Security
 - Sanitize all tool inputs (PIDs, counts, paths)

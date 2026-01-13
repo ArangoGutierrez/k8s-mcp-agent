@@ -111,7 +111,16 @@ helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
 
 # Verify pods are running on GPU nodes
 kubectl get pods -n gpu-diagnostics -o wide
+
+# Verify HTTP endpoints are working
+kubectl port-forward -n gpu-diagnostics svc/k8s-gpu-mcp-server-gateway 8080:8080 &
+curl -s http://localhost:8080/healthz  # Should return {"status":"healthy"}
+curl -s http://localhost:8080/readyz   # Should return {"status":"ready"}
 ```
+
+> **Note:** The default deployment uses HTTP transport mode. Agents run as
+> persistent HTTP servers and the gateway routes requests via HTTP for
+> low-latency, low-memory operation.
 
 ### Fallback Mode (No RuntimeClass)
 

@@ -17,6 +17,22 @@
 | #93 | HTTP/SSE transport | Remote MCP access |
 | #92 | npm package distribution | Easy installation |
 
+### HTTP Transport Refactor (Epic #112) - COMPLETE ✅
+
+| Phase | Issue | PR | Status |
+|-------|-------|-----|--------|
+| Phase 1: Timeout Fix | #113 | #119 | ✅ Merged |
+| Phase 2: Agent HTTP Mode | #114 | #121 | ✅ Merged |
+| Phase 3: Gateway HTTP Routing | #115 | #122 | ✅ Merged |
+| Phase 4: Resilience & Observability | #116 | #123 | ✅ Merged |
+| Phase 5: Documentation | #117 | TBD | 🔄 In Progress |
+
+**Key Changes:**
+- Default transport: HTTP (agents as persistent servers)
+- Gateway routing: HTTP (not exec)
+- Added: Circuit breaker, Prometheus metrics, NetworkPolicy support
+- Memory footprint: ~15-20MB constant vs 200MB spikes
+
 ### Current Milestone: M3 - Kubernetes Integration
 
 **Progress:** ~60% complete

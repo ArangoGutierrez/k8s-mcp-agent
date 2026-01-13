@@ -231,19 +231,24 @@ func main() {
 		done <- nil
 	}()
 
-	// Wait for shutdown signal
+	// Wait for shutdown signal or server completion
+	serverCompleted := false
 	select {
 	case sig := <-sigCh:
 		log.Printf(`{"level":"info","msg":"received signal","signal":"%s"}`, sig)
 		cancel()
 	case err := <-done:
+		serverCompleted = true
 		if err != nil {
 			log.Printf(`{"level":"error","msg":"server error","error":"%s"}`, err)
 			os.Exit(1)
 		}
 	}
 
-	// Wait for graceful shutdown
-	<-done
+	// Wait for graceful shutdown only if interrupted (not if server completed normally)
+	// In oneshot mode, the server sends to done exactly once and exits - no second wait needed.
+	if !serverCompleted {
+		<-done
+	}
 	log.Printf(`{"level":"info","msg":"shutdown complete"}`)
 }
