@@ -22,7 +22,8 @@ Context Protocol (MCP).
 ### Key Characteristics
 
 - **On-Demand**: Agent runs only during diagnostic sessions
-- **Stdio Transport**: JSON-RPC 2.0 over standard I/O
+- **HTTP Transport**: JSON-RPC 2.0 over HTTP/SSE (production default)
+- **Stdio Transport**: Legacy mode for direct kubectl exec
 - **AI-Native**: Designed for AI assistant consumption (Claude, Cursor)
 - **Hardware-Focused**: Direct NVML access for deep GPU diagnostics
 - **Multi-Platform**: Kubernetes (DaemonSet), Docker, Slurm, workstations
@@ -62,9 +63,9 @@ Traditional Monitoring:              k8s-gpu-mcp-server:
 - **No GPU allocation** — doesn't block scheduler
 - **Works with AI agents** and human SREs alike
 
-### 2. Stdio-Only Transport
+### 2. Transport Options
 
-**Why Stdio?**
+**Transport Modes:**
 
 1. **Works through kubectl exec** SPDY tunneling
 2. **Works with Docker** direct stdin/stdout
@@ -158,6 +159,46 @@ k8s-gpu-mcp-server supports multiple deployment modes:
 │                          │  (Tesla T4, A100)│                │
 │                          └──────────────────┘                │
 └──────────────────────────────────────────────────────────────┘
+
+### HTTP Transport Architecture
+
+The gateway routes requests to agents via HTTP for low-overhead communication:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Gateway → Agent HTTP Routing                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Cursor/Claude                                                       │
+│       │                                                              │
+│       │ MCP over stdio                                               │
+│       ▼                                                              │
+│  ┌─────────────────┐                                                 │
+│  │  NPM Bridge     │ (kubectl port-forward)                          │
+│  │  (local)        │                                                 │
+│  └────────┬────────┘                                                 │
+│           │ HTTP                                                     │
+│           ▼                                                          │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                    Kubernetes Cluster                        │    │
+│  │  ┌─────────────────┐         ┌─────────────────────────┐    │    │
+│  │  │  Gateway Pod    │  HTTP   │  Agent DaemonSet        │    │    │
+│  │  │  :8080          │────────▶│  :8080 (per GPU node)   │    │    │
+│  │  │  - Router       │         │  - NVML Client          │    │    │
+│  │  │  - CircuitBreaker│        │  - GPU Tools            │    │    │
+│  │  │  - Metrics      │         │  - Health Endpoints     │    │    │
+│  │  └─────────────────┘         └─────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Benefits of HTTP Routing:**
+- **Low latency**: Direct HTTP calls (~12-57ms per request)
+- **Low memory**: Persistent process (~15-20MB vs 200MB spikes with exec)
+- **Circuit breaker**: Automatic failover for unhealthy nodes
+- **Metrics**: Prometheus-compatible observability
+
 ```
 
 ### GPU Access in Kubernetes
@@ -619,9 +660,9 @@ Protocol Error (bad JSON)
 - Isolates CGO complexity
 - Future-proof for multi-vendor
 
-### Decision 2: Stdio vs HTTP
+### Decision 2: HTTP vs Stdio Transport
 
-**Chosen**: Stdio only
+**Chosen**: HTTP primary, Stdio secondary
 
 **Alternatives Considered:**
 1. HTTP + Stdio
