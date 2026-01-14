@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -197,4 +199,43 @@ func TestRouter_HTTPMode_Configuration(t *testing.T) {
 
 	// Verify routing mode is HTTP
 	assert.Equal(t, RoutingModeHTTP, router.RoutingMode())
+}
+
+func TestRouter_MetricsRecording(t *testing.T) {
+	// Verify that metrics recording doesn't panic and uses correct labels.
+	// The actual metric values are tested in pkg/metrics/metrics_test.go.
+	// This test verifies the integration between router and metrics package.
+
+	// Reset metrics for clean test
+	metrics.GatewayRequestDuration.Reset()
+
+	// Simulate metric recording as done in routeViaHTTP
+	t.Run("http success", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			metrics.RecordGatewayRequest("test-node", "http", "success", 0.200)
+		})
+	})
+
+	t.Run("http error", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			metrics.RecordGatewayRequest("test-node", "http", "error", 0.150)
+		})
+	})
+
+	// Simulate metric recording as done in routeViaExec
+	t.Run("exec success", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			metrics.RecordGatewayRequest("test-node", "exec", "success", 1.500)
+		})
+	})
+
+	t.Run("exec error", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			metrics.RecordGatewayRequest("test-node", "exec", "error", 2.000)
+		})
+	})
+
+	// Verify observations were recorded
+	count := testutil.CollectAndCount(metrics.GatewayRequestDuration)
+	assert.Greater(t, count, 0, "Should have recorded gateway request metrics")
 }

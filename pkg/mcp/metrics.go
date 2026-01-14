@@ -25,6 +25,9 @@ var (
 
 	// ActiveRequests tracks in-flight requests.
 	ActiveRequests = metrics.ActiveRequests
+
+	// GatewayRequestDuration tracks gateway-to-agent request latency.
+	GatewayRequestDuration = metrics.GatewayRequestDuration
 )
 
 // RecordRequest records metrics for a completed request.
@@ -40,4 +43,9 @@ func SetNodeHealth(node string, healthy bool) {
 // SetCircuitState sets the circuit breaker state for a node.
 func SetCircuitState(node string, state int) {
 	metrics.SetCircuitState(node, state)
+}
+
+// RecordGatewayRequest records latency metrics for a gateway-to-agent request.
+func RecordGatewayRequest(node, transport, status string, durationSeconds float64) {
+	metrics.RecordGatewayRequest(node, transport, status, durationSeconds)
 }
