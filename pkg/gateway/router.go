@@ -183,10 +183,14 @@ func (r *Router) routeViaHTTP(
 	response, err := r.httpClient.CallMCP(ctx, endpoint, mcpRequest)
 	duration := time.Since(startTime)
 
+	// Record metrics
+	status := "success"
 	if err != nil {
+		status = "error"
 		log.Printf(`{"level":"error","msg":"HTTP request failed","node":"%s",`+
 			`"endpoint":"%s","duration_ms":%d,"error":"%v"}`,
 			node.Name, endpoint, duration.Milliseconds(), err)
+		metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 		return nil, fmt.Errorf("HTTP request failed on node %s: %w", node.Name, err)
 	}
 
@@ -194,6 +198,7 @@ func (r *Router) routeViaHTTP(
 		`"endpoint":"%s","duration_ms":%d,"response_bytes":%d}`,
 		node.Name, endpoint, duration.Milliseconds(), len(response))
 
+	metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 	return response, nil
 }
 
@@ -212,10 +217,14 @@ func (r *Router) routeViaExec(
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
 	duration := time.Since(startTime)
 
+	// Record metrics
+	status := "success"
 	if err != nil {
+		status = "error"
 		log.Printf(`{"level":"error","msg":"exec failed","node":"%s",`+
 			`"pod":"%s","duration_ms":%d,"error":"%v"}`,
 			node.Name, node.PodName, duration.Milliseconds(), err)
+		metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
@@ -223,6 +232,7 @@ func (r *Router) routeViaExec(
 		`"pod":"%s","duration_ms":%d,"response_bytes":%d}`,
 		node.Name, node.PodName, duration.Milliseconds(), len(response))
 
+	metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 	return response, nil
 }
 

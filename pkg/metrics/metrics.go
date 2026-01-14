@@ -54,6 +54,25 @@ var (
 			Help: "Number of active MCP requests",
 		},
 	)
+
+	// GatewayRequestDuration tracks gateway-to-agent request latency by node,
+	// transport method (http/exec), and status (success/error).
+	// This provides granular visibility into per-node performance and enables
+	// detection of slow nodes or transport issues.
+	GatewayRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "mcp_gateway_request_duration_seconds",
+			Help: "Gateway to agent request duration in seconds",
+			// Custom buckets optimized for gateway-to-agent latency.
+			// HTTP mode typically: 50-500ms
+			// Exec mode typically: 500ms-5s
+			// Timeouts: 30-60s
+			Buckets: []float64{
+				0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60,
+			},
+		},
+		[]string{"node", "transport", "status"},
+	)
 )
 
 // RecordRequest records metrics for a completed request.
@@ -74,4 +93,14 @@ func SetNodeHealth(node string, healthy bool) {
 // SetCircuitState sets the circuit breaker state for a node.
 func SetCircuitState(node string, state int) {
 	CircuitBreakerState.WithLabelValues(node).Set(float64(state))
+}
+
+// RecordGatewayRequest records latency metrics for a gateway-to-agent request.
+// Parameters:
+//   - node: Target node name (e.g., "ip-10-0-1-123")
+//   - transport: "http" or "exec"
+//   - status: "success" or "error"
+//   - durationSeconds: Request duration in seconds
+func RecordGatewayRequest(node, transport, status string, durationSeconds float64) {
+	GatewayRequestDuration.WithLabelValues(node, transport, status).Observe(durationSeconds)
 }
