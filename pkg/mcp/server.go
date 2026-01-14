@@ -140,9 +140,21 @@ func New(cfg Config) (*Server, error) {
 			"analyze_xid_errors", routerOpts...)
 		mcpServer.AddTool(tools.GetAnalyzeXIDTool(), xidProxy.Handle)
 
+		// Register K8s-native tools (don't need proxy, query K8s API directly)
+		podGPUHandler := tools.NewPodGPUAllocationHandler(
+			cfg.K8sClient.Clientset())
+		mcpServer.AddTool(tools.GetPodGPUAllocationTool(), podGPUHandler.Handle)
+
+		// describe_gpu_node needs both K8s and NVML (nil in gateway mode)
+		// It will use K8s capacity data when NVML is unavailable
+		describeHandler := tools.NewDescribeGPUNodeHandler(
+			cfg.K8sClient.Clientset(), nil)
+		mcpServer.AddTool(tools.GetDescribeGPUNodeTool(), describeHandler.Handle)
+
 		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
 			`"mode":"%s","gateway":true,"namespace":"%s","routing_mode":"%s",`+
-			`"tools":["get_gpu_inventory","get_gpu_health","analyze_xid_errors"],`+
+			`"tools":["get_gpu_inventory","get_gpu_health","analyze_xid_errors",`+
+			`"get_pod_gpu_allocation","describe_gpu_node"],`+
 			`"version":"%s","commit":"%s"}`,
 			cfg.Mode, cfg.Namespace, cfg.RoutingMode, cfg.Version, cfg.GitCommit)
 	} else {
