@@ -1,6 +1,6 @@
 # Project Scratchpad - k8s-gpu-mcp-server
 
-> Last updated: 2026-01-08
+> Last updated: 2026-01-14
 
 ## 📊 Project Status Overview
 
@@ -8,14 +8,15 @@
 
 | PR | Description | Impact |
 |----|-------------|--------|
-| #109 | `/dev/kmsg` XID parsing for distroless containers | Enables XID analysis without dmesg |
-| #108 | Consolidated `list_gpu_nodes` into `get_gpu_inventory` | Simpler API, fewer tools |
-| #106 | One-click install button for Cursor | Better UX |
-| #105 | Removed `echo_test` tool | Cleaner tool list |
-| #101 | Gateway proxies all GPU tools to agents | Multi-node support |
-| #94 | Gateway mode with node routing | Cluster-wide diagnostics |
-| #93 | HTTP/SSE transport | Remote MCP access |
-| #92 | npm package distribution | Easy installation |
+| #127 | Gateway per-node latency metrics | Production observability |
+| #126 | Cross-node HTTP routing fix (Calico/VXLAN) | 100% E2E success |
+| #125 | Architecture docs for HTTP transport | Developer docs |
+| #123 | Gateway resilience & observability | Circuit breaker, metrics |
+| #122 | Gateway HTTP routing (not exec) | 150× latency improvement |
+| #121 | Agent HTTP transport default | Persistent servers |
+| #119 | Timeout alignment fix | Race condition fix |
+| #109 | `/dev/kmsg` XID parsing for distroless | Enables XID analysis |
+| #108 | Consolidated `list_gpu_nodes` into `get_gpu_inventory` | Simpler API |
 
 ### HTTP Transport Refactor (Epic #112) - COMPLETE ✅
 
@@ -29,19 +30,21 @@
 | Phase 4: Resilience & Observability | #116 | #123 | ✅ Merged |
 | Phase 5: Documentation | #117 | #125 | ✅ Merged |
 | **Bonus:** Cross-Node Networking Fix | - | #126 | ✅ Merged |
+| **Bonus:** Per-Node Latency Metrics | - | #127 | ✅ Merged |
 
-**Key Changes:**
+**Key Achievements:**
 - Default transport: HTTP (agents as persistent servers)
 - Gateway routing: HTTP (not exec)
 - Added: Circuit breaker, Prometheus metrics, NetworkPolicy support
 - Memory footprint: ~15-20MB constant vs 200MB spikes
 - Fixed: Calico CNI cross-node routing (VXLAN encapsulation)
+- New metric: `mcp_gateway_request_duration_seconds{node,transport,status}`
 
 **Results:** 100% E2E success rate (was ~10%), 150× latency improvement
 
 ### Current Milestone: M3 - Kubernetes Integration
 
-**Progress:** ~60% complete
+**Progress:** ~80% complete (Epic #112 done, remaining: #97, #40, #30, #73)
 
 ---
 
@@ -51,29 +54,39 @@
 
 | Issue | Title | Effort | Why Now |
 |-------|-------|--------|---------|
-| **#97** | NPM package abstracts kubectl port-forward | M | Critical UX improvement for remote clusters |
-| **#84** | MCP integration tests | L | Ensure protocol compliance |
-| **#82** | AGENTS.md for AI assistants | S | Help AI tools navigate codebase |
-| **#86** | Release workflow with semantic versioning | M | Enable proper releases |
-| **#77** | Publish Helm chart to GHCR OCI | S | Easy installation |
+| **#97** | NPM package abstracts kubectl port-forward | M | Critical UX for remote clusters - **PROMPT READY** |
+| **#40** | `describe_gpu_node` tool | M | Comprehensive node diagnostics |
+| **#30** | `get_pod_gpu_allocation` tool | M | GPU-to-pod correlation |
+| **#73** | Multi-cluster support with context parameter | M | Enterprise use case |
+| **#34** | kubectl debug E2E test suite | L | Ensure deployment works |
 
-### Medium Priority (P2) - Address When Possible
+### Medium Priority (P2) - M4 Release Prep
 
 | Issue | Title | Effort | Notes |
 |-------|-------|--------|-------|
-| **#78** | MCP Prompts support | L | Pre-defined diagnostic workflows |
-| **#85** | AI evals with gevals framework | L | Automated AI testing |
-| **#79** | Toolsets with enable/disable | M | Reduce context size |
-| **#40** | `describe_gpu_node` tool | M | Comprehensive node view |
-| **#30** | `get_pod_gpu_allocation` tool | M | GPU-to-pod correlation |
+| **#86** | Release workflow with semantic versioning | M | Enable proper releases |
+| **#77** | Publish Helm chart to GHCR OCI | S | Easy installation |
+| **#84** | MCP integration tests | L | Protocol compliance |
+| **#82** | AGENTS.md for AI assistants | S | Help AI tools navigate |
+| **#78** | MCP Prompts support | L | Pre-defined SRE workflows |
 
 ### Low Priority (P3) - Nice to Have
 
 | Issue | Title | Notes |
 |-------|-------|-------|
 | #89 | Demo videos and asciinema | Marketing |
-| #88 | Healthz endpoint for HTTP mode | Already works, needs docs |
-| #41 | Helm chart for DaemonSet | Already have it |
+| #88 | Healthz endpoint docs | Already works |
+| #75 | PyPI package distribution | Python users |
+
+---
+
+## 📝 Active Prompts
+
+| Prompt | Issue | Purpose | Status |
+|--------|-------|---------|--------|
+| `npm-kubectl-bridge.md` | #97 | NPM abstracts port-forward | 🟡 Ready to start |
+| `investigate-cross-node-networking.md` | - | Debug CNI issues | ✅ Done (#126) |
+| `docs-http-transport-update.md` | #117 | Architecture docs | ✅ Done (#125) |
 
 ---
 
@@ -91,47 +104,23 @@
 
 ---
 
-## 📝 Active Prompts
-
-| Prompt | Purpose | Status |
-|--------|---------|--------|
-| `consolidate-gpu-inventory.md` | Merge list_gpu_nodes into get_gpu_inventory | ✅ Done (#108) |
-| `read-kmsg-xid-parsing.md` | /dev/kmsg for distroless | ✅ Done (#109) |
-
----
-
 ## 🧪 Testing Status
 
-- **Unit Tests:** ✅ Passing (~1,500 lines)
+- **Unit Tests:** ✅ Passing (~2,000 lines after Epic #112)
 - **Integration Tests:** ⚠️ Need MCP protocol tests (#84)
 - **E2E Tests:** ⚠️ Need kubectl debug tests (#34)
-- **Real Cluster Testing:** ✅ Manual testing on AWS g4dn.xlarge
-
----
-
-## 🔍 Key Findings from Recent Work
-
-### cgroup v2 and /dev/kmsg Access (PR #109)
-
-**Discovery:** Reading `/dev/kmsg` in Kubernetes requires `privileged: true` due to cgroup v2 BPF device controller, not just CAP_SYSLOG.
-
-**Security Layers Tested:**
-| Layer | Sufficient? |
-|-------|-------------|
-| CAP_SYSLOG | ❌ No |
-| + Seccomp=Unconfined | ❌ No |
-| + AppArmor=Unconfined | ❌ No |
-| + privileged=true | ✅ Yes |
-
-**Root Cause:** cgroup v2 uses eBPF programs to control device access, and `/dev/kmsg` is not in the default allowlist.
+- **Real Cluster Testing:** ✅ AWS g4dn.xlarge (4-node cluster)
+- **Gateway Metrics:** ✅ Per-node latency tracking (#127)
 
 ---
 
 ## 📋 Suggested Next Session Plan
 
-### Option A: Developer Experience Focus
-1. **#97** - NPM kubectl port-forward abstraction (biggest UX win)
-2. **#82** - AGENTS.md for AI assistants
+### Option A: Complete M3 - Kubernetes Integration (Recommended)
+1. **#97** - NPM kubectl port-forward abstraction ← **PROMPT READY**
+2. **#40** - describe_gpu_node tool
+3. **#30** - get_pod_gpu_allocation tool
+4. Tag M3 complete, start M4
 
 ### Option B: Release Readiness Focus
 1. **#86** - Release workflow with semantic versioning
@@ -140,13 +129,12 @@
 
 ### Option C: Testing & Quality Focus
 1. **#84** - MCP integration tests
-2. **#83** - Migrate to testify/suite
+2. **#34** - kubectl debug E2E tests
 3. **#42** - Replace log.Printf with klog/v2
 
 ### Option D: Feature Focus
 1. **#78** - MCP Prompts (SRE workflows)
-2. **#40** - describe_gpu_node tool
-3. **#30** - get_pod_gpu_allocation tool
+2. **#73** - Multi-cluster support
 
 ---
 
@@ -154,15 +142,10 @@
 
 | Category | Count |
 |----------|-------|
-| Total Open Issues | 46 |
-| P0 (Blocker) | 1 (#49 tracking) |
-| P1 (High) | 14 |
-| P2 (Medium) | 14 |
-| P3 (Low) | 10 |
-| Kind: Feature | 30 |
-| Kind: Test | 5 |
-| Kind: Docs | 4 |
-| Kind: Refactor | 4 |
+| Total Open Issues | 30 |
+| P1 (High) | 10 |
+| P2 (Medium) | ~10 |
+| P3 (Low) | ~10 |
 
 ---
 
@@ -172,6 +155,45 @@
 |-----------|-------|--------|
 | M1: Core NVML | GPU tools, XID analysis | ✅ Done |
 | M2: Distribution | npm, Helm, container | ✅ Done |
-| M3: K8s Integration | Gateway, multi-node | 🟡 60% |
-| M4: Production Ready | Logging, lifecycle, errors | 🔴 0% |
-| M5: Advanced | MIG, eBPF, multi-cluster | 🔴 0% |
+| M3: K8s Integration | Gateway, multi-node | 🟡 80% (Epic #112 ✅) |
+| M4: Safety & Release | Logging, lifecycle, release | 🔴 0% |
+| M5: Quality & Testing | Integration tests, AI evals | 🔴 0% |
+| M6: Polish & DX | Docs, demos, AGENTS.md | 🔴 0% |
+
+---
+
+## 🔍 Key Findings from Recent Work
+
+### HTTP Transport Performance (Epic #112)
+
+| Metric | Before (exec) | After (HTTP) | Improvement |
+|--------|---------------|--------------|-------------|
+| P50 Latency | ~30s | ~200ms | 150× faster |
+| Success Rate | ~10% | 100% | Reliable |
+| Memory | 200MB spikes | 15-20MB constant | 10× less |
+| Timeout Handling | Race conditions | Clean cancellation | Stable |
+
+### Cross-Node Networking (PR #126)
+
+**Problem:** Gateway couldn't reach agent pods on other nodes via Pod IP.
+
+**Root Cause:** Calico CNI defaults to IP-in-IP encapsulation which doesn't work across subnets in AWS VPC.
+
+**Solution:** Configure Calico to use VXLAN encapsulation:
+```yaml
+# calico-config ConfigMap
+vxlan: Always
+```
+
+### Gateway Observability (PR #127)
+
+New Prometheus metric for production monitoring:
+```promql
+# P95 latency by node
+histogram_quantile(0.95, 
+  rate(mcp_gateway_request_duration_seconds_bucket[5m])) by (node)
+
+# Slow nodes (p95 > 1s)
+histogram_quantile(0.95, 
+  rate(mcp_gateway_request_duration_seconds_bucket[5m])) by (node) > 1
+```
