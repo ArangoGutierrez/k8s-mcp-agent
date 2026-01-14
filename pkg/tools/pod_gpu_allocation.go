@@ -111,6 +111,16 @@ func (h *PodGPUAllocationHandler) Handle(
 	var totalGPUs int64
 
 	for _, pod := range pods.Items {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf(`{"level":"info","msg":"context cancelled ` +
+				`during pod enumeration"}`)
+			return mcp.NewToolResultError(
+				fmt.Sprintf("operation cancelled: %s", ctx.Err())), nil
+		default:
+		}
+
 		// Client-side node filter (FieldSelector backup for fake clients)
 		if pod.Spec.NodeName != nodeName {
 			continue

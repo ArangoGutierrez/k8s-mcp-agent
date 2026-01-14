@@ -127,6 +127,15 @@ const (
 	eccErrorPenalty = 20
 )
 
+// Overall health classification thresholds.
+const (
+	// healthyThreshold is the minimum average score for "healthy" status.
+	healthyThreshold = 90
+	// degradedThreshold is the minimum average score for "degraded" status.
+	// Below this threshold is considered "critical".
+	degradedThreshold = 70
+)
+
 // Handle processes the describe_gpu_node tool request.
 func (h *DescribeGPUNodeHandler) Handle(
 	ctx context.Context,
@@ -164,7 +173,13 @@ func (h *DescribeGPUNodeHandler) Handle(
 	}
 
 	// Get pods with GPU allocations on this node
-	pods, allocatedGPUs := h.getPodsSummary(ctx, nodeName)
+	pods, allocatedGPUs, err := h.getPodsSummary(ctx, nodeName)
+	if err != nil {
+		log.Printf(`{"level":"error","msg":"failed to get pods summary",`+
+			`"node":"%s","error":"%s"}`, nodeName, err)
+		return mcp.NewToolResultError(
+			fmt.Sprintf("operation cancelled: %s", err)), nil
+	}
 
 	// Calculate summary
 	totalGPUs := len(gpus)
@@ -373,10 +388,11 @@ func (h *DescribeGPUNodeHandler) calculateGPUHealthScore(
 }
 
 // getPodsSummary gets pods with GPU allocations on the node.
+// Returns an error if the context is cancelled during enumeration.
 func (h *DescribeGPUNodeHandler) getPodsSummary(
 	ctx context.Context,
 	nodeName string,
-) ([]PodGPUSummary, int64) {
+) ([]PodGPUSummary, int64, error) {
 	pods := make([]PodGPUSummary, 0)
 	var totalGPUs int64
 
@@ -387,10 +403,24 @@ func (h *DescribeGPUNodeHandler) getPodsSummary(
 	if err != nil {
 		log.Printf(`{"level":"warn","msg":"failed to list pods",`+
 			`"node":"%s","error":"%s"}`, nodeName, err)
-		return pods, totalGPUs
+		return pods, totalGPUs, nil // Non-fatal, return empty list
 	}
 
 	for _, pod := range podList.Items {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf(`{"level":"info","msg":"context cancelled ` +
+				`during pod summary enumeration"}`)
+			return pods, totalGPUs, ctx.Err()
+		default:
+		}
+
+		// Client-side node filter (FieldSelector backup for fake clients)
+		if pod.Spec.NodeName != nodeName {
+			continue
+		}
+
 		var gpuCount int64
 		for _, container := range pod.Spec.Containers {
 			if req, ok := container.Resources.Requests[nvidiaGPUResource]; ok {
@@ -409,7 +439,7 @@ func (h *DescribeGPUNodeHandler) getPodsSummary(
 		}
 	}
 
-	return pods, totalGPUs
+	return pods, totalGPUs, nil
 }
 
 // calculateOverallHealth determines the overall health status.
@@ -427,9 +457,9 @@ func (h *DescribeGPUNodeHandler) calculateOverallHealth(
 	avgScore := totalScore / len(gpus)
 
 	switch {
-	case avgScore >= 90:
+	case avgScore >= healthyThreshold:
 		return "healthy"
-	case avgScore >= 70:
+	case avgScore >= degradedThreshold:
 		return "degraded"
 	default:
 		return "critical"
