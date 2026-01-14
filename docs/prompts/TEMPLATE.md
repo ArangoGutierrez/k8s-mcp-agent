@@ -38,6 +38,7 @@ This template follows Claude best practices:
 3. **COMMIT PROGRESS** - Commit and push after each completed task
 4. **SELF-CHECK** - Before ending your turn, verify ALL tasks show `[DONE]`
 5. **REPORT STATUS** - End each turn with a status summary of remaining tasks
+6. **⚠️ MERGE REQUIRES HUMAN APPROVAL** - When ready to merge, STOP and ask for confirmation. Do NOT merge autonomously.
 
 ### Progress Tracker
 
@@ -53,9 +54,9 @@ This template follows Claude best practices:
 | 4 | Create pull request | `[TODO]` | |
 | 5 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
 | 6 | Address review comments | `[TODO]` | |
-| 7 | Merge after reviews | `[TODO]` | |
+| 7 | **Merge after reviews** | `[WAIT]` | ⚠️ **Requires human approval** |
 
-**Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
+**Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[WAIT]` (human approval) | `[BLOCKED:reason]`
 
 ### How to Use (For Humans)
 
@@ -113,8 +114,24 @@ Before you finish ANY response, perform this self-check:
 ➡️ **Re-invoke to continue:** `@docs/prompts/<this-file>.md`
 ```
 
+**When ready to merge, use this format instead:**
+
+```markdown
+## ✅ Ready to Merge - Awaiting Your Approval
+
+**PR:** #XXX - [title]
+**Branch:** `feat/xxx`
+**CI:** ✅ All checks passing
+**Reviews:** ✅ Copilot review addressed
+
+All autonomous tasks are complete. The PR is ready for merge.
+
+**Reply "MERGE" to proceed, or provide feedback.**
+```
+
 > ⚠️ **IMPORTANT:** Copilot reviews take 1-2 minutes to appear after PR creation.
 > Do NOT merge until Copilot review is complete and all comments are addressed.
+> 🛑 **MERGE REQUIRES HUMAN APPROVAL** - Always stop and ask before merging.
 
 ---
 
@@ -586,6 +603,12 @@ git push
 
 ## Merge the PR
 
+> **🛑 HUMAN APPROVAL REQUIRED**
+>
+> This is a **STOP POINT**. The agent MUST NOT merge autonomously.
+> When all other tasks are complete, present the merge checklist and wait for
+> the human to say "MERGE" or "GO" before executing the merge command.
+
 ### Pre-Merge Checklist
 
 > ⚠️ **WAIT FOR COPILOT REVIEW** - Do NOT merge immediately after PR creation!
@@ -596,6 +619,7 @@ git push
 - [ ] **ALL Copilot review comments addressed** (fix issues, push, re-check)
 - [ ] Human review approved (if required)
 - [ ] No merge conflicts
+- [ ] **Human has approved merge** (said "MERGE" or "GO")
 
 ### Waiting for Copilot Review
 
@@ -610,7 +634,27 @@ gh pr view <PR-NUMBER> --web
 If no Copilot review appears after 2 minutes, you can proceed with merge.
 If comments appear, address them before merging.
 
-### Merge Command
+### Agent: Request Merge Approval
+
+When ready to merge, present this summary and **STOP**:
+
+```markdown
+## ✅ Ready to Merge - Awaiting Your Approval
+
+**PR:** #XXX - [title]
+**Branch:** `feat/xxx`
+**CI:** ✅ All checks passing
+**Reviews:** ✅ Copilot review addressed
+
+**Pre-merge checklist:**
+- [x] All CI checks pass
+- [x] Copilot review appeared and addressed
+- [x] No merge conflicts
+
+**Reply "MERGE" to proceed or provide feedback.**
+```
+
+### Merge Command (After Human Approval)
 
 ```bash
 # Merge with merge commit (preserves history)
@@ -684,27 +728,51 @@ gh pr merge <PR#> --merge --delete-branch
 8. Wait for CI ────────────────────────────────────────► gh pr checks --watch
 9. ⏳ WAIT 1-2 min for Copilot review ─────────────────► Don't rush!
 10. Address ALL Copilot review comments ───────────────► Fix → Push
-11. Merge PR (only after reviews done) ────────────────► gh pr merge
+11. 🛑 STOP - Present merge checklist ─────────────────► Wait for human
+12. Human says "MERGE" ────────────────────────────────► gh pr merge
 ```
 
 > 💡 **Remember:** 10-20 atomic commits > 1 massive commit
 > ⚠️ **Never merge before Copilot review appears!** (takes 1-2 min)
+> 🛑 **Always wait for human approval before merge!**
 
 ---
 
 ## Completion Protocol
 
-### When All Tasks Are Done
+### When Ready to Merge (STOP POINT)
 
 Once you have verified that:
-- ✅ All tasks in the Progress Tracker show `[DONE]`
+- ✅ All implementation tasks in the Progress Tracker show `[DONE]`
 - ✅ All tests pass (`make all` succeeds)
 - ✅ PR is created and CI is green
 - ✅ **Copilot review has appeared** (waited 1-2 min after PR creation)
 - ✅ **All Copilot review comments addressed**
-- ✅ PR is merged (or ready for human review)
 
-**Final status report:**
+**🛑 STOP HERE and present merge request:**
+```markdown
+## ✅ Ready to Merge - Awaiting Your Approval
+
+**PR:** #XXX - [title]
+**Branch:** `feat/xxx`
+**CI:** ✅ All checks passing
+**Reviews:** ✅ Copilot review addressed
+
+All autonomous tasks are complete. The PR is ready for merge.
+
+**Reply "MERGE" to proceed, or provide feedback.**
+```
+
+### After Human Approves Merge
+
+Once the human says "MERGE" or "GO":
+
+1. Execute: `gh pr merge <PR-NUMBER> --squash --delete-branch`
+2. Update Progress Tracker: Mark merge task `[DONE]`
+3. Switch to main and pull: `git checkout main && git pull`
+4. Present final status report
+
+**Final status report (after merge):**
 ```markdown
 ## 🎉 ALL TASKS COMPLETE
 
@@ -799,21 +867,29 @@ gh pr merge <PR#> --merge --delete-branch
 │                             ▼                                           │
 │                  ┌─────────────────────┐                                │
 │                  │   Status Report     │                                │
-│                  │   "Re-invoke to     │                                │
-│                  │    continue..."     │                                │
 │                  └──────────┬──────────┘                                │
 │                             │                                           │
-│              ┌──────────────┴──────────────┐                            │
-│              │                             │                            │
-│              ▼                             ▼                            │
-│     ┌─────────────────┐          ┌─────────────────┐                    │
-│     │  Tasks remain   │          │  ALL [DONE]     │                    │
-│     │                 │          │                 │                    │
-│     │  Human re-      │          │  🎉 Complete!   │                    │
-│     │  invokes prompt │          │  Archive prompt │                    │
-│     └────────┬────────┘          └─────────────────┘                    │
-│              │                                                          │
-│              └──────────► Next turn...                                  │
+│        ┌────────────────────┼────────────────────┐                      │
+│        │                    │                    │                      │
+│        ▼                    ▼                    ▼                      │
+│   ┌─────────┐      ┌────────────────┐    ┌─────────────┐               │
+│   │ Tasks   │      │ 🛑 MERGE READY │    │ ALL [DONE]  │               │
+│   │ remain  │      │                │    │             │               │
+│   │         │      │ "Ready to      │    │ 🎉 Complete │               │
+│   │ Re-     │      │  merge, say    │    │ Archive     │               │
+│   │ invoke  │      │  MERGE"        │    │ prompt      │               │
+│   └────┬────┘      └───────┬────────┘    └─────────────┘               │
+│        │                   │                                            │
+│        │                   ▼                                            │
+│        │           Human: "MERGE"                                       │
+│        │                   │                                            │
+│        │                   ▼                                            │
+│        │           ┌──────────────┐                                     │
+│        │           │ Agent merges │                                     │
+│        │           │ → ALL [DONE] │                                     │
+│        │           └──────────────┘                                     │
+│        │                                                                │
+│        └──────────► Next turn...                                        │
 │                                                                         │
 │   Typical: 3-5 invocations per feature                                  │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -832,10 +908,12 @@ gh pr merge <PR#> --merge --delete-branch
 8. Wait for CI ────────────────────────────────────────► gh pr checks --watch
 9. ⏳ WAIT 1-2 min for Copilot review ─────────────────► Don't rush!
 10. Address ALL Copilot review comments ───────────────► Fix → Push
-11. Merge PR (only after reviews done) ────────────────► gh pr merge
+11. 🛑 STOP - Present merge checklist ─────────────────► Wait for human
+12. Human says "MERGE" ────────────────────────────────► gh pr merge
 ```
 
 > 💡 **Remember:** 10-20 atomic commits > 1 massive commit
+> 🛑 **Always wait for human approval before merge!**
 
 ---
 
