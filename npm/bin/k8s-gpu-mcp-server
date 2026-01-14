@@ -28,18 +28,14 @@ class KubectlBridge {
     this.localPort = null;
     this.ready = false;
     this.sessionId = null; // MCP session ID for Streamable HTTP
+    this.namespace = null;
+    this.service = null;
   }
 
-  async start() {
-    // Discover gateway if not explicitly configured
-    const { namespace, service } = await this.discoverGateway();
-
-    // Start port-forward
-    this.localPort = await this.startPortForward(namespace, service);
-    this.ready = true;
-
-    // Set up stdio bridge
-    await this.bridgeStdio();
+  start() {
+    // Set up stdio bridge IMMEDIATELY to capture messages from Cursor
+    // Port-forward is started lazily on first request via ensureConnected()
+    this.bridgeStdio();
   }
 
   /**
@@ -49,7 +45,6 @@ class KubectlBridge {
     return new Promise((resolve) => {
       // If explicitly configured, use those values
       if (process.env.K8S_GPU_MCP_NAMESPACE && process.env.K8S_GPU_MCP_SERVICE) {
-        console.error(`[k8s-gpu-mcp] Using configured gateway: ${NAMESPACE}/${SERVICE}`);
         resolve({ namespace: NAMESPACE, service: SERVICE });
         return;
       }
@@ -77,24 +72,19 @@ class KubectlBridge {
 
       kubectl.on('exit', (code) => {
         if (code !== 0 || !stdout.trim() || stdout.trim() === '/') {
-          // Fall back to defaults
-          console.error(`[k8s-gpu-mcp] Discovery failed, using defaults: ${NAMESPACE}/${SERVICE}`);
           resolve({ namespace: NAMESPACE, service: SERVICE });
         } else {
           const parts = stdout.trim().split('/');
           if (parts.length === 2 && parts[0] && parts[1]) {
             const [namespace, service] = parts;
-            console.error(`[k8s-gpu-mcp] Discovered gateway: ${namespace}/${service}`);
             resolve({ namespace, service });
           } else {
-            console.error(`[k8s-gpu-mcp] Invalid discovery result, using defaults`);
             resolve({ namespace: NAMESPACE, service: SERVICE });
           }
         }
       });
 
       kubectl.on('error', () => {
-        console.error(`[k8s-gpu-mcp] Discovery error, using defaults: ${NAMESPACE}/${SERVICE}`);
         resolve({ namespace: NAMESPACE, service: SERVICE });
       });
     });
@@ -118,18 +108,19 @@ class KubectlBridge {
         args.unshift('--kubeconfig', KUBECONFIG);
       }
 
-      console.error(`[k8s-gpu-mcp] Starting: kubectl ${args.join(' ')}`);
-
       this.portForward = spawn('kubectl', args, {
         stdio: ['ignore', 'pipe', 'pipe']
       });
 
       let resolved = false;
 
-      // Parse stdout for the assigned port
+      // Parse stdout for the assigned port (kubectl logs to stdout)
       this.portForward.stdout.on('data', (data) => {
         const output = data.toString();
-        console.error(`[k8s-gpu-mcp] ${output.trim()}`);
+        // Only log non-routine messages (skip "Handling connection" spam)
+        if (!output.includes('Handling connection')) {
+          // Don't log to stderr to avoid "[error]" prefix in Cursor
+        }
 
         // Parse: "Forwarding from 127.0.0.1:XXXXX -> 8080"
         const match = output.match(/Forwarding from 127\.0\.0\.1:(\d+)/);
@@ -140,7 +131,11 @@ class KubectlBridge {
       });
 
       this.portForward.stderr.on('data', (data) => {
-        console.error(`[k8s-gpu-mcp] stderr: ${data.toString().trim()}`);
+        // Only log actual errors, not info messages
+        const msg = data.toString().trim();
+        if (msg && !msg.includes('Handling connection')) {
+          console.error(`[k8s-gpu-mcp] ${msg}`);
+        }
       });
 
       this.portForward.on('error', (err) => {
@@ -152,9 +147,11 @@ class KubectlBridge {
       this.portForward.on('exit', (code) => {
         if (!resolved) {
           reject(new Error(`kubectl exited with code ${code}`));
+        } else {
+          // Port-forward died after initial connection - will reconnect on next request
+          this.ready = false;
+          this.portForward = null;
         }
-        console.error(`[k8s-gpu-mcp] Port-forward exited with code ${code}`);
-        process.exit(code || 1);
       });
 
       // Timeout after 30 seconds
@@ -167,33 +164,53 @@ class KubectlBridge {
     });
   }
 
-  async bridgeStdio() {
+  bridgeStdio() {
     const rl = readline.createInterface({
       input: process.stdin,
       terminal: false
     });
 
     // Handle each line as a JSON-RPC message
-    for await (const line of rl) {
-      if (!line.trim()) continue;
+    rl.on('line', async (line) => {
+      if (!line.trim()) return;
+
+      // Parse and validate JSON first
+      let parsed;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        // Invalid JSON - log and skip (don't send error response)
+        console.error(`[k8s-gpu-mcp] Skipping invalid JSON: ${line.substring(0, 100)}`);
+        return;
+      }
+
+      // Notifications (no id) don't expect responses - fire and forget
+      if (parsed.id === undefined) {
+        this.sendNotification(line).catch(() => {
+          // Notifications are fire-and-forget, ignore errors silently
+        });
+        return;
+      }
 
       try {
         const response = await this.sendRequest(line);
-        console.log(response);
-      } catch (err) {
-        // Try to extract request id for proper error response
-        let id = null;
-        try {
-          const parsed = JSON.parse(line);
-          id = parsed.id || null;
-        } catch {
-          // Ignore parse errors
+        if (response && response.trim()) {
+          // Forward gateway response, stripping trailing newlines
+          // (gateway may include \n, console.log adds another = \n\n = empty line = parse error)
+          console.log(response.replace(/\n+$/, ''));
+        } else {
+          // Gateway returned empty body - return valid JSON-RPC result
+          console.log(JSON.stringify({
+            jsonrpc: '2.0',
+            id: parsed.id,
+            result: {}
+          }));
         }
-
-        // Return JSON-RPC error
+      } catch (err) {
+        // Return JSON-RPC error with the request's id
         const errorResponse = {
           jsonrpc: '2.0',
-          id: id,
+          id: parsed.id,
           error: {
             code: -32603,
             message: err.message
@@ -201,13 +218,85 @@ class KubectlBridge {
         };
         console.log(JSON.stringify(errorResponse));
       }
-    }
+    });
 
-    // Stdin closed, cleanup
-    this.cleanup();
+    // Keep process alive - don't exit when stdin is idle
+    // Cursor may send requests at any time
+    rl.on('close', () => {
+      // Only cleanup if explicitly signaled, not on stdin close
+    });
+
+    // Keep the event loop alive
+    setInterval(() => {}, 60000);
   }
 
-  sendRequest(jsonLine) {
+  async ensureConnected() {
+    if (this.ready && this.portForward) {
+      return; // Already connected
+    }
+
+    // Discover gateway on first connection (lazy initialization)
+    if (!this.namespace || !this.service) {
+      const { namespace, service } = await this.discoverGateway();
+      this.namespace = namespace;
+      this.service = service;
+    }
+
+    // Start port-forward
+    this.localPort = await this.startPortForward(this.namespace, this.service);
+    this.ready = true;
+  }
+
+  /**
+   * Send a notification (fire-and-forget, accepts 200/202/204).
+   */
+  async sendNotification(jsonLine) {
+    await this.ensureConnected();
+
+    return new Promise((resolve, reject) => {
+      const postData = jsonLine;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      };
+
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+
+      const options = {
+        hostname: '127.0.0.1',
+        port: this.localPort,
+        path: '/mcp',
+        method: 'POST',
+        headers: headers
+      };
+
+      const req = http.request(options, (res) => {
+        // Drain response body
+        res.on('data', () => {});
+        res.on('end', () => {
+          // Notifications accept 200, 202 (Accepted), 204 (No Content)
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve();
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+  }
+
+  /**
+   * Send a request and expect a JSON response.
+   */
+  async sendRequest(jsonLine) {
+    await this.ensureConnected();
+
     return new Promise((resolve, reject) => {
       const postData = jsonLine;
 
@@ -216,7 +305,6 @@ class KubectlBridge {
         'Content-Length': Buffer.byteLength(postData)
       };
 
-      // Include session ID if we have one (for Streamable HTTP transport)
       if (this.sessionId) {
         headers['Mcp-Session-Id'] = this.sessionId;
       }
@@ -237,13 +325,13 @@ class KubectlBridge {
           const newSessionId = res.headers['mcp-session-id'];
           if (newSessionId && !this.sessionId) {
             this.sessionId = newSessionId;
-            console.error(`[k8s-gpu-mcp] Session established: ${this.sessionId}`);
           }
 
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-          } else {
+          // Accept 200 (OK) or 202 (Accepted) for requests
+          if (res.statusCode === 200 || res.statusCode === 202) {
             resolve(data);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
           }
         });
       });
@@ -256,7 +344,6 @@ class KubectlBridge {
 
   cleanup() {
     if (this.portForward) {
-      console.error('[k8s-gpu-mcp] Cleaning up port-forward...');
       this.portForward.kill('SIGTERM');
       this.portForward = null;
     }
@@ -279,8 +366,5 @@ process.on('SIGTERM', () => {
 
 process.on('exit', () => bridge.cleanup());
 
-// Start the bridge
-bridge.start().catch((err) => {
-  console.error(`[k8s-gpu-mcp] Error: ${err.message}`);
-  process.exit(1);
-});
+// Start the bridge immediately (port-forward happens lazily on first request)
+bridge.start();
