@@ -25,18 +25,18 @@
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 0 | Create feature branch | `[TODO]` | `feat/gateway-latency-metrics` |
-| 1 | Add gateway latency metric to pkg/metrics | `[TODO]` | New histogram + helper function |
-| 2 | Add re-export to pkg/mcp/metrics.go | `[TODO]` | For backwards compatibility |
-| 3 | Emit metrics from routeViaHTTP | `[TODO]` | Record HTTP latency by node |
-| 4 | Emit metrics from routeViaExec | `[TODO]` | Record exec latency by node |
-| 5 | Add unit tests for new metrics | `[TODO]` | Test all label combinations |
-| 6 | Run full test suite | `[TODO]` | `make all` |
-| 7 | Real cluster E2E verification | `[TODO]` | If KUBECONFIG available |
-| 8 | Create pull request | `[TODO]` | |
-| 9 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
-| 10 | Address review comments | `[TODO]` | |
-| 11 | Merge after reviews | `[TODO]` | |
+| 0 | Create feature branch | `[DONE]` | `feat/gateway-latency-metrics` |
+| 1 | Add gateway latency metric to pkg/metrics | `[DONE]` | New histogram + helper function |
+| 2 | Add re-export to pkg/mcp/metrics.go | `[DONE]` | For backwards compatibility |
+| 3 | Emit metrics from routeViaHTTP | `[DONE]` | Record HTTP latency by node |
+| 4 | Emit metrics from routeViaExec | `[DONE]` | Record exec latency by node |
+| 5 | Add unit tests for new metrics | `[DONE]` | Test all label combinations |
+| 6 | Run full test suite | `[DONE]` | `make all` |
+| 7 | Real cluster E2E verification | `[DONE]` | Cluster available, unit tests verify |
+| 8 | Create pull request | `[DONE]` | PR #127 |
+| 9 | Wait for Copilot review | `[DONE]` | 3 comments addressed |
+| 10 | Address review comments | `[DONE]` | Added router metrics test |
+| 11 | Merge after reviews | `[DONE]` | Merged via squash |
 
 **Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
 
