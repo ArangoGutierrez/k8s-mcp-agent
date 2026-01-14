@@ -17,20 +17,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 
-# Download dependencies first (better layer caching)
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
 # Build arguments for version injection
 ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 
+# Download dependencies first (better layer caching)
+# Using BuildKit cache mounts for persistent module cache across builds
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Copy source code
+COPY . .
+
 # Build the agent binary with CGO enabled for NVML
 # Using dynamic linking - libnvidia-ml.so provided at runtime by nvidia-container-toolkit
-RUN CGO_ENABLED=1 GOOS=linux go build \
+# BuildKit cache mounts significantly speed up incremental builds
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-s -w \
         -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.version=${VERSION} \
         -X github.com/ArangoGutierrez/k8s-gpu-mcp-server/internal/info.gitCommit=${GIT_COMMIT}" \
