@@ -349,3 +349,9 @@ func (c *Client) GetPodForNode(
 func (c *Client) Namespace() string {
 	return c.namespace
 }
+
+// Clientset returns the underlying Kubernetes clientset.
+// Useful for handlers that need direct access to the K8s API.
+func (c *Client) Clientset() kubernetes.Interface {
+	return c.clientset
+}
