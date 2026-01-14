@@ -84,10 +84,12 @@ const AgentHTTPPort = 8080
 
 // GPUNode represents a node with GPU agents.
 type GPUNode struct {
-	Name    string `json:"name"`
-	PodName string `json:"pod_name"`
-	PodIP   string `json:"pod_ip"`
-	Ready   bool   `json:"ready"`
+	Name        string `json:"name"`
+	PodName     string `json:"pod_name"`
+	PodIP       string `json:"pod_ip"`
+	Ready       bool   `json:"ready"`
+	Namespace   string `json:"namespace,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
 }
 
 // GetAgentHTTPEndpoint returns the HTTP endpoint for an agent pod.
@@ -102,6 +104,23 @@ func (n GPUNode) GetAgentHTTPEndpoint() string {
 		return fmt.Sprintf("http://[%s]:%d", n.PodIP, AgentHTTPPort)
 	}
 	return fmt.Sprintf("http://%s:%d", n.PodIP, AgentHTTPPort)
+}
+
+// GetAgentDNSEndpoint returns the DNS-based HTTP endpoint for an agent pod.
+// Uses the headless service DNS format:
+// <pod-name>.<service-name>.<namespace>.svc.cluster.local
+// This is more reliable than direct Pod IPs when CNI has cross-node issues.
+// Returns empty string if required fields are missing.
+//
+// Note: DNS-based routing only works when the Helm chart is deployed with
+// service.headless=true and the pods have the subdomain field configured.
+// See docs/troubleshooting/cross-node-networking.md for details.
+func (n GPUNode) GetAgentDNSEndpoint() string {
+	if n.PodName == "" || n.ServiceName == "" || n.Namespace == "" {
+		return ""
+	}
+	return fmt.Sprintf("http://%s.%s.%s.svc.cluster.local:%d",
+		n.PodName, n.ServiceName, n.Namespace, AgentHTTPPort)
 }
 
 // NewClient creates a new Kubernetes client.
@@ -164,6 +183,16 @@ func NewClientWithConfig(
 	return c
 }
 
+// DefaultServiceName is the default headless service name for agent pods.
+// This matches the Helm template: {{ include "k8s-gpu-mcp-server.fullname" . }}
+// when using release name "gpu-mcp".
+//
+// LIMITATION: This is hardcoded and may not match deployments with custom
+// release names or fullnameOverride. For such cases, DNS-based routing will
+// fail and Pod IP routing should be used instead (the default behavior).
+// Future enhancement: make this configurable via environment variable.
+const DefaultServiceName = "gpu-mcp-k8s-gpu-mcp-server"
+
 // ListGPUNodes returns all nodes running the GPU agent DaemonSet.
 func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 	// List pods with the GPU agent label, excluding gateway pods
@@ -188,10 +217,12 @@ func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 		}
 
 		nodes = append(nodes, GPUNode{
-			Name:    pod.Spec.NodeName,
-			PodName: pod.Name,
-			PodIP:   pod.Status.PodIP,
-			Ready:   ready,
+			Name:        pod.Spec.NodeName,
+			PodName:     pod.Name,
+			PodIP:       pod.Status.PodIP,
+			Ready:       ready,
+			Namespace:   c.namespace,
+			ServiceName: DefaultServiceName,
 		})
 	}
 
@@ -305,10 +336,12 @@ func (c *Client) GetPodForNode(
 	}
 
 	return &GPUNode{
-		Name:    pod.Spec.NodeName,
-		PodName: pod.Name,
-		PodIP:   pod.Status.PodIP,
-		Ready:   ready,
+		Name:        pod.Spec.NodeName,
+		PodName:     pod.Name,
+		PodIP:       pod.Status.PodIP,
+		Ready:       ready,
+		Namespace:   c.namespace,
+		ServiceName: DefaultServiceName,
 	}, nil
 }
 

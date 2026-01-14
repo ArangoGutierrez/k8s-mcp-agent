@@ -178,6 +178,16 @@ service:
   type: ClusterIP
   # -- Service port
   port: 8080
+  # -- Create headless service (clusterIP: None) for DNS-based pod routing.
+  # When enabled, each agent pod gets a stable DNS A record:
+  #   <pod-name>.<service-name>.<namespace>.svc.cluster.local
+  # This is useful when:
+  #   - transport.mode=http and gateway.enabled=true
+  #   - You need deterministic, DNS-based routing to individual agents
+  #   - Pod IPs change frequently (e.g., spot instances)
+  # Note: Pod IP routing (the default) is preferred when CNI is working.
+  # See docs/troubleshooting/cross-node-networking.md for details.
+  headless: false
 
 # XID error analysis configuration
 xidAnalysis:
@@ -229,8 +239,6 @@ gateway:
 networkPolicy:
   # -- Enable NetworkPolicy for pod-to-pod communication security
   enabled: false  # -- Allow Prometheus to scrape agent metrics
-  allowPrometheus: false
-
-  # -- Namespace selector for Prometheus (if allowPrometheus: true)
+  allowPrometheus: false  # -- Namespace selector for Prometheus (if allowPrometheus: true)
   prometheusNamespaceSelector:
     kubernetes.io/metadata.name: monitoring

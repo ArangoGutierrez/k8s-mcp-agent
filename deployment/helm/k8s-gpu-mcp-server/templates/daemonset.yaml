@@ -53,6 +53,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- /* Enable headless service DNS for per-pod routing.
+           This configures a per-pod DNS name only when:
+           - transport.mode is "http", and
+           - service.headless is true and the headless Service is deployed.
+           DNS-based pod routing in the gateway code requires this to be enabled.
+           Without subdomain, pods won't be resolvable via headless Service DNS.
+           See docs/troubleshooting/cross-node-networking.md */}}
+      {{- if and (eq .Values.transport.mode "http") .Values.service.headless }}
+      subdomain: {{ include "k8s-gpu-mcp-server.fullname" . }}
+      {{- end }}
       {{- /* DRA ResourceClaims (K8s 1.26+) */}}
       {{- if .Values.gpu.resourceClaim.enabled }}
       resourceClaims:

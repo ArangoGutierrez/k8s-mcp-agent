@@ -5,6 +5,8 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -375,4 +377,130 @@ func TestGPUNode_GetAgentHTTPEndpoint(t *testing.T) {
 func TestAgentHTTPPort(t *testing.T) {
 	// Verify the port constant matches the Helm default
 	assert.Equal(t, 8080, AgentHTTPPort)
+}
+
+func TestGPUNode_GetAgentDNSEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		node     GPUNode
+		expected string
+	}{
+		{
+			name: "complete DNS fields",
+			node: GPUNode{
+				Name:        "gpu-node-1",
+				PodName:     "gpu-mcp-k8s-gpu-mcp-server-abc123",
+				PodIP:       "10.0.0.5",
+				Ready:       true,
+				Namespace:   "gpu-diagnostics",
+				ServiceName: "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "http://gpu-mcp-k8s-gpu-mcp-server-abc123." +
+				"gpu-mcp-k8s-gpu-mcp-server.gpu-diagnostics.svc.cluster.local:8080",
+		},
+		{
+			name: "missing namespace",
+			node: GPUNode{
+				Name:        "gpu-node-2",
+				PodName:     "gpu-agent-abc",
+				PodIP:       "10.0.0.6",
+				Ready:       true,
+				ServiceName: "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "",
+		},
+		{
+			name: "missing service name",
+			node: GPUNode{
+				Name:      "gpu-node-3",
+				PodName:   "gpu-agent-xyz",
+				PodIP:     "10.0.0.7",
+				Ready:     true,
+				Namespace: "gpu-diagnostics",
+			},
+			expected: "",
+		},
+		{
+			name: "missing pod name",
+			node: GPUNode{
+				Name:        "gpu-node-4",
+				PodIP:       "10.0.0.8",
+				Ready:       true,
+				Namespace:   "gpu-diagnostics",
+				ServiceName: "gpu-mcp-k8s-gpu-mcp-server",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.node.GetAgentDNSEndpoint()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGPUNode_GetAgentDNSEndpoint_FormatValidation(t *testing.T) {
+	// Test that DNS endpoint follows Kubernetes DNS naming conventions
+	// Format: http://<pod-name>.<service-name>.<namespace>.svc.cluster.local:<port>
+	tests := []struct {
+		name        string
+		podName     string
+		serviceName string
+		namespace   string
+	}{
+		{
+			name:        "realistic Helm-generated names",
+			podName:     "gpu-mcp-k8s-gpu-mcp-server-b97p2",
+			serviceName: "gpu-mcp-k8s-gpu-mcp-server",
+			namespace:   "gpu-diagnostics",
+		},
+		{
+			name:        "custom release name",
+			podName:     "my-release-k8s-gpu-mcp-server-xyz12",
+			serviceName: "my-release-k8s-gpu-mcp-server",
+			namespace:   "custom-ns",
+		},
+		{
+			name:        "default namespace",
+			podName:     "agent-abc123",
+			serviceName: "gpu-agent-svc",
+			namespace:   "default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := GPUNode{
+				Name:        "test-node",
+				PodName:     tt.podName,
+				PodIP:       "10.0.0.1",
+				Ready:       true,
+				Namespace:   tt.namespace,
+				ServiceName: tt.serviceName,
+			}
+
+			result := node.GetAgentDNSEndpoint()
+
+			// Verify format: http://<pod>.<svc>.<ns>.svc.cluster.local:8080
+			expectedFormat := "http://%s.%s.%s.svc.cluster.local:%d"
+			expected := fmt.Sprintf(expectedFormat,
+				tt.podName, tt.serviceName, tt.namespace, AgentHTTPPort)
+			assert.Equal(t, expected, result)
+
+			// Verify it starts with http://
+			assert.True(t, strings.HasPrefix(result, "http://"))
+
+			// Verify it ends with the correct port
+			assert.True(t, strings.HasSuffix(result, ":8080"))
+
+			// Verify it contains svc.cluster.local
+			assert.Contains(t, result, ".svc.cluster.local")
+
+			// Verify the components are in correct order
+			assert.Contains(t, result, tt.podName+"."+tt.serviceName)
+			assert.Contains(t, result, tt.serviceName+"."+tt.namespace)
+		})
+	}
 }

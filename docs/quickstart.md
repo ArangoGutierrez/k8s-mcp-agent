@@ -96,10 +96,27 @@ echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_inventory
 
 ### Prerequisites
 
-GPU access in Kubernetes requires one of:
+**GPU Access** — one of:
 - **NVIDIA GPU Operator** (configures RuntimeClass automatically) — *recommended*
 - **nvidia-ctk** configured with containerd/cri-o
 - **NVIDIA Device Plugin** (fallback mode)
+
+**Network Requirements** (for HTTP transport mode with gateway):
+- Cross-node pod-to-pod connectivity must work
+- If using **Calico CNI on AWS** with nodes in the same subnet, ensure VXLAN
+  encapsulation is enabled:
+
+```bash
+# Check current mode
+kubectl get ippool default-ipv4-ippool -o jsonpath='{.spec.vxlanMode}'
+
+# If shows "CrossSubnet" and cross-node HTTP fails, change to "Always":
+kubectl patch installation default --type=json \
+  -p='[{"op": "replace", "path": "/spec/calicoNetwork/ipPools/0/encapsulation", "value": "VXLAN"}]'
+```
+
+> 📖 See [Cross-Node Networking Troubleshooting](troubleshooting/cross-node-networking.md)
+> for detailed diagnosis and fix options.
 
 ### Install with Helm
 
@@ -269,6 +286,29 @@ echo '{"jsonrpc":"2.0","method":"initialize",...}' | ./bin/agent
 # Then send tool calls
 echo '{"jsonrpc":"2.0","method":"tools/call",...}' | ./bin/agent
 ```
+
+### Gateway returns "all nodes failed" (HTTP mode)
+
+**Cause:** Cross-node pod networking issue (common on AWS with Calico CNI)
+
+**Symptoms:**
+- Gateway health check passes (`/healthz` returns healthy)
+- Same-node agent works, cross-node agents timeout
+- Gateway logs show HTTP request timeouts
+
+**Solution:**
+```bash
+# Test cross-node connectivity from gateway pod
+GATEWAY_POD=$(kubectl get pods -n gpu-diagnostics -l app.kubernetes.io/component=gateway -o jsonpath='{.items[0].metadata.name}')
+AGENT_IP=$(kubectl get pods -n gpu-diagnostics -l app.kubernetes.io/component=gpu-diagnostics -o jsonpath='{.items[0].status.podIP}')
+kubectl exec -n gpu-diagnostics $GATEWAY_POD -- wget -q -O - --timeout=5 http://$AGENT_IP:8080/healthz
+
+# If timeout, check Calico VXLAN mode (AWS specific)
+kubectl get ippool default-ipv4-ippool -o jsonpath='{.spec.vxlanMode}'
+# If "CrossSubnet", change to "Always" - see Prerequisites section
+```
+
+> 📖 Full guide: [Cross-Node Networking Troubleshooting](troubleshooting/cross-node-networking.md)
 
 ## Next Steps
 

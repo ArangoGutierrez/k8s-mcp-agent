@@ -12,7 +12,13 @@ metadata:
   labels:
     {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
 spec:
+  {{- if .Values.service.headless }}
+  # Headless service for DNS-based pod discovery
+  # Each pod gets: <pod-name>.<service-name>.<namespace>.svc.cluster.local
+  clusterIP: None
+  {{- else }}
   type: {{ .Values.service.type }}
+  {{- end }}
   ports:
   - name: http
     port: {{ .Values.service.port }}
@@ -20,5 +26,6 @@ spec:
     protocol: TCP
   selector:
     {{- include "k8s-gpu-mcp-server.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gpu-diagnostics
 {{- end }}
 

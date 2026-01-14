@@ -24,15 +24,15 @@
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 0 | Create investigation branch | `[TODO]` | |
-| 1 | Diagnose cross-node connectivity | `[TODO]` | Identify root cause |
-| 2 | Check AWS VPC CNI configuration | `[TODO]` | |
-| 3 | Test pod-to-pod networking | `[TODO]` | |
-| 4 | Document findings | `[TODO]` | |
-| 5 | Implement fix (if code change needed) | `[TODO]` | May be infra-only |
-| 6 | Verify HTTP mode works across nodes | `[TODO]` | |
-| 7 | Create pull request (if code changes) | `[TODO]` | |
-| 8 | Merge or document infrastructure fix | `[TODO]` | |
+| 0 | Create investigation branch | `[DONE]` | fix/cross-node-networking |
+| 1 | Diagnose cross-node connectivity | `[DONE]` | Root cause: Calico direct routing on AWS |
+| 2 | Check AWS VPC CNI configuration | `[DONE]` | Cluster uses Calico, not AWS VPC CNI |
+| 3 | Test pod-to-pod networking | `[DONE]` | Same-node works, cross-node fails |
+| 4 | Document findings | `[DONE]` | docs/troubleshooting/cross-node-networking.md |
+| 5 | Implement fix (if code change needed) | `[DONE]` | Added DNS routing + headless svc |
+| 6 | Verify HTTP mode works across nodes | `[DONE]` | Calico vxlanMode=Always applied, 4/4 nodes OK |
+| 7 | Create pull request (if code changes) | `[TODO]` | Ready for PR |
+| 8 | Merge or document infrastructure fix | `[DONE]` | Documented 3 fix options |
 
 **Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
 
