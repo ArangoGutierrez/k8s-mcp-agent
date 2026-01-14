@@ -130,11 +130,18 @@ func (r *Router) routeToGPUNode(
 
 	// Try HTTP routing if enabled
 	if r.routingMode == RoutingModeHTTP {
-		// Use Pod IP endpoint directly - works when CNI is properly configured.
-		// DNS-based routing (headless service) is available as fallback if needed.
+		// Routing priority (intentional design):
+		// 1. Pod IP (direct) - fastest, works when CNI is properly configured
+		//    (e.g., Calico with VXLAN encapsulation for cross-node traffic)
+		// 2. DNS endpoint (headless service) - fallback for environments where
+		//    Pod IPs aren't directly routable but DNS resolution works
+		// 3. Exec routing - last resort when network connectivity fails
+		//
+		// The Calico VXLAN fix (see docs/troubleshooting/cross-node-networking.md)
+		// enables Pod IP routing to work across nodes, making it the preferred path.
 		endpoint := node.GetAgentHTTPEndpoint()
 		if endpoint == "" {
-			// Fall back to DNS if Pod IP not available
+			// Fall back to DNS if Pod IP not available (pod still starting?)
 			endpoint = node.GetAgentDNSEndpoint()
 		}
 		if endpoint != "" {
