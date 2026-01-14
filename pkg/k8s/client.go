@@ -351,7 +351,19 @@ func (c *Client) Namespace() string {
 }
 
 // Clientset returns the underlying Kubernetes clientset.
-// Useful for handlers that need direct access to the K8s API.
+//
+// This method exposes direct access to the K8s API for handlers that need
+// to perform operations not covered by the existing Client methods, such as:
+//   - Querying node resources and conditions
+//   - Listing pods with custom field selectors
+//   - Accessing resource quota or limit range information
+//
+// Prefer using the existing Client methods (ListGPUNodes, GetPodForNode, etc.)
+// when possible, as they provide GPU-specific abstractions. Use Clientset()
+// only when you need direct API access for operations outside GPU management.
+//
+// Note: The returned clientset shares the same authentication and rate limiting
+// configuration as the Client.
 func (c *Client) Clientset() kubernetes.Interface {
 	return c.clientset
 }

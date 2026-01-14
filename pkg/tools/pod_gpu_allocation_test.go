@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -88,19 +89,7 @@ func makeGPUUUIDs(count int) string {
 	for i := 0; i < count; i++ {
 		uuids[i] = fmt.Sprintf("GPU-uuid-%d", i+1)
 	}
-	return joinStrings(uuids, ",")
-}
-
-// joinStrings joins strings with a separator (avoid importing strings).
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
+	return strings.Join(uuids, ",")
 }
 
 func TestNewPodGPUAllocationHandler(t *testing.T) {

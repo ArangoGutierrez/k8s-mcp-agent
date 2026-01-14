@@ -224,6 +224,17 @@ func TestNamespace(t *testing.T) {
 	assert.Equal(t, "test-namespace", client.Namespace())
 }
 
+func TestClientset(t *testing.T) {
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset()
+	client := NewClientWithConfig(clientset, nil, "test-namespace")
+
+	// Verify Clientset() returns the same interface
+	result := client.Clientset()
+	assert.Equal(t, clientset, result)
+	assert.NotNil(t, result)
+}
+
 func TestClientOptions_DefaultExecTimeout(t *testing.T) {
 	client := NewClientWithConfig(nil, nil, "test-namespace")
 	assert.Equal(t, DefaultExecTimeout, client.ExecTimeout())

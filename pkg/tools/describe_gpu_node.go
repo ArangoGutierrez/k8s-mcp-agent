@@ -109,6 +109,24 @@ var gpuLabelPrefixes = []string{
 	"kubernetes.io/arch",
 }
 
+// Health score calculation constants.
+const (
+	// tempThresholdWarning is the temperature (Celsius) above which
+	// health score starts decreasing.
+	tempThresholdWarning = 80
+	// tempPenaltyMultiplier is multiplied by degrees above threshold.
+	tempPenaltyMultiplier = 2
+	// maxTempPenalty is the maximum penalty for high temperature.
+	maxTempPenalty = 30
+	// memoryPressureThreshold is the memory usage percent above which
+	// health score is penalized.
+	memoryPressureThreshold = 90
+	// memoryPressurePenalty is the health score penalty for high memory.
+	memoryPressurePenalty = 10
+	// eccErrorPenalty is the health score penalty for uncorrectable ECC errors.
+	eccErrorPenalty = 20
+)
+
 // Handle processes the describe_gpu_node tool request.
 func (h *DescribeGPUNodeHandler) Handle(
 	ctx context.Context,
@@ -271,6 +289,15 @@ func (h *DescribeGPUNodeHandler) collectGPUInfo(
 
 	gpus = make([]GPUDescription, 0, count)
 	for i := 0; i < count; i++ {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf(`{"level":"info","msg":"context cancelled ` +
+				`during GPU enumeration"}`)
+			return driverInfo, gpus
+		default:
+		}
+
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
 			log.Printf(`{"level":"warn","msg":"failed to get device",`+
@@ -316,25 +343,26 @@ func (h *DescribeGPUNodeHandler) calculateGPUHealthScore(
 ) int {
 	score := 100
 
-	// Temperature penalty (above 80C starts reducing score)
-	if desc.Temperature > 80 {
-		penalty := int((desc.Temperature - 80) * 2)
-		if penalty > 30 {
-			penalty = 30
+	// Temperature penalty (above threshold starts reducing score)
+	if desc.Temperature > tempThresholdWarning {
+		penalty := int((desc.Temperature - tempThresholdWarning) *
+			tempPenaltyMultiplier)
+		if penalty > maxTempPenalty {
+			penalty = maxTempPenalty
 		}
 		score -= penalty
 	}
 
-	// Memory pressure penalty (above 90% usage)
-	if desc.MemoryUsedPercent > 90 {
-		score -= 10
+	// Memory pressure penalty
+	if desc.MemoryUsedPercent > memoryPressureThreshold {
+		score -= memoryPressurePenalty
 	}
 
 	// ECC error penalty
 	if enabled, _, err := device.GetEccMode(ctx); err == nil && enabled {
 		if uncorrectable, err := device.GetTotalEccErrors(
 			ctx, nvml.EccErrorUncorrectable); err == nil && uncorrectable > 0 {
-			score -= 20
+			score -= eccErrorPenalty
 		}
 	}
 

@@ -195,11 +195,15 @@ func (h *PodGPUAllocationHandler) extractGPUAllocation(
 		Containers: containers,
 	}
 
-	// Extract GPU UUIDs from device plugin annotation
+	// Extract GPU UUIDs from device plugin annotation.
+	// Note: The NVIDIA device plugin sets this annotation at the pod level,
+	// not per-container. For multi-container pods, we cannot determine which
+	// specific GPUs are assigned to which container from the annotation alone.
+	// We assign all UUIDs to the first container with GPU requests as a
+	// best-effort approximation. For accurate per-container GPU mapping,
+	// inspect the container's environment variables (NVIDIA_VISIBLE_DEVICES).
 	if uuids, ok := pod.Annotations[gpuDeviceAnnotation]; ok && uuids != "" {
 		gpuUUIDs := strings.Split(uuids, ",")
-		// Assign UUIDs to first container with GPU request
-		// (device plugin typically assigns to the pod level)
 		for i := range allocation.Containers {
 			if allocation.Containers[i].GPURequest > 0 {
 				allocation.Containers[i].GPUUUIDs = gpuUUIDs
