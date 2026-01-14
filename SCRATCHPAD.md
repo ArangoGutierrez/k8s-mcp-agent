@@ -19,19 +19,25 @@
 
 ### HTTP Transport Refactor (Epic #112) - COMPLETE ✅
 
+**Status:** Epic closed on 2026-01-14
+
 | Phase | Issue | PR | Status |
 |-------|-------|-----|--------|
 | Phase 1: Timeout Fix | #113 | #119 | ✅ Merged |
 | Phase 2: Agent HTTP Mode | #114 | #121 | ✅ Merged |
 | Phase 3: Gateway HTTP Routing | #115 | #122 | ✅ Merged |
 | Phase 4: Resilience & Observability | #116 | #123 | ✅ Merged |
-| Phase 5: Documentation | #117 | TBD | 🔄 In Progress |
+| Phase 5: Documentation | #117 | #125 | ✅ Merged |
+| **Bonus:** Cross-Node Networking Fix | - | #126 | ✅ Merged |
 
 **Key Changes:**
 - Default transport: HTTP (agents as persistent servers)
 - Gateway routing: HTTP (not exec)
 - Added: Circuit breaker, Prometheus metrics, NetworkPolicy support
 - Memory footprint: ~15-20MB constant vs 200MB spikes
+- Fixed: Calico CNI cross-node routing (VXLAN encapsulation)
+
+**Results:** 100% E2E success rate (was ~10%), 150× latency improvement
 
 ### Current Milestone: M3 - Kubernetes Integration
 
