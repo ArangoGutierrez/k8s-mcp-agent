@@ -27,15 +27,16 @@
 |---|------|--------|-------|
 | 0 | Create feature branch | `[TODO]` | `feat/gateway-latency-metrics` |
 | 1 | Add gateway latency metric to pkg/metrics | `[TODO]` | New histogram + helper function |
-| 2 | Emit metrics from routeViaHTTP | `[TODO]` | Record HTTP latency by node |
-| 3 | Emit metrics from routeViaExec | `[TODO]` | Record exec latency by node |
-| 4 | Add unit tests for new metrics | `[TODO]` | Test all label combinations |
-| 5 | Run full test suite | `[TODO]` | `make all` |
-| 6 | Real cluster E2E verification | `[TODO]` | If KUBECONFIG available |
-| 7 | Create pull request | `[TODO]` | |
-| 8 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
-| 9 | Address review comments | `[TODO]` | |
-| 10 | Merge after reviews | `[TODO]` | |
+| 2 | Add re-export to pkg/mcp/metrics.go | `[TODO]` | For backwards compatibility |
+| 3 | Emit metrics from routeViaHTTP | `[TODO]` | Record HTTP latency by node |
+| 4 | Emit metrics from routeViaExec | `[TODO]` | Record exec latency by node |
+| 5 | Add unit tests for new metrics | `[TODO]` | Test all label combinations |
+| 6 | Run full test suite | `[TODO]` | `make all` |
+| 7 | Real cluster E2E verification | `[TODO]` | If KUBECONFIG available |
+| 8 | Create pull request | `[TODO]` | |
+| 9 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
+| 10 | Address review comments | `[TODO]` | |
+| 11 | Merge after reviews | `[TODO]` | |
 
 **Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[BLOCKED:reason]`
 
@@ -243,13 +244,52 @@ This metric has **low cardinality** and is safe for production:
 
 ---
 
-### Task 2: Emit Metrics from `routeViaHTTP` `[TODO]`
+### Task 2: Add Re-export to `pkg/mcp/metrics.go` `[TODO]`
+
+For backwards compatibility, the `pkg/mcp` package re-exports metrics from `pkg/metrics`.
+Add the new metric and helper function to maintain this pattern.
+
+**File:** `pkg/mcp/metrics.go`
+
+**Add to var block (after `ActiveRequests`):**
+
+```go
+	// GatewayRequestDuration tracks gateway-to-agent request latency.
+	GatewayRequestDuration = metrics.GatewayRequestDuration
+```
+
+**Add helper function (after `SetCircuitState`):**
+
+```go
+// RecordGatewayRequest records latency metrics for a gateway-to-agent request.
+func RecordGatewayRequest(node, transport, status string, durationSeconds float64) {
+	metrics.RecordGatewayRequest(node, transport, status, durationSeconds)
+}
+```
+
+**Why this is needed:**
+- Maintains consistency with existing metrics pattern
+- Allows callers to use either `metrics.RecordGatewayRequest` or `mcp.RecordGatewayRequest`
+- Preserves backwards compatibility if callers import `pkg/mcp`
+
+**Acceptance criteria:**
+- [ ] `GatewayRequestDuration` re-exported in var block
+- [ ] `RecordGatewayRequest` wrapper function added
+- [ ] Follows existing pattern in file
+
+> 💡 **After completing:** Update Progress Tracker → `[DONE]` → Commit
+
+---
+
+### Task 3: Emit Metrics from `routeViaHTTP` `[TODO]`
 
 Instrument the HTTP routing path to emit latency metrics.
 
 **File:** `pkg/gateway/router.go`
 
-**Current code** (lines 170-198):
+> **Note:** The `metrics` package is already imported (line 17), so no import changes needed.
+
+**Current code** (lines 169-198):
 
 ```go
 func (r *Router) routeViaHTTP(
@@ -334,7 +374,7 @@ func (r *Router) routeViaHTTP(
 
 ---
 
-### Task 3: Emit Metrics from `routeViaExec` `[TODO]`
+### Task 4: Emit Metrics from `routeViaExec` `[TODO]`
 
 Instrument the exec routing path (fallback/legacy mode) to emit latency metrics.
 
@@ -424,13 +464,16 @@ func (r *Router) routeViaExec(
 
 ---
 
-### Task 4: Add Unit Tests for Gateway Metrics `[TODO]`
+### Task 5: Add Unit Tests for Gateway Metrics `[TODO]`
 
 Add comprehensive tests for the new metrics functionality.
 
-**File:** `pkg/metrics/metrics_test.go` (NOT pkg/mcp/metrics_test.go)
+**File:** `pkg/metrics/metrics_test.go` (**NEW FILE** - tests for `pkg/metrics` package)
 
-**Create new file** if it doesn't exist, or add tests to existing file:
+> **Note:** There's an existing `pkg/mcp/metrics_test.go` that tests re-exports.
+> This new file tests the core metrics in `pkg/metrics` directly.
+
+**Create this new file:**
 
 ```go
 // Copyright 2026 k8s-gpu-mcp-server contributors
@@ -598,7 +641,7 @@ func TestGatewayRequestDuration_LabelCardinality(t *testing.T) {
 
 ---
 
-### Task 5: Run Full Test Suite `[TODO]`
+### Task 6: Run Full Test Suite `[TODO]`
 
 Verify all tests pass and code meets quality standards.
 
@@ -641,7 +684,7 @@ go test -race ./pkg/metrics/... ./pkg/gateway/...
 
 ---
 
-### Task 6: Real Cluster E2E Verification `[TODO]`
+### Task 7: Real Cluster E2E Verification `[TODO]`
 
 **⚠️ CONDITIONAL:** Only if `KUBECONFIG` is set and cluster is accessible.
 
@@ -743,7 +786,7 @@ histogram_quantile(0.50, rate(mcp_gateway_request_duration_seconds_bucket[5m])) 
 
 ## Create Pull Request
 
-### Task 7: Create PR `[TODO]`
+### Task 8: Create PR `[TODO]`
 
 ```bash
 cd /Users/eduardoa/src/github/ArangoGutierrez/k8s-gpu-mcp-server
@@ -837,7 +880,7 @@ Low cardinality, safe for production:
 
 ---
 
-### Task 8: Wait for Copilot Review `[TODO]`
+### Task 9: Wait for Copilot Review `[TODO]`
 
 > ⚠️ **CRITICAL:** Do NOT merge until Copilot review appears (takes 1-2 minutes)
 
@@ -874,7 +917,7 @@ gh pr checks <PR-NUMBER> --watch
 
 ---
 
-### Task 9: Address Review Comments `[TODO]`
+### Task 10: Address Review Comments `[TODO]`
 
 If Copilot or human reviewers leave comments:
 
@@ -907,7 +950,7 @@ git push
 
 ---
 
-### Task 10: Merge PR `[TODO]`
+### Task 11: Merge PR `[TODO]`
 
 **Pre-merge checklist:**
 
