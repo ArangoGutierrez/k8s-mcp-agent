@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -92,9 +93,9 @@ func TestHTTPServer_ListenAndServe_Shutdown(t *testing.T) {
 		errCh <- httpServer.ListenAndServe(ctx)
 	}()
 
-	// Wait for server to be ready using the ready channel
+	// Wait for server to be ready using the Ready() method
 	select {
-	case <-httpServer.ready:
+	case <-httpServer.Ready():
 		// Server is ready
 	case <-time.After(5 * time.Second):
 		t.Fatal("server did not start in time")
@@ -110,6 +111,43 @@ func TestHTTPServer_ListenAndServe_Shutdown(t *testing.T) {
 		assert.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("server did not shut down in time")
+	}
+}
+
+func TestHTTPServer_BindFailure_NoReadySignal(t *testing.T) {
+	mcpServer := server.NewMCPServer("test", "1.0.0")
+
+	// Create a listener first to occupy a port
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+
+	// Get the actual address the listener is using
+	actualAddr := ln.Addr().String()
+	t.Logf("blocking port: %s", actualAddr)
+
+	// Try to start server on the same port - should fail immediately
+	httpServer := NewHTTPServer(mcpServer, actualAddr, "1.0.0")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- httpServer.ListenAndServe(ctx)
+	}()
+
+	// The server should fail immediately with bind error
+	// and the ready channel should NOT be closed
+	select {
+	case <-httpServer.Ready():
+		t.Fatal("ready channel was closed despite bind failure")
+	case err := <-errCh:
+		// Expected: bind error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "address already in use")
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected immediate bind failure")
 	}
 }
 

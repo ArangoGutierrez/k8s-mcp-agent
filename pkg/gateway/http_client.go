@@ -111,7 +111,10 @@ func (c *AgentHTTPClient) doRequest(
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			klog.V(4).InfoS("failed to close response body",
+				"error", closeErr, "url", url)
+		}
 	}()
 
 	respBody, err := io.ReadAll(resp.Body)

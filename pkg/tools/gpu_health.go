@@ -151,6 +151,10 @@ func (h *GPUHealthHandler) Handle(
 			klog.ErrorS(err, "failed to get device", "index", i)
 			continue
 		}
+		if device == nil {
+			klog.ErrorS(nil, "nil device returned without error", "index", i)
+			continue
+		}
 
 		health := h.collectGPUHealth(ctx, i, device)
 		gpus = append(gpus, health)

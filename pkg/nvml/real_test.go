@@ -8,6 +8,7 @@ package nvml
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -143,4 +144,103 @@ func TestRealNVML_UninitializedAccess(t *testing.T) {
 	_, err := real.GetDeviceCount(ctx)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
+}
+
+// TestRealNVML_ConcurrentInit verifies that concurrent Init calls are safe.
+// Run with: go test -race -tags=integration ./pkg/nvml/
+func TestRealNVML_ConcurrentInit(t *testing.T) {
+	real := NewReal()
+	ctx := context.Background()
+	defer real.Shutdown(ctx)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	errors := make(chan error, goroutines)
+
+	// Launch multiple concurrent Init calls
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := real.Init(ctx); err != nil {
+				errors <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// All Init calls should succeed (or be no-ops)
+	for err := range errors {
+		t.Errorf("concurrent Init failed: %v", err)
+	}
+
+	// Verify NVML is functional after concurrent init
+	count, err := real.GetDeviceCount(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 0)
+}
+
+// TestRealNVML_ConcurrentShutdown verifies that concurrent Shutdown calls
+// are safe.
+// Run with: go test -race -tags=integration ./pkg/nvml/
+func TestRealNVML_ConcurrentShutdown(t *testing.T) {
+	real := NewReal()
+	ctx := context.Background()
+
+	// Initialize first
+	err := real.Init(ctx)
+	require.NoError(t, err)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	errors := make(chan error, goroutines)
+
+	// Launch multiple concurrent Shutdown calls
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := real.Shutdown(ctx); err != nil {
+				errors <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// All Shutdown calls should succeed (or be no-ops)
+	for err := range errors {
+		t.Errorf("concurrent Shutdown failed: %v", err)
+	}
+}
+
+// TestRealNVML_ConcurrentInitShutdown verifies that interleaved Init and
+// Shutdown calls are safe.
+// Run with: go test -race -tags=integration ./pkg/nvml/
+func TestRealNVML_ConcurrentInitShutdown(t *testing.T) {
+	real := NewReal()
+	ctx := context.Background()
+	defer real.Shutdown(ctx)
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+
+	// Launch interleaved Init and Shutdown calls
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			if idx%2 == 0 {
+				_ = real.Init(ctx)
+			} else {
+				_ = real.Shutdown(ctx)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	// Test passes if no race detected (run with -race flag)
 }

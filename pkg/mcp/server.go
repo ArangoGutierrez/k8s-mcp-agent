@@ -194,6 +194,10 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 // runStdio runs the server with stdio transport.
+//
+// Graceful shutdown: When the context is cancelled, we close os.Stdin to
+// unblock the mcp-go ServeStdio call, allowing it to return gracefully.
+// This is the only reliable way to interrupt blocking stdio reads.
 func (s *Server) runStdio(ctx context.Context) error {
 	klog.InfoS("MCP server starting", "transport", "stdio", "mode", s.mode)
 
@@ -221,7 +225,10 @@ func (s *Server) runStdio(ctx context.Context) error {
 
 	// Standard mode: run server with stdio transport in a goroutine
 	errCh := make(chan error, 1)
+	done := make(chan struct{})
+
 	go func() {
+		defer close(done)
 		if err := server.ServeStdio(s.mcpServer); err != nil {
 			errCh <- fmt.Errorf("MCP server error: %w", err)
 		}
@@ -231,7 +238,24 @@ func (s *Server) runStdio(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		klog.InfoS("MCP server stopping", "reason", "context cancelled")
+
+		// Close stdin to unblock ServeStdio
+		// This is safe: os.Stdin.Close() is idempotent
+		if err := os.Stdin.Close(); err != nil {
+			klog.V(2).InfoS("failed to close stdin", "error", err)
+		}
+
+		// Wait for ServeStdio to return (with timeout)
+		select {
+		case <-done:
+			klog.V(2).InfoS("stdio server stopped gracefully")
+		case err := <-errCh:
+			// ServeStdio may return an error after stdin close
+			klog.V(2).InfoS("stdio server returned", "error", err)
+		}
+
 		return s.Shutdown()
+
 	case err := <-errCh:
 		klog.ErrorS(err, "MCP server error")
 		return err

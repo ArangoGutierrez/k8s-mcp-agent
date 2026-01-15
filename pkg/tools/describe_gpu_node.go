@@ -151,6 +151,12 @@ func (h *DescribeGPUNodeHandler) Handle(
 		return mcp.NewToolResultError("node_name is required"), nil
 	}
 
+	// Validate node name format
+	if !isValidNodeName(nodeName) {
+		return mcp.NewToolResultError(
+			"invalid node_name: must be a valid DNS subdomain (RFC 1123)"), nil
+	}
+
 	klog.V(4).InfoS("describing node", "node", nodeName)
 
 	// Get Kubernetes node info

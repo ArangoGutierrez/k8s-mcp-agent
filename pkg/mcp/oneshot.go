@@ -78,8 +78,18 @@ func NewOneshotTransport(cfg OneshotConfig) (*OneshotTransport, error) {
 	}, nil
 }
 
+// scanResult holds the result of a single scan operation.
+type scanResult struct {
+	line string
+	ok   bool
+}
+
 // Run processes requests until maxRequests is reached or stdin closes.
 // Returns OneshotResult with statistics and any fatal error encountered.
+//
+// The scanner runs in a separate goroutine to allow context cancellation
+// to interrupt blocking reads. This prevents goroutine leaks when the
+// context is cancelled while waiting for input.
 func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 	result := OneshotResult{}
 
@@ -87,49 +97,69 @@ func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 
 	scanner := bufio.NewScanner(t.reader)
 
-	for scanner.Scan() {
-		// Check context cancellation
+	// Channel for scan results - buffered to avoid goroutine leak
+	lines := make(chan scanResult, 1)
+
+	// Start scanner goroutine
+	go func() {
+		defer close(lines)
+		for scanner.Scan() {
+			select {
+			case lines <- scanResult{line: scanner.Text(), ok: true}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Process lines with context awareness
+	for {
 		select {
 		case <-ctx.Done():
 			klog.InfoS("oneshot transport cancelled")
 			return result, ctx.Err()
-		default:
-		}
 
-		line := scanner.Text()
+		case scan, ok := <-lines:
+			if !ok {
+				// Scanner closed (EOF or error)
+				if err := scanner.Err(); err != nil {
+					return result, fmt.Errorf("stdin read error: %w", err)
+				}
+				// Normal EOF
+				klog.InfoS("oneshot transport completed",
+					"processed", result.Processed,
+					"errors", result.Errors,
+					"skipped", result.Skipped)
+				return result, nil
+			}
 
-		// Skip empty lines (don't count toward maxRequests)
-		if line == "" {
-			result.Skipped++
-			continue
-		}
+			line := scan.line
 
-		// Process the request
-		if err := t.processRequest(ctx, line); err != nil {
-			result.Errors++
-			klog.V(2).InfoS("request processing error",
-				"error", err, "processed", result.Processed)
-		} else {
-			result.Processed++
-		}
+			// Skip empty lines (don't count toward maxRequests)
+			if line == "" {
+				result.Skipped++
+				continue
+			}
 
-		// Check if we've reached the limit
-		if result.Processed >= t.maxRequests {
-			break
+			// Process the request
+			if err := t.processRequest(ctx, line); err != nil {
+				result.Errors++
+				klog.V(2).InfoS("request processing error",
+					"error", err, "processed", result.Processed)
+			} else {
+				result.Processed++
+			}
+
+			// Check if we've reached the limit
+			if result.Processed >= t.maxRequests {
+				klog.InfoS("oneshot transport completed",
+					"processed", result.Processed,
+					"errors", result.Errors,
+					"skipped", result.Skipped)
+				return result, nil
+			}
 		}
 	}
-
-	// Check for scanner errors (I/O errors, not EOF)
-	if err := scanner.Err(); err != nil {
-		return result, fmt.Errorf("stdin read error: %w", err)
-	}
-
-	klog.InfoS("oneshot transport completed",
-		"processed", result.Processed,
-		"errors", result.Errors,
-		"skipped", result.Skipped)
-
-	return result, nil
 }
 
 // processRequest handles a single JSON-RPC request line.
