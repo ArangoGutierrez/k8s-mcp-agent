@@ -44,9 +44,9 @@
 | 16 | Migrate pkg/xid/parser.go | `[DONE]` | ~4 calls |
 | 17 | Remove unused LogToStderr helper | `[DONE]` | pkg/mcp/server.go |
 | 18 | Run `make all` - verify tests pass | `[DONE]` | |
-| 19 | Create pull request | `[WIP]` | |
-| 20 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
-| 21 | Address review comments | `[TODO]` | |
+| 19 | Create pull request | `[DONE]` | PR #131 |
+| 20 | Wait for Copilot review | `[DONE]` | ✅ No comments |
+| 21 | Address review comments | `[DONE]` | N/A - clean review |
 | 22 | **Merge after approval** | `[WAIT]` | ⚠️ Requires human |
 
 **Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[WAIT]` | `[BLOCKED:reason]`
