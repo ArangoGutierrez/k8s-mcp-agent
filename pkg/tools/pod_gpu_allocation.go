@@ -82,6 +82,12 @@ func (h *PodGPUAllocationHandler) Handle(
 		return mcp.NewToolResultError("node_name is required"), nil
 	}
 
+	// Validate node name format
+	if !isValidNodeName(nodeName) {
+		return mcp.NewToolResultError(
+			"invalid node_name: must be a valid DNS subdomain (RFC 1123)"), nil
+	}
+
 	// Extract namespace (optional, empty means all namespaces)
 	namespace := ""
 	if ns, ok := args["namespace"].(string); ok {
