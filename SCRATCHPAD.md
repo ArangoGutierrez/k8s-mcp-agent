@@ -1,6 +1,31 @@
 # Project Scratchpad - k8s-gpu-mcp-server
 
-> Last updated: 2026-01-14
+> Last updated: 2026-01-15
+
+## 🔍 Project 360 Review Summary (2026-01-15)
+
+**Overall Assessment:** Ready for v0.1.0 with minor improvements
+
+| Category | Score | Notes |
+|----------|-------|-------|
+| Code Quality | ⭐⭐⭐⭐ | Clean, idiomatic Go; follows Effective Go |
+| Test Coverage | ⭐⭐⭐ | 58-80% per package; gaps in metrics/nvml |
+| Security | ⭐⭐⭐⭐ | Read-only default; proper validation |
+| Documentation | ⭐⭐⭐⭐ | Comprehensive; minor staleness |
+| Production Ready | ⭐⭐⭐⭐ | HTTP transport, circuit breaker, metrics |
+| Community Value | ⭐⭐⭐⭐⭐ | Unique AI-native GPU diagnostics |
+
+**Key Findings:**
+- ✅ All tests pass with race detector
+- ✅ No panics in production code
+- ✅ All TODOs linked to GitHub issues (none P0/P1)
+- ⚠️ 106 `log.Printf` calls → migrate to structured logging (M4)
+- ⚠️ README milestone status outdated
+- 📊 Test coverage: tools 80%, gateway 73%, mcp 66%, k8s 58%
+
+**Full report:** `docs/reports/project-360-review-2026-01-15.md`
+
+---
 
 ## 📊 Project Status Overview
 
@@ -94,23 +119,43 @@
 
 ### M4: Production Readiness (Tracking: #49)
 
-| Issue | Area | Status |
-|-------|------|--------|
-| #42 | Replace log.Printf with klog/v2 | 🔴 Not started |
-| #43 | sync.WaitGroup for graceful shutdown | 🔴 Not started |
-| #44 | Sentinel errors for NVML failures | 🔴 Not started |
-| #56 | Flight recorder audit trail | 🔴 Not started |
-| #59 | Graceful degradation for driver version skew | 🔴 Not started |
+| Issue | Area | Status | Priority |
+|-------|------|--------|----------|
+| #42 | Replace log.Printf with klog/v2 | 🔴 Not started | P2 |
+| #43 | sync.WaitGroup for graceful shutdown | 🔴 Not started | P2 |
+| #44 | Sentinel errors for NVML failures | 🔴 Not started | P3 |
+| #56 | Flight recorder audit trail | 🔴 Not started | P3 |
+| #59 | Graceful degradation for driver version skew | 🔴 Not started | P3 |
+
+### Code Quality Notes (from 360 Review)
+
+- **106 `log.Printf` calls** with manual JSON formatting → migrate to `slog`
+- **3 TODOs in code** - all linked to issues (#68, #69), none critical
+- **No panics** in production code (verified via grep)
+- **Hardcoded `DefaultServiceName`** in `pkg/k8s/client.go:194` → make configurable
 
 ---
 
 ## 🧪 Testing Status
 
-- **Unit Tests:** ✅ Passing (~2,000 lines after Epic #112)
+- **Unit Tests:** ✅ Passing (~7,257 test lines)
+- **Race Detector:** ✅ All packages pass with `-race`
 - **Integration Tests:** ⚠️ Need MCP protocol tests (#84)
 - **E2E Tests:** ⚠️ Need kubectl debug tests (#34)
 - **Real Cluster Testing:** ✅ AWS g4dn.xlarge (4-node cluster)
 - **Gateway Metrics:** ✅ Per-node latency tracking (#127)
+
+### Coverage by Package (2026-01-15)
+
+| Package | Coverage | Status |
+|---------|----------|--------|
+| `pkg/tools` | 79.7% | ✅ Good |
+| `pkg/xid` | 75.6% | ✅ Good |
+| `pkg/gateway` | 72.9% | ✅ Good |
+| `pkg/mcp` | 65.5% | ⚠️ Moderate |
+| `pkg/k8s` | 58.0% | ⚠️ Moderate |
+| `pkg/nvml` | 15.8% | ⚠️ Low (needs GPU) |
+| `pkg/metrics` | 12.5% | 🔴 Low |
 
 ---
 

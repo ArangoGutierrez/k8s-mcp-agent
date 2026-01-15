@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -72,7 +72,7 @@ func (h *PodGPUAllocationHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"get_pod_gpu_allocation invoked"}`)
+	klog.InfoS("get_pod_gpu_allocation invoked")
 
 	args := request.GetArguments()
 
@@ -88,8 +88,7 @@ func (h *PodGPUAllocationHandler) Handle(
 		namespace = ns
 	}
 
-	log.Printf(`{"level":"debug","msg":"querying pods",`+
-		`"node_name":"%s","namespace":"%s"}`, nodeName, namespace)
+	klog.V(4).InfoS("querying pods", "node", nodeName, "namespace", namespace)
 
 	// List pods on the specified node
 	listOpts := metav1.ListOptions{
@@ -98,8 +97,7 @@ func (h *PodGPUAllocationHandler) Handle(
 
 	pods, err := h.clientset.CoreV1().Pods(namespace).List(ctx, listOpts)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to list pods",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to list pods")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to list pods: %s", err)), nil
 	}
@@ -114,8 +112,7 @@ func (h *PodGPUAllocationHandler) Handle(
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			log.Printf(`{"level":"info","msg":"context cancelled ` +
-				`during pod enumeration"}`)
+			klog.InfoS("context cancelled during pod enumeration")
 			return mcp.NewToolResultError(
 				fmt.Sprintf("operation cancelled: %s", ctx.Err())), nil
 		default:
@@ -149,15 +146,13 @@ func (h *PodGPUAllocationHandler) Handle(
 	// Marshal to JSON
 	jsonBytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to marshal response")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}
 
-	log.Printf(`{"level":"info","msg":"get_pod_gpu_allocation completed",`+
-		`"node":"%s","pods":%d,"gpus":%d}`,
-		nodeName, len(gpuPods), totalGPUs)
+	klog.InfoS("get_pod_gpu_allocation completed",
+		"node", nodeName, "pods", len(gpuPods), "gpus", totalGPUs)
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

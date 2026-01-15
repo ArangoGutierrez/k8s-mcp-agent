@@ -9,7 +9,7 @@ This guide provides detailed information for developers working on
 
 ## Prerequisites
 
-- **Go 1.23+**: Required for building the agent
+- **Go 1.25+**: Required for building the agent
 - **golangci-lint v2.7+**: For code linting
 - **Docker/Podman**: For container builds
 - **make**: Build automation

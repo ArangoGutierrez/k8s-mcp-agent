@@ -6,12 +6,12 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/klog/v2"
 )
 
 // HTTPServer wraps the MCP server with HTTP transport.
@@ -72,7 +72,7 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	log.Printf(`{"level":"info","msg":"HTTP server starting","addr":"%s"}`, h.addr)
+	klog.InfoS("HTTP server starting", "addr", h.addr)
 
 	// Start server in goroutine
 	errCh := make(chan error, 1)
@@ -98,7 +98,7 @@ func (h *HTTPServer) Shutdown() error {
 		return nil
 	}
 
-	log.Printf(`{"level":"info","msg":"HTTP server shutting down"}`)
+	klog.InfoS("HTTP server shutting down")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -117,8 +117,7 @@ func (h *HTTPServer) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "healthy",
 	}); err != nil {
-		log.Printf(`{"level":"error","msg":"failed to encode healthz response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to encode healthz response")
 	}
 }
 
@@ -134,8 +133,7 @@ func (h *HTTPServer) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
 	}); err != nil {
-		log.Printf(`{"level":"error","msg":"failed to encode readyz response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to encode readyz response")
 	}
 }
 
@@ -151,7 +149,6 @@ func (h *HTTPServer) handleVersion(w http.ResponseWriter, r *http.Request) {
 		"server":  "k8s-gpu-mcp-server",
 		"version": h.version,
 	}); err != nil {
-		log.Printf(`{"level":"error","msg":"failed to encode version response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to encode version response")
 	}
 }

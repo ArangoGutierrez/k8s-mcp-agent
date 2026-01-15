@@ -137,19 +137,3 @@ func TestServer_Shutdown(t *testing.T) {
 	err = server.Shutdown()
 	assert.NoError(t, err)
 }
-
-func TestLogToStderr(t *testing.T) {
-	// This function logs to stderr, so we just test it doesn't panic
-	fields := map[string]interface{}{
-		"key1": "value1",
-		"key2": 42,
-	}
-
-	assert.NotPanics(t, func() {
-		LogToStderr("info", "test message", fields)
-	})
-
-	assert.NotPanics(t, func() {
-		LogToStderr("error", "error message", nil)
-	})
-}

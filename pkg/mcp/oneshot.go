@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/mark3labs/mcp-go/server"
+	"k8s.io/klog/v2"
 )
 
 // OneshotTransport provides a stdio transport that exits after processing
@@ -83,8 +83,7 @@ func NewOneshotTransport(cfg OneshotConfig) (*OneshotTransport, error) {
 func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 	result := OneshotResult{}
 
-	log.Printf(`{"level":"info","msg":"oneshot transport starting",`+
-		`"max_requests":%d}`, t.maxRequests)
+	klog.InfoS("oneshot transport starting", "maxRequests", t.maxRequests)
 
 	scanner := bufio.NewScanner(t.reader)
 
@@ -92,7 +91,7 @@ func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
-			log.Printf(`{"level":"info","msg":"oneshot transport cancelled"}`)
+			klog.InfoS("oneshot transport cancelled")
 			return result, ctx.Err()
 		default:
 		}
@@ -108,8 +107,8 @@ func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 		// Process the request
 		if err := t.processRequest(ctx, line); err != nil {
 			result.Errors++
-			log.Printf(`{"level":"warn","msg":"request processing error",`+
-				`"error":"%v","processed":%d}`, err, result.Processed)
+			klog.V(2).InfoS("request processing error",
+				"error", err, "processed", result.Processed)
 		} else {
 			result.Processed++
 		}
@@ -125,9 +124,10 @@ func (t *OneshotTransport) Run(ctx context.Context) (OneshotResult, error) {
 		return result, fmt.Errorf("stdin read error: %w", err)
 	}
 
-	log.Printf(`{"level":"info","msg":"oneshot transport completed",`+
-		`"processed":%d,"errors":%d,"skipped":%d}`,
-		result.Processed, result.Errors, result.Skipped)
+	klog.InfoS("oneshot transport completed",
+		"processed", result.Processed,
+		"errors", result.Errors,
+		"skipped", result.Skipped)
 
 	return result, nil
 }
@@ -142,8 +142,7 @@ func (t *OneshotTransport) processRequest(ctx context.Context, line string) erro
 		return fmt.Errorf("parse error: %w", err)
 	}
 
-	log.Printf(`{"level":"debug","msg":"processing request",`+
-		`"method":"%s","id":%s}`, req.Method, formatID(req.ID))
+	klog.V(4).InfoS("processing request", "method", req.Method, "id", formatID(req.ID))
 
 	// Handle the request through the MCP server
 	// HandleMessage returns mcp.JSONRPCMessage (errors are embedded in response)
@@ -182,15 +181,13 @@ func (t *OneshotTransport) writeErrorResponse(id json.RawMessage, code int,
 		// Last resort: write a hardcoded error
 		if _, writeErr := fmt.Fprintf(t.writer, `{"jsonrpc":"2.0","id":null,"error":`+
 			`{"code":-32603,"message":"marshal error"}}`+"\n"); writeErr != nil {
-			log.Printf(`{"level":"error","msg":"failed to write fallback error",`+
-				`"error":"%v"}`, writeErr)
+			klog.ErrorS(writeErr, "failed to write fallback error")
 		}
 		return
 	}
 
 	if _, err := fmt.Fprintf(t.writer, "%s\n", respBytes); err != nil {
-		log.Printf(`{"level":"error","msg":"failed to write error response",`+
-			`"error":"%v"}`, err)
+		klog.ErrorS(err, "failed to write error response")
 	}
 }
 
