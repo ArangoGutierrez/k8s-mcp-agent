@@ -88,6 +88,13 @@ func main() {
 	// Flush logs on exit
 	defer klog.Flush()
 
+	// Capture Kubernetes metadata from environment for structured logging
+	k8sMetadata := map[string]string{
+		"node":      os.Getenv("NODE_NAME"),
+		"pod":       os.Getenv("POD_NAME"),
+		"namespace": os.Getenv("POD_NAMESPACE"),
+	}
+
 	// Show version and exit if requested
 	if *showVer {
 		buildInfo := info.GetInfo()
@@ -158,14 +165,20 @@ func main() {
 			"gateway", true,
 			"namespace", *namespace,
 			"routingMode", *routingMode,
-			"logLevel", effectiveLogLevel)
+			"logLevel", effectiveLogLevel,
+			"k8sNode", k8sMetadata["node"],
+			"k8sPod", k8sMetadata["pod"],
+			"k8sNamespace", k8sMetadata["namespace"])
 	} else {
 		klog.InfoS("starting k8s-gpu-mcp-server",
 			"version", info.Version(),
 			"commit", info.GitCommit(),
 			"mode", *mode,
 			"nvmlMode", *nvmlMode,
-			"logLevel", effectiveLogLevel)
+			"logLevel", effectiveLogLevel,
+			"k8sNode", k8sMetadata["node"],
+			"k8sPod", k8sMetadata["pod"],
+			"k8sNamespace", k8sMetadata["namespace"])
 	}
 
 	// Setup context with cancellation for graceful shutdown
