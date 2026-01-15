@@ -65,6 +65,7 @@ type Client struct {
 	restConfig  *rest.Config
 	namespace   string
 	execTimeout time.Duration
+	serviceName string
 }
 
 // ClientOption configures a Client.
@@ -74,6 +75,16 @@ type ClientOption func(*Client)
 func WithExecTimeout(d time.Duration) ClientOption {
 	return func(c *Client) {
 		c.execTimeout = d
+	}
+}
+
+// WithServiceName sets the headless service name for DNS-based routing.
+// This overrides the GPU_MCP_SERVICE_NAME environment variable.
+func WithServiceName(name string) ClientOption {
+	return func(c *Client) {
+		if name != "" {
+			c.serviceName = name
+		}
 	}
 }
 
@@ -148,6 +159,7 @@ func NewClient(namespace string, opts ...ClientOption) (*Client, error) {
 		restConfig:  config,
 		namespace:   namespace,
 		execTimeout: DefaultExecTimeout,
+		serviceName: DefaultServiceName,
 	}
 
 	// Apply options
@@ -171,6 +183,7 @@ func NewClientWithConfig(
 		restConfig:  restConfig,
 		namespace:   namespace,
 		execTimeout: DefaultExecTimeout,
+		serviceName: DefaultServiceName,
 	}
 
 	// Apply options
@@ -181,15 +194,28 @@ func NewClientWithConfig(
 	return c
 }
 
-// DefaultServiceName is the default headless service name for agent pods.
+// defaultServiceNameFallback is the fallback service name when not configured.
 // This matches the Helm template: {{ include "k8s-gpu-mcp-server.fullname" . }}
 // when using release name "gpu-mcp".
-//
-// LIMITATION: This is hardcoded and may not match deployments with custom
-// release names or fullnameOverride. For such cases, DNS-based routing will
-// fail and Pod IP routing should be used instead (the default behavior).
-// Future enhancement: make this configurable via environment variable.
-const DefaultServiceName = "gpu-mcp-k8s-gpu-mcp-server"
+const defaultServiceNameFallback = "gpu-mcp-k8s-gpu-mcp-server"
+
+// DefaultServiceName is the headless service name for agent pods.
+// Can be overridden via GPU_MCP_SERVICE_NAME environment variable.
+// This is needed for deployments with custom Helm release names or
+// fullnameOverride.
+var DefaultServiceName = getEnvOrDefault(
+	"GPU_MCP_SERVICE_NAME",
+	defaultServiceNameFallback,
+)
+
+// getEnvOrDefault returns the value of the environment variable if set,
+// otherwise returns the default value.
+func getEnvOrDefault(key, defaultVal string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultVal
+}
 
 // ListGPUNodes returns all nodes running the GPU agent DaemonSet.
 func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
@@ -220,7 +246,7 @@ func (c *Client) ListGPUNodes(ctx context.Context) ([]GPUNode, error) {
 			PodIP:       pod.Status.PodIP,
 			Ready:       ready,
 			Namespace:   c.namespace,
-			ServiceName: DefaultServiceName,
+			ServiceName: c.serviceName,
 		})
 	}
 
@@ -339,7 +365,7 @@ func (c *Client) GetPodForNode(
 		PodIP:       pod.Status.PodIP,
 		Ready:       ready,
 		Namespace:   c.namespace,
-		ServiceName: DefaultServiceName,
+		ServiceName: c.serviceName,
 	}, nil
 }
 
