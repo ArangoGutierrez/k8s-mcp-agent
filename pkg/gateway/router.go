@@ -32,12 +32,16 @@ const (
 	RoutingModeExec RoutingMode = "exec"
 )
 
+// DefaultMaxConcurrency is the default maximum concurrent requests to agents.
+const DefaultMaxConcurrency = 10
+
 // Router forwards MCP requests to node agents.
 type Router struct {
 	k8sClient      *k8s.Client
 	httpClient     *AgentHTTPClient
 	routingMode    RoutingMode
 	circuitBreaker *CircuitBreaker
+	maxConcurrency int
 }
 
 // RouterOption configures a Router.
@@ -57,6 +61,16 @@ func WithCircuitBreaker(cb *CircuitBreaker) RouterOption {
 	}
 }
 
+// WithMaxConcurrency sets the maximum number of concurrent requests to agents.
+// This prevents memory exhaustion in large clusters. Default is 10.
+func WithMaxConcurrency(n int) RouterOption {
+	return func(r *Router) {
+		if n > 0 {
+			r.maxConcurrency = n
+		}
+	}
+}
+
 // NewRouter creates a new gateway router.
 func NewRouter(k8sClient *k8s.Client, opts ...RouterOption) *Router {
 	// Configure circuit breaker with metrics callback
@@ -71,6 +85,7 @@ func NewRouter(k8sClient *k8s.Client, opts ...RouterOption) *Router {
 		httpClient:     NewAgentHTTPClient(),
 		routingMode:    RoutingModeHTTP, // Default to HTTP
 		circuitBreaker: NewCircuitBreaker(cbConfig),
+		maxConcurrency: DefaultMaxConcurrency,
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -271,13 +286,16 @@ func (r *Router) RouteToAllNodes(
 
 	klog.InfoS("routing to nodes",
 		"requestID", requestID, "totalNodes", len(nodes),
-		"readyNodes", readyCount, "routingMode", r.routingMode)
+		"readyNodes", readyCount, "routingMode", r.routingMode,
+		"maxConcurrency", r.maxConcurrency)
 
-	results := make([]NodeResult, 0, len(nodes))
-	var mu sync.Mutex
+	// Use channel for results instead of mutex-protected slice
+	resultsCh := make(chan NodeResult, len(nodes))
 	var wg sync.WaitGroup
-	successCount := 0
-	failCount := 0
+
+	// Semaphore to limit concurrent requests
+	sem := make(chan struct{}, r.maxConcurrency)
+
 	skippedCount := 0
 
 	for _, node := range nodes {
@@ -293,14 +311,12 @@ func (r *Router) RouteToAllNodes(
 				"requestID", requestID, "node", node.Name)
 			skippedCount++
 
-			mu.Lock()
-			results = append(results, NodeResult{
+			resultsCh <- NodeResult{
 				NodeName: node.Name,
 				PodName:  node.PodName,
 				Error: fmt.Sprintf("circuit open (state: %s)",
 					r.circuitBreaker.State(node.Name)),
-			})
-			mu.Unlock()
+			}
 			continue
 		}
 
@@ -308,11 +324,21 @@ func (r *Router) RouteToAllNodes(
 		go func(n k8s.GPUNode) {
 			defer wg.Done()
 
+			// Acquire semaphore (blocks if at max concurrency)
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }() // Release on completion
+			case <-ctx.Done():
+				resultsCh <- NodeResult{
+					NodeName: n.Name,
+					PodName:  n.PodName,
+					Error:    "context cancelled while waiting for semaphore",
+				}
+				return
+			}
+
 			// Use routeToGPUNode directly to avoid redundant API call
 			response, err := r.routeToGPUNode(ctx, n, mcpRequest, requestID)
-
-			mu.Lock()
-			defer mu.Unlock()
 
 			result := NodeResult{
 				NodeName: n.Name,
@@ -320,16 +346,32 @@ func (r *Router) RouteToAllNodes(
 			}
 			if err != nil {
 				result.Error = err.Error()
-				failCount++
 			} else {
 				result.Response = response
-				successCount++
 			}
-			results = append(results, result)
+			resultsCh <- result
 		}(node)
 	}
 
-	wg.Wait()
+	// Close results channel after all goroutines complete
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	// Collect results
+	results := make([]NodeResult, 0, len(nodes))
+	successCount := 0
+	failCount := 0
+
+	for result := range resultsCh {
+		results = append(results, result)
+		if result.Error != "" {
+			failCount++
+		} else {
+			successCount++
+		}
+	}
 
 	totalDuration := time.Since(startTime)
 
