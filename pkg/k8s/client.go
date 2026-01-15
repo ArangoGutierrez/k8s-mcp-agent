@@ -282,7 +282,8 @@ func (c *Client) ExecInPod(
 		// Check if it was a timeout
 		if execCtx.Err() == context.DeadlineExceeded {
 			klog.ErrorS(err, "exec timeout",
-				"pod", podName, "timeout", c.execTimeout, "duration", duration)
+				"pod", podName, "timeout", c.execTimeout,
+				"durationSeconds", duration.Seconds())
 			return nil, fmt.Errorf("exec timeout after %s", c.execTimeout)
 		}
 		return nil, fmt.Errorf("exec failed: %w (stderr: %s)",
@@ -290,7 +291,8 @@ func (c *Client) ExecInPod(
 	}
 
 	klog.V(4).InfoS("exec completed",
-		"pod", podName, "duration", duration, "stdoutSize", stdout.Len())
+		"pod", podName, "durationSeconds", duration.Seconds(),
+		"stdoutSize", stdout.Len())
 
 	return stdout.Bytes(), nil
 }

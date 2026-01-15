@@ -14,6 +14,7 @@ import (
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
+	"github.com/google/uuid"
 	"k8s.io/klog/v2"
 )
 
@@ -93,15 +94,16 @@ func (r *Router) RouteToNode(
 	nodeName string,
 	mcpRequest []byte,
 ) ([]byte, error) {
+	requestID := uuid.New().String()
 	klog.V(4).InfoS("routing to node",
-		"node", nodeName, "routingMode", r.routingMode)
+		"requestID", requestID, "node", nodeName, "routingMode", r.routingMode)
 
 	node, err := r.k8sClient.GetPodForNode(ctx, nodeName)
 	if err != nil {
 		return nil, fmt.Errorf("node not found: %w", err)
 	}
 
-	return r.routeToGPUNode(ctx, *node, mcpRequest)
+	return r.routeToGPUNode(ctx, *node, mcpRequest, requestID)
 }
 
 // routeToGPUNode sends an MCP request to a known GPU node's agent.
@@ -111,6 +113,7 @@ func (r *Router) routeToGPUNode(
 	ctx context.Context,
 	node k8s.GPUNode,
 	mcpRequest []byte,
+	requestID string,
 ) ([]byte, error) {
 	if !node.Ready {
 		return nil, fmt.Errorf("agent on node %s is not ready", node.Name)
@@ -119,7 +122,8 @@ func (r *Router) routeToGPUNode(
 	// Check circuit breaker before routing
 	if !r.circuitBreaker.Allow(node.Name) {
 		klog.V(2).InfoS("circuit open, skipping node",
-			"node", node.Name, "state", r.circuitBreaker.State(node.Name))
+			"requestID", requestID, "node", node.Name,
+			"state", r.circuitBreaker.State(node.Name))
 		return nil, fmt.Errorf("circuit open for node %s", node.Name)
 	}
 
@@ -144,15 +148,17 @@ func (r *Router) routeToGPUNode(
 			endpoint = node.GetAgentDNSEndpoint()
 		}
 		if endpoint != "" {
-			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
+			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest,
+				startTime, requestID)
 		} else {
 			klog.V(2).InfoS("pod has no IP, falling back to exec",
-				"node", node.Name, "pod", node.PodName)
-			response, err = r.routeViaExec(ctx, node, mcpRequest, startTime)
+				"requestID", requestID, "node", node.Name, "pod", node.PodName)
+			response, err = r.routeViaExec(ctx, node, mcpRequest,
+				startTime, requestID)
 		}
 	} else {
 		// Fall back to exec routing
-		response, err = r.routeViaExec(ctx, node, mcpRequest, startTime)
+		response, err = r.routeViaExec(ctx, node, mcpRequest, startTime, requestID)
 	}
 
 	// Record result with circuit breaker
@@ -172,9 +178,11 @@ func (r *Router) routeViaHTTP(
 	endpoint string,
 	mcpRequest []byte,
 	startTime time.Time,
+	requestID string,
 ) ([]byte, error) {
 	klog.V(4).InfoS("routing via HTTP",
-		"node", node.Name, "endpoint", endpoint, "requestSize", len(mcpRequest))
+		"requestID", requestID, "node", node.Name, "endpoint", endpoint,
+		"requestSize", len(mcpRequest))
 
 	// For HTTP mode, we send just the tool call - no init framing needed
 	// The agent HTTP server handles the full MCP session
@@ -186,15 +194,15 @@ func (r *Router) routeViaHTTP(
 	if err != nil {
 		status = "error"
 		klog.ErrorS(err, "HTTP request failed",
-			"node", node.Name, "endpoint", endpoint,
-			"durationMs", duration.Milliseconds())
+			"requestID", requestID, "node", node.Name, "endpoint", endpoint,
+			"durationSeconds", duration.Seconds())
 		metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 		return nil, fmt.Errorf("HTTP request failed on node %s: %w", node.Name, err)
 	}
 
 	klog.InfoS("HTTP request completed",
-		"node", node.Name, "endpoint", endpoint,
-		"durationMs", duration.Milliseconds(), "responseBytes", len(response))
+		"requestID", requestID, "node", node.Name, "endpoint", endpoint,
+		"durationSeconds", duration.Seconds(), "responseBytes", len(response))
 
 	metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 	return response, nil
@@ -206,9 +214,11 @@ func (r *Router) routeViaExec(
 	node k8s.GPUNode,
 	mcpRequest []byte,
 	startTime time.Time,
+	requestID string,
 ) ([]byte, error) {
 	klog.V(4).InfoS("routing via exec",
-		"node", node.Name, "pod", node.PodName, "requestSize", len(mcpRequest))
+		"requestID", requestID, "node", node.Name, "pod", node.PodName,
+		"requestSize", len(mcpRequest))
 
 	stdin := bytes.NewReader(mcpRequest)
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
@@ -219,15 +229,15 @@ func (r *Router) routeViaExec(
 	if err != nil {
 		status = "error"
 		klog.ErrorS(err, "exec failed",
-			"node", node.Name, "pod", node.PodName,
-			"durationMs", duration.Milliseconds())
+			"requestID", requestID, "node", node.Name, "pod", node.PodName,
+			"durationSeconds", duration.Seconds())
 		metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
 	klog.InfoS("exec completed",
-		"node", node.Name, "pod", node.PodName,
-		"durationMs", duration.Milliseconds(), "responseBytes", len(response))
+		"requestID", requestID, "node", node.Name, "pod", node.PodName,
+		"durationSeconds", duration.Seconds(), "responseBytes", len(response))
 
 	metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 	return response, nil
@@ -239,6 +249,7 @@ func (r *Router) RouteToAllNodes(
 	ctx context.Context,
 	mcpRequest []byte,
 ) ([]NodeResult, error) {
+	requestID := uuid.New().String()
 	startTime := time.Now()
 
 	nodes, err := r.k8sClient.ListGPUNodes(ctx)
@@ -255,8 +266,8 @@ func (r *Router) RouteToAllNodes(
 	}
 
 	klog.InfoS("routing to nodes",
-		"totalNodes", len(nodes), "readyNodes", readyCount,
-		"routingMode", r.routingMode)
+		"requestID", requestID, "totalNodes", len(nodes),
+		"readyNodes", readyCount, "routingMode", r.routingMode)
 
 	results := make([]NodeResult, 0, len(nodes))
 	var mu sync.Mutex
@@ -267,13 +278,15 @@ func (r *Router) RouteToAllNodes(
 
 	for _, node := range nodes {
 		if !node.Ready {
-			klog.V(2).InfoS("skipping unready node", "node", node.Name)
+			klog.V(2).InfoS("skipping unready node",
+				"requestID", requestID, "node", node.Name)
 			continue
 		}
 
 		// Check circuit breaker before spawning goroutine
 		if !r.circuitBreaker.Allow(node.Name) {
-			klog.V(2).InfoS("circuit open, skipping node", "node", node.Name)
+			klog.V(2).InfoS("circuit open, skipping node",
+				"requestID", requestID, "node", node.Name)
 			skippedCount++
 
 			mu.Lock()
@@ -292,7 +305,7 @@ func (r *Router) RouteToAllNodes(
 			defer wg.Done()
 
 			// Use routeToGPUNode directly to avoid redundant API call
-			response, err := r.routeToGPUNode(ctx, n, mcpRequest)
+			response, err := r.routeToGPUNode(ctx, n, mcpRequest, requestID)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -317,9 +330,9 @@ func (r *Router) RouteToAllNodes(
 	totalDuration := time.Since(startTime)
 
 	klog.InfoS("routing complete",
-		"totalNodes", len(nodes), "success", successCount,
-		"failed", failCount, "skipped", skippedCount,
-		"durationMs", totalDuration.Milliseconds())
+		"requestID", requestID, "totalNodes", len(nodes),
+		"success", successCount, "failed", failCount, "skipped", skippedCount,
+		"durationSeconds", totalDuration.Seconds())
 
 	// Partial success: return results even if some failed.
 	// Only return error if ALL nodes failed.
