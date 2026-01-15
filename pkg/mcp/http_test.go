@@ -120,7 +120,7 @@ func TestHTTPServer_BindFailure_NoReadySignal(t *testing.T) {
 	// Create a listener first to occupy a port
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	// Get the actual address the listener is using
 	actualAddr := ln.Addr().String()
