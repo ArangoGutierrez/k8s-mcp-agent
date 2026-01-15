@@ -191,22 +191,21 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 
 ## 📈 Project Status
 
-### Current Milestone: [M2: Hardware Introspection](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/2)
-**Due:** January 17, 2026  
-**Progress:** Phase 1 Complete (Real NVML ✅)
+### Current Milestone: [M3: Kubernetes Integration](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/3)
+**Progress:** ~80% Complete (HTTP Transport ✅, Gateway ✅)
 
 ### Completed Milestones
 - ✅ [M1: Foundation & API](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/1) - Completed Jan 3, 2026
-  - Go module scaffolding
-  - MCP stdio server
-  - Mock NVML implementation
-  - Comprehensive CI/CD
+- ✅ [M2: Hardware Introspection](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/2) - Completed Jan 10, 2026
+  - Real NVML integration, tested on Tesla T4
+  - GPU health monitoring, XID error analysis
+  - npm/Helm distribution
 
-### Recent Updates
-- **Jan 4, 2026**: GPU health monitoring tool (`get_gpu_health`) merged
-- **Jan 3, 2026**: XID error analysis tool (`analyze_xid_errors`) merged
-- **Jan 3, 2026**: Real NVML integration complete, tested on Tesla T4
-- **Jan 3, 2026**: 74/74 tests passing, 5/5 integration tests on real GPU
+### Recent Updates (Jan 2026)
+- **Jan 14**: HTTP Transport Epic complete - 150× latency improvement
+- **Jan 14**: Cross-node networking fix (Calico VXLAN)
+- **Jan 13**: Gateway mode with circuit breaker & Prometheus metrics
+- **Jan 12**: Per-node latency tracking (`mcp_gateway_request_duration_seconds`)
 
 📊 **[View All Milestones →](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestones)**
 
@@ -379,7 +378,7 @@ Claude: "Found zombie process PID 12345 using 8GB. Kill it?"
 
 - ✅ **Go 1.25** - Latest Go version
 - ✅ **Real NVML** - Tested on Tesla T4
-- ✅ **74/74 Tests** - 100% passing with race detector
+- ✅ **All Tests Passing** - Race detector enabled, 58-80% coverage
 - ✅ **Zero Lint Issues** - Clean codebase
 - ✅ **7.9MB Binary** - 84% under 50MB target
 - ✅ **MCP 2025-06-18** - Latest protocol version

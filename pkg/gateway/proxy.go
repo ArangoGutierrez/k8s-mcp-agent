@@ -7,11 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/mark3labs/mcp-go/mcp"
+	"k8s.io/klog/v2"
 )
 
 // ProxyHandler forwards tool calls to node agents and aggregates responses.
@@ -44,9 +44,10 @@ func (p *ProxyHandler) Handle(
 		ctx = WithCorrelationID(ctx, correlationID)
 	}
 
-	log.Printf(`{"level":"info","msg":"proxy_tool invoked","tool":"%s",`+
-		`"routing_mode":"%s","correlation_id":"%s"}`,
-		p.toolName, p.router.RoutingMode(), correlationID)
+	klog.InfoS("proxy_tool invoked",
+		"tool", p.toolName,
+		"routingMode", p.router.RoutingMode(),
+		"correlationID", correlationID)
 
 	var mcpRequest []byte
 	var err error
@@ -61,8 +62,7 @@ func (p *ProxyHandler) Handle(
 	}
 
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to build MCP request",`+
-			`"tool":"%s","error":"%v"}`, p.toolName, err)
+		klog.ErrorS(err, "failed to build MCP request", "tool", p.toolName)
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to build request: %v", err)), nil
 	}
@@ -83,9 +83,8 @@ func (p *ProxyHandler) Handle(
 			fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}
 
-	log.Printf(`{"level":"info","msg":"proxy_tool completed","tool":"%s",`+
-		`"node_count":%d,"correlation_id":"%s"}`,
-		p.toolName, len(results), correlationID)
+	klog.InfoS("proxy_tool completed",
+		"tool", p.toolName, "nodeCount", len(results), "correlationID", correlationID)
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

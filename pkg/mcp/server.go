@@ -7,9 +7,7 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/gateway"
@@ -17,6 +15,7 @@ import (
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
+	"k8s.io/klog/v2"
 )
 
 // TransportType defines the transport mode for the MCP server.
@@ -151,12 +150,15 @@ func New(cfg Config) (*Server, error) {
 			cfg.K8sClient.Clientset(), nil)
 		mcpServer.AddTool(tools.GetDescribeGPUNodeTool(), describeHandler.Handle)
 
-		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
-			`"mode":"%s","gateway":true,"namespace":"%s","routing_mode":"%s",`+
-			`"tools":["get_gpu_inventory","get_gpu_health","analyze_xid_errors",`+
-			`"get_pod_gpu_allocation","describe_gpu_node"],`+
-			`"version":"%s","commit":"%s"}`,
-			cfg.Mode, cfg.Namespace, cfg.RoutingMode, cfg.Version, cfg.GitCommit)
+		klog.InfoS("MCP server initialized",
+			"mode", cfg.Mode,
+			"gateway", true,
+			"namespace", cfg.Namespace,
+			"routingMode", cfg.RoutingMode,
+			"tools", []string{"get_gpu_inventory", "get_gpu_health",
+				"analyze_xid_errors", "get_pod_gpu_allocation", "describe_gpu_node"},
+			"version", cfg.Version,
+			"commit", cfg.GitCommit)
 	} else {
 		// Regular mode: register GPU tools with NVML
 		gpuInventoryHandler := tools.NewGPUInventoryHandler(cfg.NVMLClient)
@@ -169,9 +171,11 @@ func New(cfg Config) (*Server, error) {
 		healthHandler := tools.NewGPUHealthHandler(cfg.NVMLClient)
 		mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
 
-		log.Printf(`{"level":"info","msg":"MCP server initialized",`+
-			`"mode":"%s","gateway":false,"version":"%s","commit":"%s"}`,
-			cfg.Mode, cfg.Version, cfg.GitCommit)
+		klog.InfoS("MCP server initialized",
+			"mode", cfg.Mode,
+			"gateway", false,
+			"version", cfg.Version,
+			"commit", cfg.GitCommit)
 	}
 
 	s.mcpServer = mcpServer
@@ -191,8 +195,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 // runStdio runs the server with stdio transport.
 func (s *Server) runStdio(ctx context.Context) error {
-	log.Printf(`{"level":"info","msg":"MCP server starting",`+
-		`"transport":"stdio","mode":"%s"}`, s.mode)
+	klog.InfoS("MCP server starting", "transport", "stdio", "mode", s.mode)
 
 	// Oneshot mode: use OneshotTransport for deterministic exit
 	if s.oneshot > 0 {
@@ -211,8 +214,8 @@ func (s *Server) runStdio(ctx context.Context) error {
 			return err
 		}
 
-		log.Printf(`{"level":"info","msg":"oneshot completed",`+
-			`"processed":%d,"errors":%d}`, result.Processed, result.Errors)
+		klog.InfoS("oneshot completed",
+			"processed", result.Processed, "errors", result.Errors)
 		return nil
 	}
 
@@ -227,20 +230,18 @@ func (s *Server) runStdio(ctx context.Context) error {
 	// Wait for context cancellation or server error
 	select {
 	case <-ctx.Done():
-		log.Printf(`{"level":"info","msg":"MCP server stopping",` +
-			`"reason":"context cancelled"}`)
+		klog.InfoS("MCP server stopping", "reason", "context cancelled")
 		return s.Shutdown()
 	case err := <-errCh:
-		log.Printf(`{"level":"error","msg":"MCP server error","error":"%s"}`,
-			err)
+		klog.ErrorS(err, "MCP server error")
 		return err
 	}
 }
 
 // runHTTP runs the server with HTTP transport.
 func (s *Server) runHTTP(ctx context.Context) error {
-	log.Printf(`{"level":"info","msg":"MCP server starting",`+
-		`"transport":"http","addr":"%s","mode":"%s"}`, s.httpAddr, s.mode)
+	klog.InfoS("MCP server starting",
+		"transport", "http", "addr", s.httpAddr, "mode", s.mode)
 
 	httpServer := NewHTTPServer(s.mcpServer, s.httpAddr, s.version)
 	return httpServer.ListenAndServe(ctx)
@@ -248,32 +249,11 @@ func (s *Server) runHTTP(ctx context.Context) error {
 
 // Shutdown gracefully shuts down the MCP server.
 func (s *Server) Shutdown() error {
-	log.Printf(`{"level":"info","msg":"MCP server shutdown initiated"}`)
+	klog.InfoS("MCP server shutdown initiated")
 
 	// The mcp-go library doesn't expose a shutdown method,
 	// so we just log the shutdown
 
-	log.Printf(`{"level":"info","msg":"MCP server shutdown complete"}`)
+	klog.InfoS("MCP server shutdown complete")
 	return nil
-}
-
-// LogToStderr logs a structured message to stderr.
-// This is a helper to ensure logs never go to stdout.
-func LogToStderr(level, msg string, fields map[string]interface{}) {
-	logEntry := map[string]interface{}{
-		"level": level,
-		"msg":   msg,
-	}
-	for k, v := range fields {
-		logEntry[k] = v
-	}
-
-	jsonBytes, err := json.Marshal(logEntry)
-	if err != nil {
-		// Fallback to simple log
-		fmt.Fprintf(os.Stderr, `{"level":"error","msg":"log marshal failed"}`+"\n")
-		return
-	}
-
-	fmt.Fprintf(os.Stderr, "%s\n", jsonBytes)
 }

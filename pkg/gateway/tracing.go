@@ -7,7 +7,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"log"
+
+	"k8s.io/klog/v2"
 )
 
 // correlationIDKeyType is the context key type for correlation IDs.
@@ -21,8 +22,7 @@ var correlationIDKey = correlationIDKeyType{}
 func NewCorrelationID() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to generate correlation ID",`+
-			`"error":"%v"}`, err)
+		klog.V(2).InfoS("failed to generate correlation ID", "error", err)
 	}
 	return hex.EncodeToString(b)
 }

@@ -8,7 +8,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/mcp"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
+	"k8s.io/klog/v2"
 )
 
 // ValidLogLevels are the accepted log levels.
@@ -33,9 +33,8 @@ func resolveLogLevel(flagValue string) string {
 			return level
 		}
 		// Invalid env value - log warning and fall back to flag
-		log.Printf(`{"level":"warn","msg":"invalid LOG_LEVEL env var",`+
-			`"value":"%s","valid":%q,"using":"%s"}`,
-			envLevel, ValidLogLevels, flagValue)
+		klog.V(2).InfoS("invalid LOG_LEVEL env var",
+			"value", envLevel, "valid", ValidLogLevels, "using", flagValue)
 	}
 	return flagValue
 }
@@ -58,6 +57,9 @@ const (
 )
 
 func main() {
+	// Initialize klog flags (adds -v, -logtostderr, etc.)
+	klog.InitFlags(nil)
+
 	// Parse command-line flags
 	var (
 		mode     = flag.String("mode", ModeReadOnly, "Operation mode: read-only or operator")
@@ -83,6 +85,9 @@ func main() {
 	)
 	flag.Parse()
 
+	// Flush logs on exit
+	defer klog.Flush()
+
 	// Show version and exit if requested
 	if *showVer {
 		buildInfo := info.GetInfo()
@@ -93,28 +98,36 @@ func main() {
 
 	// Validate mode flag
 	if *mode != ModeReadOnly && *mode != ModeOperator {
-		log.Fatalf(`{"level":"fatal","msg":"invalid mode","mode":"%s",`+
-			`"valid":["read-only","operator"]}`, *mode)
+		klog.ErrorS(nil, "invalid mode",
+			"mode", *mode, "valid", []string{"read-only", "operator"})
+		klog.Flush()
+		os.Exit(1)
 	}
 
 	// Validate nvml-mode flag (only relevant in non-gateway mode)
 	if !*gatewayMode && *nvmlMode != "mock" && *nvmlMode != "real" {
-		log.Fatalf(`{"level":"fatal","msg":"invalid nvml-mode",`+
-			`"nvml_mode":"%s","valid":["mock","real"]}`, *nvmlMode)
+		klog.ErrorS(nil, "invalid nvml-mode",
+			"nvmlMode", *nvmlMode, "valid", []string{"mock", "real"})
+		klog.Flush()
+		os.Exit(1)
 	}
 
 	// Resolve log level from env var and flag
 	effectiveLogLevel := resolveLogLevel(*logLevel)
 	if !isValidLogLevel(effectiveLogLevel) {
-		log.Fatalf(`{"level":"fatal","msg":"invalid log-level",`+
-			`"log_level":"%s","valid":%q}`, effectiveLogLevel, ValidLogLevels)
+		klog.ErrorS(nil, "invalid log-level",
+			"logLevel", effectiveLogLevel, "valid", ValidLogLevels)
+		klog.Flush()
+		os.Exit(1)
 	}
 
 	// Validate routing mode if in gateway mode (fail fast before logging)
 	if *gatewayMode {
 		if *routingMode != "http" && *routingMode != "exec" {
-			log.Fatalf(`{"level":"fatal","msg":"invalid routing-mode",`+
-				`"routing_mode":"%s","valid":["http","exec"]}`, *routingMode)
+			klog.ErrorS(nil, "invalid routing-mode",
+				"routingMode", *routingMode, "valid", []string{"http", "exec"})
+			klog.Flush()
+			os.Exit(1)
 		}
 	}
 
@@ -124,29 +137,35 @@ func main() {
 
 	if *port > 0 {
 		if *port < 1 || *port > 65535 {
-			log.Fatalf(`{"level":"fatal","msg":"invalid port","port":%d,`+
-				`"valid":"1-65535 or 0 for stdio"}`, *port)
+			klog.ErrorS(nil, "invalid port",
+				"port", *port, "valid", "1-65535 or 0 for stdio")
+			klog.Flush()
+			os.Exit(1)
 		}
 		transport = mcp.TransportHTTP
 		httpAddr = fmt.Sprintf("%s:%d", *addr, *port)
-		log.Printf(`{"level":"info","msg":"HTTP mode enabled","addr":"%s"}`,
-			httpAddr)
+		klog.InfoS("HTTP mode enabled", "addr", httpAddr)
 	} else {
 		transport = mcp.TransportStdio
 	}
 
-	// Log startup information to stderr (structured JSON)
+	// Log startup information to stderr (structured)
 	if *gatewayMode {
-		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
-			`"version":"%s","commit":"%s","mode":"%s","gateway":true,`+
-			`"namespace":"%s","routing_mode":"%s","log_level":"%s"}`,
-			info.Version(), info.GitCommit(), *mode, *namespace,
-			*routingMode, effectiveLogLevel)
+		klog.InfoS("starting k8s-gpu-mcp-server",
+			"version", info.Version(),
+			"commit", info.GitCommit(),
+			"mode", *mode,
+			"gateway", true,
+			"namespace", *namespace,
+			"routingMode", *routingMode,
+			"logLevel", effectiveLogLevel)
 	} else {
-		log.Printf(`{"level":"info","msg":"starting k8s-gpu-mcp-server",`+
-			`"version":"%s","commit":"%s","mode":"%s","nvml_mode":"%s",`+
-			`"log_level":"%s"}`,
-			info.Version(), info.GitCommit(), *mode, *nvmlMode, effectiveLogLevel)
+		klog.InfoS("starting k8s-gpu-mcp-server",
+			"version", info.Version(),
+			"commit", info.GitCommit(),
+			"mode", *mode,
+			"nvmlMode", *nvmlMode,
+			"logLevel", effectiveLogLevel)
 	}
 
 	// Setup context with cancellation for graceful shutdown
@@ -176,13 +195,12 @@ func main() {
 
 	if *gatewayMode {
 		// Gateway mode: initialize K8s client
-		log.Printf(`{"level":"info","msg":"initializing K8s client",`+
-			`"namespace":"%s"}`, *namespace)
+		klog.InfoS("initializing K8s client", "namespace", *namespace)
 
 		k8sClient, err := k8s.NewClient(*namespace)
 		if err != nil {
-			log.Printf(`{"level":"fatal","msg":"failed to create K8s client",`+
-				`"error":"%s"}`, err)
+			klog.ErrorS(err, "failed to create K8s client")
+			klog.Flush()
 			os.Exit(1)
 		}
 		mcpCfg.K8sClient = k8sClient
@@ -190,24 +208,21 @@ func main() {
 		// Regular mode: initialize NVML client
 		var nvmlClient nvml.Interface
 		if *nvmlMode == "real" {
-			log.Printf(`{"level":"info",` +
-				`"msg":"initializing real NVML (requires GPU hardware)"}`)
+			klog.InfoS("initializing real NVML (requires GPU hardware)")
 			nvmlClient = nvml.NewReal()
 		} else {
-			log.Printf(`{"level":"info","msg":"initializing mock NVML",` +
-				`"fake_gpus":2}`)
+			klog.InfoS("initializing mock NVML", "fakeGPUs", 2)
 			nvmlClient = nvml.NewMock(2)
 		}
 
 		if err := nvmlClient.Init(ctx); err != nil {
-			log.Printf(`{"level":"fatal","msg":"failed to initialize NVML",`+
-				`"nvml_mode":"%s","error":"%s"}`, *nvmlMode, err)
+			klog.ErrorS(err, "failed to initialize NVML", "nvmlMode", *nvmlMode)
+			klog.Flush()
 			os.Exit(1)
 		}
 		defer func() {
 			if err := nvmlClient.Shutdown(ctx); err != nil {
-				log.Printf(`{"level":"error",`+
-					`"msg":"failed to shutdown NVML","error":"%s"}`, err)
+				klog.ErrorS(err, "failed to shutdown NVML")
 			}
 		}()
 		mcpCfg.NVMLClient = nvmlClient
@@ -216,15 +231,15 @@ func main() {
 	// Initialize MCP server
 	mcpServer, err := mcp.New(mcpCfg)
 	if err != nil {
-		log.Printf(`{"level":"fatal","msg":"failed to create MCP server",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to create MCP server")
+		klog.Flush()
 		os.Exit(1)
 	}
 
 	// Start the MCP server in a goroutine
 	go func() {
 		if err := mcpServer.Run(ctx); err != nil {
-			log.Printf(`{"level":"error","msg":"MCP server error","error":"%s"}`, err)
+			klog.ErrorS(err, "MCP server error")
 			done <- err
 			return
 		}
@@ -235,20 +250,22 @@ func main() {
 	serverCompleted := false
 	select {
 	case sig := <-sigCh:
-		log.Printf(`{"level":"info","msg":"received signal","signal":"%s"}`, sig)
+		klog.InfoS("received signal", "signal", sig.String())
 		cancel()
 	case err := <-done:
 		serverCompleted = true
 		if err != nil {
-			log.Printf(`{"level":"error","msg":"server error","error":"%s"}`, err)
+			klog.ErrorS(err, "server error")
+			klog.Flush()
 			os.Exit(1)
 		}
 	}
 
-	// Wait for graceful shutdown only if interrupted (not if server completed normally)
-	// In oneshot mode, the server sends to done exactly once and exits - no second wait needed.
+	// Wait for graceful shutdown only if interrupted (not if server completed
+	// normally). In oneshot mode, the server sends to done exactly once and
+	// exits - no second wait needed.
 	if !serverCompleted {
 		<-done
 	}
-	log.Printf(`{"level":"info","msg":"shutdown complete"}`)
+	klog.InfoS("shutdown complete")
 }

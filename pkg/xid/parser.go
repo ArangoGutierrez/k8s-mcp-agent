@@ -6,12 +6,13 @@ package xid
 import (
 	"context"
 	"fmt"
-	"log"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/klog/v2"
 )
 
 // XIDEvent represents a parsed XID error event from kernel logs.
@@ -64,19 +65,18 @@ func (p *Parser) ParseKernelLogs(ctx context.Context) ([]XIDEvent, error) {
 	kmsgAvailable := kmsgReader.IsAvailable()
 
 	if kmsgAvailable {
-		log.Printf(`{"level":"debug","msg":"reading kernel logs from /dev/kmsg"}`)
+		klog.V(4).InfoS("reading kernel logs from /dev/kmsg")
 		messages, err := kmsgReader.ReadMessages(ctx)
 		if err == nil {
-			log.Printf(`{"level":"debug","msg":"read kernel messages",`+
-				`"count":%d,"source":"/dev/kmsg"}`, len(messages))
+			klog.V(4).InfoS("read kernel messages",
+				"count", len(messages), "source", "/dev/kmsg")
 			return p.parseMessages(messages), nil
 		}
 		// Log warning and fall back to dmesg
-		log.Printf(`{"level":"warn","msg":"failed to read /dev/kmsg, `+
-			`falling back to dmesg","error":"%s"}`, err)
+		klog.V(2).InfoS("failed to read /dev/kmsg, falling back to dmesg",
+			"error", err)
 	} else {
-		log.Printf(`{"level":"debug","msg":"/dev/kmsg not available, ` +
-			`using dmesg"}`)
+		klog.V(4).InfoS("/dev/kmsg not available, using dmesg")
 	}
 
 	// Fall back to dmesg command

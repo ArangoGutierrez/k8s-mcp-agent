@@ -45,12 +45,18 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 - **[License](../LICENSE)** - Apache 2.0
 - **[Milestone Reports](reports/)** - Completion reports
   - [M1 Completion](reports/m1-completion.md)
+  - [M2 Completion](reports/m2-completion.md)
+  - [Project 360 Review (Jan 15, 2026)](reports/project-360-review-2026-01-15.md)
+
+### Troubleshooting
+
+- **[Cross-Node Networking](troubleshooting/cross-node-networking.md)** - CNI issues with Calico/AWS
 
 ### Internal Resources
 
 - **[Implementation Prompts](prompts/)** - AI-assisted development prompts
-  - [GPU Health Monitoring](prompts/gpu-health-monitoring.md)
-  - [XID Error Analysis](prompts/xid-error-analysis.md)
+  - [NPM kubectl Bridge](prompts/npm-kubectl-bridge.md) - Remote cluster access
+  - [M3 Kubernetes Tools](prompts/m3-kubernetes-tools.md) - K8s integration
 
 ## 🎯 Quick Links
 

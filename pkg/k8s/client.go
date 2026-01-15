@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/klog/v2"
 )
 
 // DefaultExecTimeout is the default timeout for pod exec operations.
@@ -43,21 +43,19 @@ func parseExecTimeout(value string, fallback time.Duration) time.Duration {
 
 	d, err := time.ParseDuration(value)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"invalid EXEC_TIMEOUT",`+
-			`"value":"%s","error":"%v","using_default":"%s"}`,
-			value, err, fallback)
+		klog.V(2).InfoS("invalid EXEC_TIMEOUT",
+			"value", value, "error", err, "usingDefault", fallback)
 		return fallback
 	}
 
 	if d < minTimeout || d > maxTimeout {
-		log.Printf(`{"level":"warn","msg":"EXEC_TIMEOUT out of bounds",`+
-			`"value":"%s","min":"%s","max":"%s","using_default":"%s"}`,
-			d, minTimeout, maxTimeout, fallback)
+		klog.V(2).InfoS("EXEC_TIMEOUT out of bounds",
+			"value", d, "min", minTimeout, "max", maxTimeout,
+			"usingDefault", fallback)
 		return fallback
 	}
 
-	log.Printf(`{"level":"info","msg":"exec timeout configured",`+
-		`"timeout":"%s","source":"env"}`, d)
+	klog.InfoS("exec timeout configured", "timeout", d, "source", "env")
 	return d
 }
 
@@ -283,18 +281,16 @@ func (c *Client) ExecInPod(
 	if err != nil {
 		// Check if it was a timeout
 		if execCtx.Err() == context.DeadlineExceeded {
-			log.Printf(`{"level":"error","msg":"exec timeout","pod":"%s",`+
-				`"timeout":"%s","duration":"%s"}`,
-				podName, c.execTimeout, duration)
+			klog.ErrorS(err, "exec timeout",
+				"pod", podName, "timeout", c.execTimeout, "duration", duration)
 			return nil, fmt.Errorf("exec timeout after %s", c.execTimeout)
 		}
 		return nil, fmt.Errorf("exec failed: %w (stderr: %s)",
 			err, stderr.String())
 	}
 
-	log.Printf(`{"level":"debug","msg":"exec completed","pod":"%s",`+
-		`"duration":"%s","stdout_size":%d}`,
-		podName, duration, stdout.Len())
+	klog.V(4).InfoS("exec completed",
+		"pod", podName, "duration", duration, "stdoutSize", stdout.Len())
 
 	return stdout.Bytes(), nil
 }

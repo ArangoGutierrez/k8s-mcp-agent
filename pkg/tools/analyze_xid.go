@@ -7,12 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/xid"
 	"github.com/mark3labs/mcp-go/mcp"
+	"k8s.io/klog/v2"
 )
 
 // xidParser is an interface for parsing XID events from kernel logs.
@@ -75,11 +75,11 @@ func (h *AnalyzeXIDHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"analyze_xid_errors invoked"}`)
+	klog.InfoS("analyze_xid_errors invoked")
 
 	// Check context before expensive operation
 	if err := ctx.Err(); err != nil {
-		log.Printf(`{"level":"info","msg":"context cancelled before parsing"}`)
+		klog.InfoS("context cancelled before parsing")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("operation cancelled: %s", err)), nil
 	}
@@ -87,14 +87,12 @@ func (h *AnalyzeXIDHandler) Handle(
 	// Parse kernel logs for XID events (prefers /dev/kmsg, falls back to dmesg)
 	events, err := h.parser.ParseKernelLogs(ctx)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to parse kernel logs",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to parse kernel logs")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to parse kernel logs: %s", err)), nil
 	}
 
-	log.Printf(`{"level":"debug","msg":"parsed kernel logs",`+
-		`"event_count":%d}`, len(events))
+	klog.V(4).InfoS("parsed kernel logs", "eventCount", len(events))
 
 	// If no errors found, return success immediately
 	if len(events) == 0 {
@@ -111,8 +109,7 @@ func (h *AnalyzeXIDHandler) Handle(
 	// Enrich each event with XID info and GPU details
 	enrichedErrors, err := h.enrichEvents(ctx, events)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to enrich events",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to enrich events")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to enrich error data: %s", err)), nil
 	}
@@ -135,8 +132,8 @@ func (h *AnalyzeXIDHandler) Handle(
 		Recommendation: recommendation,
 	}
 
-	log.Printf(`{"level":"info","msg":"analyze_xid_errors completed",`+
-		`"error_count":%d,"status":"%s"}`, len(enrichedErrors), status)
+	klog.InfoS("analyze_xid_errors completed",
+		"errorCount", len(enrichedErrors), "status", status)
 
 	return h.marshalResponse(response)
 }
@@ -198,8 +195,7 @@ func (h *AnalyzeXIDHandler) findGPUByPCI(
 	// Get device count
 	count, err := h.nvmlClient.GetDeviceCount(ctx)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to get device count",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to get device count")
 		return -1, gpuLookupResult{}
 	}
 
@@ -207,7 +203,7 @@ func (h *AnalyzeXIDHandler) findGPUByPCI(
 	for i := 0; i < count; i++ {
 		// Check for context cancellation
 		if err := ctx.Err(); err != nil {
-			log.Printf(`{"level":"debug","msg":"context cancelled during GPU lookup"}`)
+			klog.V(4).InfoS("context cancelled during GPU lookup")
 			return -1, gpuLookupResult{}
 		}
 
@@ -335,8 +331,7 @@ func (h *AnalyzeXIDHandler) marshalResponse(
 ) (*mcp.CallToolResult, error) {
 	jsonBytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to marshal response")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}

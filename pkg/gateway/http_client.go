@@ -8,9 +8,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
+
+	"k8s.io/klog/v2"
 )
 
 // DefaultAgentHTTPPort is the default port agents listen on in HTTP mode.
@@ -66,9 +67,8 @@ func (c *AgentHTTPClient) CallMCP(
 	for attempt := 0; attempt <= c.retryPolicy.MaxRetries; attempt++ {
 		if attempt > 0 {
 			delay := c.calculateBackoff(attempt)
-			log.Printf(`{"level":"debug","msg":"retrying request",`+
-				`"attempt":%d,"delay":"%s","endpoint":"%s"}`,
-				attempt, delay, endpoint)
+			klog.V(4).InfoS("retrying request",
+				"attempt", attempt, "delay", delay, "endpoint", endpoint)
 
 			select {
 			case <-ctx.Done():

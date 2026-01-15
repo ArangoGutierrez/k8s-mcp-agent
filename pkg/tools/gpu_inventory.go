@@ -8,10 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/mark3labs/mcp-go/mcp"
+	"k8s.io/klog/v2"
 )
 
 // GPUInventoryHandler handles the get_gpu_inventory tool.
@@ -31,13 +31,12 @@ func (h *GPUInventoryHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"get_gpu_inventory invoked"}`)
+	klog.InfoS("get_gpu_inventory invoked")
 
 	// Get device count
 	count, err := h.nvmlClient.GetDeviceCount(ctx)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to get device count",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to get device count")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to get device count: %s", err)), nil
 	}
@@ -48,7 +47,7 @@ func (h *GPUInventoryHandler) Handle(
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			log.Printf(`{"level":"info","msg":"context cancelled during GPU enumeration"}`)
+			klog.InfoS("context cancelled during GPU enumeration")
 			return mcp.NewToolResultError(
 				fmt.Sprintf("operation cancelled: %s", ctx.Err())), nil
 		default:
@@ -56,15 +55,13 @@ func (h *GPUInventoryHandler) Handle(
 
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
-			log.Printf(`{"level":"error","msg":"failed to get device",`+
-				`"index":%d,"error":"%s"}`, i, err)
+			klog.ErrorS(err, "failed to get device", "index", i)
 			continue
 		}
 
 		gpuInfo, err := h.collectDeviceInfo(ctx, i, device)
 		if err != nil {
-			log.Printf(`{"level":"error","msg":"failed to collect device info",`+
-				`"index":%d,"error":"%s"}`, i, err)
+			klog.ErrorS(err, "failed to collect device info", "index", i)
 			continue
 		}
 
@@ -92,14 +89,12 @@ func (h *GPUInventoryHandler) Handle(
 	// Marshal to JSON
 	jsonBytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to marshal response")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}
 
-	log.Printf(`{"level":"info","msg":"get_gpu_inventory completed",`+
-		`"device_count":%d}`, count)
+	klog.InfoS("get_gpu_inventory completed", "deviceCount", count)
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
@@ -142,8 +137,7 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 
 	// Collect memory info
 	if memInfo, err := device.GetMemoryInfo(ctx); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get memory info",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get memory info", "index", index, "error", err)
 	} else {
 		info.Memory = nvml.MemorySpec{
 			TotalBytes: memInfo.Total,
@@ -154,8 +148,7 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 
 	// Collect temperature with thresholds
 	if temp, err := device.GetTemperature(ctx); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get temperature",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get temperature", "index", index, "error", err)
 	} else {
 		info.Temperature.CurrentCelsius = temp
 	}
@@ -170,8 +163,7 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 
 	// Collect power with limit
 	if power, err := device.GetPowerUsage(ctx); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get power usage",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get power usage", "index", index, "error", err)
 	} else {
 		info.Power.CurrentMW = power
 	}
@@ -191,8 +183,7 @@ func (h *GPUInventoryHandler) collectDeviceInfo(
 
 	// Collect utilization
 	if util, err := device.GetUtilizationRates(ctx); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get utilization",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get utilization", "index", index, "error", err)
 	} else {
 		info.Utilization.GPUPercent = util.GPU
 		info.Utilization.MemoryPercent = util.Memory

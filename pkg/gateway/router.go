@@ -9,12 +9,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
+	"k8s.io/klog/v2"
 )
 
 // RoutingMode specifies how the gateway communicates with agents.
@@ -93,8 +93,8 @@ func (r *Router) RouteToNode(
 	nodeName string,
 	mcpRequest []byte,
 ) ([]byte, error) {
-	log.Printf(`{"level":"debug","msg":"routing to node","node":"%s",`+
-		`"routing_mode":"%s"}`, nodeName, r.routingMode)
+	klog.V(4).InfoS("routing to node",
+		"node", nodeName, "routingMode", r.routingMode)
 
 	node, err := r.k8sClient.GetPodForNode(ctx, nodeName)
 	if err != nil {
@@ -118,9 +118,8 @@ func (r *Router) routeToGPUNode(
 
 	// Check circuit breaker before routing
 	if !r.circuitBreaker.Allow(node.Name) {
-		log.Printf(`{"level":"warn","msg":"circuit open, skipping node",`+
-			`"node":"%s","state":"%s"}`,
-			node.Name, r.circuitBreaker.State(node.Name))
+		klog.V(2).InfoS("circuit open, skipping node",
+			"node", node.Name, "state", r.circuitBreaker.State(node.Name))
 		return nil, fmt.Errorf("circuit open for node %s", node.Name)
 	}
 
@@ -147,8 +146,8 @@ func (r *Router) routeToGPUNode(
 		if endpoint != "" {
 			response, err = r.routeViaHTTP(ctx, node, endpoint, mcpRequest, startTime)
 		} else {
-			log.Printf(`{"level":"warn","msg":"pod has no IP, falling back to exec",`+
-				`"node":"%s","pod":"%s"}`, node.Name, node.PodName)
+			klog.V(2).InfoS("pod has no IP, falling back to exec",
+				"node", node.Name, "pod", node.PodName)
 			response, err = r.routeViaExec(ctx, node, mcpRequest, startTime)
 		}
 	} else {
@@ -174,9 +173,8 @@ func (r *Router) routeViaHTTP(
 	mcpRequest []byte,
 	startTime time.Time,
 ) ([]byte, error) {
-	log.Printf(`{"level":"debug","msg":"routing via HTTP","node":"%s",`+
-		`"endpoint":"%s","request_size":%d}`,
-		node.Name, endpoint, len(mcpRequest))
+	klog.V(4).InfoS("routing via HTTP",
+		"node", node.Name, "endpoint", endpoint, "requestSize", len(mcpRequest))
 
 	// For HTTP mode, we send just the tool call - no init framing needed
 	// The agent HTTP server handles the full MCP session
@@ -187,16 +185,16 @@ func (r *Router) routeViaHTTP(
 	status := "success"
 	if err != nil {
 		status = "error"
-		log.Printf(`{"level":"error","msg":"HTTP request failed","node":"%s",`+
-			`"endpoint":"%s","duration_ms":%d,"error":"%v"}`,
-			node.Name, endpoint, duration.Milliseconds(), err)
+		klog.ErrorS(err, "HTTP request failed",
+			"node", node.Name, "endpoint", endpoint,
+			"durationMs", duration.Milliseconds())
 		metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 		return nil, fmt.Errorf("HTTP request failed on node %s: %w", node.Name, err)
 	}
 
-	log.Printf(`{"level":"info","msg":"HTTP request completed","node":"%s",`+
-		`"endpoint":"%s","duration_ms":%d,"response_bytes":%d}`,
-		node.Name, endpoint, duration.Milliseconds(), len(response))
+	klog.InfoS("HTTP request completed",
+		"node", node.Name, "endpoint", endpoint,
+		"durationMs", duration.Milliseconds(), "responseBytes", len(response))
 
 	metrics.RecordGatewayRequest(node.Name, "http", status, duration.Seconds())
 	return response, nil
@@ -209,9 +207,8 @@ func (r *Router) routeViaExec(
 	mcpRequest []byte,
 	startTime time.Time,
 ) ([]byte, error) {
-	log.Printf(`{"level":"debug","msg":"routing via exec","node":"%s",`+
-		`"pod":"%s","request_size":%d}`,
-		node.Name, node.PodName, len(mcpRequest))
+	klog.V(4).InfoS("routing via exec",
+		"node", node.Name, "pod", node.PodName, "requestSize", len(mcpRequest))
 
 	stdin := bytes.NewReader(mcpRequest)
 	response, err := r.k8sClient.ExecInPod(ctx, node.PodName, "agent", stdin)
@@ -221,16 +218,16 @@ func (r *Router) routeViaExec(
 	status := "success"
 	if err != nil {
 		status = "error"
-		log.Printf(`{"level":"error","msg":"exec failed","node":"%s",`+
-			`"pod":"%s","duration_ms":%d,"error":"%v"}`,
-			node.Name, node.PodName, duration.Milliseconds(), err)
+		klog.ErrorS(err, "exec failed",
+			"node", node.Name, "pod", node.PodName,
+			"durationMs", duration.Milliseconds())
 		metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 		return nil, fmt.Errorf("exec failed on node %s: %w", node.Name, err)
 	}
 
-	log.Printf(`{"level":"info","msg":"exec completed","node":"%s",`+
-		`"pod":"%s","duration_ms":%d,"response_bytes":%d}`,
-		node.Name, node.PodName, duration.Milliseconds(), len(response))
+	klog.InfoS("exec completed",
+		"node", node.Name, "pod", node.PodName,
+		"durationMs", duration.Milliseconds(), "responseBytes", len(response))
 
 	metrics.RecordGatewayRequest(node.Name, "exec", status, duration.Seconds())
 	return response, nil
@@ -257,9 +254,9 @@ func (r *Router) RouteToAllNodes(
 		}
 	}
 
-	log.Printf(`{"level":"info","msg":"routing to nodes",`+
-		`"total_nodes":%d,"ready_nodes":%d,"routing_mode":"%s"}`,
-		len(nodes), readyCount, r.routingMode)
+	klog.InfoS("routing to nodes",
+		"totalNodes", len(nodes), "readyNodes", readyCount,
+		"routingMode", r.routingMode)
 
 	results := make([]NodeResult, 0, len(nodes))
 	var mu sync.Mutex
@@ -270,15 +267,13 @@ func (r *Router) RouteToAllNodes(
 
 	for _, node := range nodes {
 		if !node.Ready {
-			log.Printf(`{"level":"warn","msg":"skipping unready node",`+
-				`"node":"%s"}`, node.Name)
+			klog.V(2).InfoS("skipping unready node", "node", node.Name)
 			continue
 		}
 
 		// Check circuit breaker before spawning goroutine
 		if !r.circuitBreaker.Allow(node.Name) {
-			log.Printf(`{"level":"warn","msg":"circuit open, skipping node",`+
-				`"node":"%s"}`, node.Name)
+			klog.V(2).InfoS("circuit open, skipping node", "node", node.Name)
 			skippedCount++
 
 			mu.Lock()
@@ -321,11 +316,10 @@ func (r *Router) RouteToAllNodes(
 
 	totalDuration := time.Since(startTime)
 
-	log.Printf(`{"level":"info","msg":"routing complete",`+
-		`"total_nodes":%d,"success":%d,"failed":%d,"skipped":%d,`+
-		`"duration_ms":%d}`,
-		len(nodes), successCount, failCount, skippedCount,
-		totalDuration.Milliseconds())
+	klog.InfoS("routing complete",
+		"totalNodes", len(nodes), "success", successCount,
+		"failed", failCount, "skipped", skippedCount,
+		"durationMs", totalDuration.Milliseconds())
 
 	// Partial success: return results even if some failed.
 	// Only return error if ALL nodes failed.

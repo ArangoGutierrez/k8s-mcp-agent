@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
@@ -15,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 )
 
 // DescribeGPUNodeHandler handles the describe_gpu_node tool.
@@ -141,7 +141,7 @@ func (h *DescribeGPUNodeHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"describe_gpu_node invoked"}`)
+	klog.InfoS("describe_gpu_node invoked")
 
 	args := request.GetArguments()
 
@@ -151,13 +151,12 @@ func (h *DescribeGPUNodeHandler) Handle(
 		return mcp.NewToolResultError("node_name is required"), nil
 	}
 
-	log.Printf(`{"level":"debug","msg":"describing node","node":"%s"}`, nodeName)
+	klog.V(4).InfoS("describing node", "node", nodeName)
 
 	// Get Kubernetes node info
 	node, err := h.clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to get node",`+
-			`"node":"%s","error":"%s"}`, nodeName, err)
+		klog.ErrorS(err, "failed to get node", "node", nodeName)
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to get node: %s", err)), nil
 	}
@@ -175,8 +174,7 @@ func (h *DescribeGPUNodeHandler) Handle(
 	// Get pods with GPU allocations on this node
 	pods, allocatedGPUs, err := h.getPodsSummary(ctx, nodeName)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to get pods summary",`+
-			`"node":"%s","error":"%s"}`, nodeName, err)
+		klog.ErrorS(err, "failed to get pods summary", "node", nodeName)
 		return mcp.NewToolResultError(
 			fmt.Sprintf("operation cancelled: %s", err)), nil
 	}
@@ -210,15 +208,13 @@ func (h *DescribeGPUNodeHandler) Handle(
 	// Marshal to JSON
 	jsonBytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to marshal response")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}
 
-	log.Printf(`{"level":"info","msg":"describe_gpu_node completed",`+
-		`"node":"%s","gpus":%d,"pods":%d}`,
-		nodeName, totalGPUs, len(pods))
+	klog.InfoS("describe_gpu_node completed",
+		"node", nodeName, "gpus", totalGPUs, "pods", len(pods))
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
@@ -297,8 +293,7 @@ func (h *DescribeGPUNodeHandler) collectGPUInfo(
 	// Get device count
 	count, err := h.nvmlClient.GetDeviceCount(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get device count",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get device count", "error", err)
 		return driverInfo, gpus
 	}
 
@@ -307,16 +302,14 @@ func (h *DescribeGPUNodeHandler) collectGPUInfo(
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			log.Printf(`{"level":"info","msg":"context cancelled ` +
-				`during GPU enumeration"}`)
+			klog.InfoS("context cancelled during GPU enumeration")
 			return driverInfo, gpus
 		default:
 		}
 
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
-			log.Printf(`{"level":"warn","msg":"failed to get device",`+
-				`"index":%d,"error":"%s"}`, i, err)
+			klog.V(2).InfoS("failed to get device", "index", i, "error", err)
 			continue
 		}
 
@@ -401,8 +394,7 @@ func (h *DescribeGPUNodeHandler) getPodsSummary(
 		FieldSelector: fmt.Sprintf("spec.nodeName=%s", nodeName),
 	})
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to list pods",`+
-			`"node":"%s","error":"%s"}`, nodeName, err)
+		klog.V(2).InfoS("failed to list pods", "node", nodeName, "error", err)
 		return pods, totalGPUs, nil // Non-fatal, return empty list
 	}
 
@@ -410,8 +402,7 @@ func (h *DescribeGPUNodeHandler) getPodsSummary(
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			log.Printf(`{"level":"info","msg":"context cancelled ` +
-				`during pod summary enumeration"}`)
+			klog.InfoS("context cancelled during pod summary enumeration")
 			return pods, totalGPUs, ctx.Err()
 		default:
 		}

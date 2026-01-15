@@ -7,10 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/mark3labs/mcp-go/mcp"
+	"k8s.io/klog/v2"
 )
 
 // GPUHealthHandler handles the get_gpu_health tool.
@@ -119,11 +119,11 @@ func (h *GPUHealthHandler) Handle(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	log.Printf(`{"level":"info","msg":"get_gpu_health invoked"}`)
+	klog.InfoS("get_gpu_health invoked")
 
 	// Check context before starting
 	if err := ctx.Err(); err != nil {
-		log.Printf(`{"level":"info","msg":"context cancelled before health check"}`)
+		klog.InfoS("context cancelled before health check")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("operation cancelled: %s", err)), nil
 	}
@@ -131,8 +131,7 @@ func (h *GPUHealthHandler) Handle(
 	// Get device count
 	count, err := h.nvmlClient.GetDeviceCount(ctx)
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to get device count",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to get device count")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to get device count: %s", err)), nil
 	}
@@ -142,15 +141,14 @@ func (h *GPUHealthHandler) Handle(
 	for i := 0; i < count; i++ {
 		// Check for context cancellation
 		if err := ctx.Err(); err != nil {
-			log.Printf(`{"level":"info","msg":"context cancelled during enumeration"}`)
+			klog.InfoS("context cancelled during enumeration")
 			return mcp.NewToolResultError(
 				fmt.Sprintf("operation cancelled: %s", err)), nil
 		}
 
 		device, err := h.nvmlClient.GetDeviceByIndex(ctx, i)
 		if err != nil {
-			log.Printf(`{"level":"error","msg":"failed to get device",`+
-				`"index":%d,"error":"%s"}`, i, err)
+			klog.ErrorS(err, "failed to get device", "index", i)
 			continue
 		}
 
@@ -164,8 +162,8 @@ func (h *GPUHealthHandler) Handle(
 	// Generate recommendations
 	response.Recommendation = h.generateRecommendation(response)
 
-	log.Printf(`{"level":"info","msg":"get_gpu_health completed",`+
-		`"device_count":%d,"status":"%s"}`, response.DeviceCount, response.Status)
+	klog.InfoS("get_gpu_health completed",
+		"deviceCount", response.DeviceCount, "status", response.Status)
 
 	return h.marshalResponse(response)
 }
@@ -184,8 +182,7 @@ func (h *GPUHealthHandler) collectGPUHealth(
 	// Get basic info with warning logs on failure
 	name, err := device.GetName(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get GPU name",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get GPU name", "index", index, "error", err)
 		health.Name = "Unknown"
 	} else {
 		health.Name = name
@@ -193,8 +190,7 @@ func (h *GPUHealthHandler) collectGPUHealth(
 
 	uuid, err := device.GetUUID(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get GPU UUID",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get GPU UUID", "index", index, "error", err)
 		health.UUID = "unknown"
 	} else {
 		health.UUID = uuid
@@ -202,15 +198,14 @@ func (h *GPUHealthHandler) collectGPUHealth(
 
 	pciInfo, err := device.GetPCIInfo(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get PCI info",`+
-			`"index":%d,"error":"%s"}`, index, err)
+		klog.V(2).InfoS("failed to get PCI info", "index", index, "error", err)
 	} else {
 		health.PCIBusID = pciInfo.BusID
 	}
 
 	// Check context before collecting metrics
 	if err := ctx.Err(); err != nil {
-		log.Printf(`{"level":"debug","msg":"context cancelled during health collection"}`)
+		klog.V(4).InfoS("context cancelled during health collection")
 		health.Status = "unknown"
 		return health
 	}
@@ -256,8 +251,7 @@ func (h *GPUHealthHandler) checkTemperature(
 ) TemperatureHealth {
 	temp, err := device.GetTemperature(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get temperature",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get temperature", "error", err)
 		return TemperatureHealth{
 			Status: "unknown",
 		}
@@ -306,8 +300,7 @@ func (h *GPUHealthHandler) checkMemory(
 ) MemoryHealth {
 	memInfo, err := device.GetMemoryInfo(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get memory info",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get memory info", "error", err)
 		return MemoryHealth{
 			Status: "unknown",
 		}
@@ -365,8 +358,7 @@ func (h *GPUHealthHandler) checkPower(
 ) PowerHealth {
 	power, err := device.GetPowerUsage(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get power usage",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get power usage", "error", err)
 		return PowerHealth{
 			Status: "unknown",
 		}
@@ -412,8 +404,7 @@ func (h *GPUHealthHandler) checkThrottling(
 ) ThrottlingStatus {
 	reasons, err := device.GetCurrentClocksThrottleReasons(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get throttle reasons",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get throttle reasons", "error", err)
 		return ThrottlingStatus{
 			Active:  false,
 			Reasons: []string{},
@@ -481,8 +472,7 @@ func (h *GPUHealthHandler) checkECCErrors(
 ) ECCHealth {
 	enabled, _, err := device.GetEccMode(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get ECC mode",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get ECC mode", "error", err)
 		return ECCHealth{
 			Enabled: false,
 			Status:  "unknown",
@@ -499,14 +489,12 @@ func (h *GPUHealthHandler) checkECCErrors(
 	// Get error counts; log errors, use 0 as fallback
 	var correctable, uncorrectable uint64
 	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorCorrectable); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get correctable ECC errors",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get correctable ECC errors", "error", err)
 	} else {
 		correctable = val
 	}
 	if val, err := device.GetTotalEccErrors(ctx, nvml.EccErrorUncorrectable); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get uncorrectable ECC errors",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get uncorrectable ECC errors", "error", err)
 	} else {
 		uncorrectable = val
 	}
@@ -539,8 +527,7 @@ func (h *GPUHealthHandler) checkPerformance(
 ) PerformanceHealth {
 	util, err := device.GetUtilizationRates(ctx)
 	if err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get utilization",`+
-			`"error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get utilization", "error", err)
 		return PerformanceHealth{
 			Status: "unknown",
 		}
@@ -549,12 +536,12 @@ func (h *GPUHealthHandler) checkPerformance(
 	// Get clock frequencies; log errors, use 0 as fallback
 	var smClock, memClock uint32
 	if val, err := device.GetClockInfo(ctx, nvml.ClockGraphics); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get SM clock","error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get SM clock", "error", err)
 	} else {
 		smClock = val
 	}
 	if val, err := device.GetClockInfo(ctx, nvml.ClockMemory); err != nil {
-		log.Printf(`{"level":"warn","msg":"failed to get memory clock","error":"%s"}`, err)
+		klog.V(2).InfoS("failed to get memory clock", "error", err)
 	} else {
 		memClock = val
 	}
@@ -801,8 +788,7 @@ func (h *GPUHealthHandler) marshalResponse(
 ) (*mcp.CallToolResult, error) {
 	jsonBytes, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		log.Printf(`{"level":"error","msg":"failed to marshal response",`+
-			`"error":"%s"}`, err)
+		klog.ErrorS(err, "failed to marshal response")
 		return mcp.NewToolResultError(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}
