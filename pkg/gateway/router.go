@@ -14,6 +14,10 @@ import (
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/metrics"
+	// Note: We use google/uuid instead of gateway.NewCorrelationID() to
+	// generate RFC 4122 compliant UUIDs for request tracing. This ensures
+	// compatibility with external distributed tracing systems (Jaeger,
+	// Zipkin, OpenTelemetry) that expect standard UUID format for trace IDs.
 	"github.com/google/uuid"
 	"k8s.io/klog/v2"
 )

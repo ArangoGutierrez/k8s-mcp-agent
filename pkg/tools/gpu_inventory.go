@@ -94,7 +94,7 @@ func (h *GPUInventoryHandler) Handle(
 			fmt.Sprintf("failed to marshal response: %s", err)), nil
 	}
 
-	klog.InfoS("get_gpu_inventory completed", "deviceCount", count)
+	klog.InfoS("get_gpu_inventory completed", "count", count)
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

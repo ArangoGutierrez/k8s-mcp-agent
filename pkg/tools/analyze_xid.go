@@ -92,7 +92,7 @@ func (h *AnalyzeXIDHandler) Handle(
 			fmt.Sprintf("failed to parse kernel logs: %s", err)), nil
 	}
 
-	klog.V(4).InfoS("parsed kernel logs", "eventCount", len(events))
+	klog.V(4).InfoS("parsed kernel logs", "events", len(events))
 
 	// If no errors found, return success immediately
 	if len(events) == 0 {
@@ -133,7 +133,7 @@ func (h *AnalyzeXIDHandler) Handle(
 	}
 
 	klog.InfoS("analyze_xid_errors completed",
-		"errorCount", len(enrichedErrors), "status", status)
+		"errors", len(enrichedErrors), "status", status)
 
 	return h.marshalResponse(response)
 }

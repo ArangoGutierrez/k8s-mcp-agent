@@ -163,7 +163,7 @@ func (h *GPUHealthHandler) Handle(
 	response.Recommendation = h.generateRecommendation(response)
 
 	klog.InfoS("get_gpu_health completed",
-		"deviceCount", response.DeviceCount, "status", response.Status)
+		"count", response.DeviceCount, "status", response.Status)
 
 	return h.marshalResponse(response)
 }

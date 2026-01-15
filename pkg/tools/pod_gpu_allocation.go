@@ -88,7 +88,7 @@ func (h *PodGPUAllocationHandler) Handle(
 		namespace = ns
 	}
 
-	klog.V(4).InfoS("querying pods", "nodeName", nodeName, "namespace", namespace)
+	klog.V(4).InfoS("querying pods", "node", nodeName, "namespace", namespace)
 
 	// List pods on the specified node
 	listOpts := metav1.ListOptions{
