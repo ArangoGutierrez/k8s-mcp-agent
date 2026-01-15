@@ -515,3 +515,385 @@ func TestGPUNode_GetAgentDNSEndpoint_FormatValidation(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Tests for ListNodes, GetNode, ListPods, GetPod (Issue #28)
+// =============================================================================
+
+// makeNode is a helper function to create corev1.Node test fixtures.
+func makeNode(name string, labels map[string]string) corev1.Node {
+	return corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+}
+
+// makePod is a helper function to create corev1.Pod test fixtures.
+func makePod(name, namespace, nodeName string) corev1.Pod {
+	return corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+}
+
+// makePodWithLabels creates a pod with labels for testing label selectors.
+func makePodWithLabels(
+	name, namespace, nodeName string,
+	labels map[string]string,
+) corev1.Pod {
+	pod := makePod(name, namespace, nodeName)
+	pod.Labels = labels
+	return pod
+}
+
+func TestListNodes(t *testing.T) {
+	tests := []struct {
+		name          string
+		nodes         []corev1.Node
+		labelSelector string
+		wantCount     int
+		wantErr       bool
+	}{
+		{
+			name:          "no nodes",
+			nodes:         []corev1.Node{},
+			labelSelector: "",
+			wantCount:     0,
+		},
+		{
+			name: "all nodes no selector",
+			nodes: []corev1.Node{
+				makeNode("node-1", nil),
+				makeNode("node-2", nil),
+			},
+			labelSelector: "",
+			wantCount:     2,
+		},
+		{
+			name: "filter by GPU label",
+			nodes: []corev1.Node{
+				makeNode("gpu-node-1", map[string]string{
+					"nvidia.com/gpu.present": "true",
+				}),
+				makeNode("cpu-node-1", nil),
+			},
+			labelSelector: "nvidia.com/gpu.present=true",
+			wantCount:     1,
+		},
+		{
+			name: "filter by instance type",
+			nodes: []corev1.Node{
+				makeNode("p4d-node", map[string]string{
+					"node.kubernetes.io/instance-type": "p4d.24xlarge",
+				}),
+				makeNode("m5-node", map[string]string{
+					"node.kubernetes.io/instance-type": "m5.xlarge",
+				}),
+			},
+			labelSelector: "node.kubernetes.io/instance-type=p4d.24xlarge",
+			wantCount:     1,
+		},
+		{
+			name: "no matches for selector",
+			nodes: []corev1.Node{
+				makeNode("node-1", map[string]string{
+					"env": "prod",
+				}),
+			},
+			labelSelector: "env=staging",
+			wantCount:     0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//nolint:staticcheck // NewSimpleClientset used for testing
+			clientset := fake.NewSimpleClientset()
+			for _, node := range tt.nodes {
+				_, err := clientset.CoreV1().Nodes().Create(
+					context.Background(), &node, metav1.CreateOptions{})
+				require.NoError(t, err)
+			}
+
+			client := NewClientWithConfig(clientset, nil, "default")
+			nodes, err := client.ListNodes(context.Background(), tt.labelSelector)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, nodes, tt.wantCount)
+		})
+	}
+}
+
+func TestGetNode(t *testing.T) {
+	tests := []struct {
+		name     string
+		nodes    []corev1.Node
+		nodeName string
+		wantErr  bool
+	}{
+		{
+			name:     "node not found",
+			nodes:    []corev1.Node{},
+			nodeName: "missing",
+			wantErr:  true,
+		},
+		{
+			name: "node found",
+			nodes: []corev1.Node{
+				makeNode("target-node", map[string]string{
+					"kubernetes.io/hostname": "target-node",
+				}),
+			},
+			nodeName: "target-node",
+		},
+		{
+			name: "correct node returned from multiple",
+			nodes: []corev1.Node{
+				makeNode("node-1", nil),
+				makeNode("node-2", nil),
+				makeNode("node-3", nil),
+			},
+			nodeName: "node-2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//nolint:staticcheck // NewSimpleClientset used for testing
+			clientset := fake.NewSimpleClientset()
+			for _, node := range tt.nodes {
+				_, err := clientset.CoreV1().Nodes().Create(
+					context.Background(), &node, metav1.CreateOptions{})
+				require.NoError(t, err)
+			}
+
+			client := NewClientWithConfig(clientset, nil, "default")
+			node, err := client.GetNode(context.Background(), tt.nodeName)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.nodeName)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.nodeName, node.Name)
+		})
+	}
+}
+
+func TestListPods(t *testing.T) {
+	tests := []struct {
+		name          string
+		pods          []corev1.Pod
+		namespace     string
+		labelSelector string
+		fieldSelector string
+		wantCount     int
+		wantErr       bool
+	}{
+		{
+			name:      "no pods",
+			pods:      []corev1.Pod{},
+			namespace: "test-ns",
+			wantCount: 0,
+		},
+		{
+			name: "empty namespace uses default",
+			pods: []corev1.Pod{
+				makePod("pod-1", "default", "node-1"),
+			},
+			namespace: "", // Should use client's namespace
+			wantCount: 1,
+		},
+		{
+			name: "filter by label",
+			pods: []corev1.Pod{
+				makePodWithLabels("gpu-pod", "test-ns", "node-1",
+					map[string]string{"gpu": "true"}),
+				makePod("cpu-pod", "test-ns", "node-1"),
+			},
+			namespace:     "test-ns",
+			labelSelector: "gpu=true",
+			wantCount:     1,
+		},
+		{
+			name: "all pods in namespace",
+			pods: []corev1.Pod{
+				makePod("pod-1", "test-ns", "node-1"),
+				makePod("pod-2", "test-ns", "node-2"),
+				makePod("pod-3", "other-ns", "node-3"),
+			},
+			namespace: "test-ns",
+			wantCount: 2,
+		},
+		{
+			name: "filter by multiple labels",
+			pods: []corev1.Pod{
+				makePodWithLabels("match-pod", "test-ns", "node-1",
+					map[string]string{"app": "test", "tier": "backend"}),
+				makePodWithLabels("partial-pod", "test-ns", "node-1",
+					map[string]string{"app": "test"}),
+			},
+			namespace:     "test-ns",
+			labelSelector: "app=test,tier=backend",
+			wantCount:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//nolint:staticcheck // NewSimpleClientset used for testing
+			clientset := fake.NewSimpleClientset()
+			for _, pod := range tt.pods {
+				_, err := clientset.CoreV1().Pods(pod.Namespace).Create(
+					context.Background(), &pod, metav1.CreateOptions{})
+				require.NoError(t, err)
+			}
+
+			client := NewClientWithConfig(clientset, nil, "default")
+			pods, err := client.ListPods(context.Background(),
+				tt.namespace, tt.labelSelector, tt.fieldSelector)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, pods, tt.wantCount)
+		})
+	}
+}
+
+func TestGetPod(t *testing.T) {
+	tests := []struct {
+		name      string
+		pods      []corev1.Pod
+		namespace string
+		podName   string
+		wantErr   bool
+	}{
+		{
+			name:      "pod not found",
+			pods:      []corev1.Pod{},
+			namespace: "test-ns",
+			podName:   "missing",
+			wantErr:   true,
+		},
+		{
+			name: "pod found",
+			pods: []corev1.Pod{
+				makePod("target-pod", "test-ns", "node-1"),
+			},
+			namespace: "test-ns",
+			podName:   "target-pod",
+		},
+		{
+			name: "empty namespace uses default",
+			pods: []corev1.Pod{
+				makePod("default-pod", "default", "node-1"),
+			},
+			namespace: "", // Should use client's namespace
+			podName:   "default-pod",
+		},
+		{
+			name: "wrong namespace returns error",
+			pods: []corev1.Pod{
+				makePod("pod-in-ns", "other-ns", "node-1"),
+			},
+			namespace: "test-ns",
+			podName:   "pod-in-ns",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//nolint:staticcheck // NewSimpleClientset used for testing
+			clientset := fake.NewSimpleClientset()
+			for _, pod := range tt.pods {
+				_, err := clientset.CoreV1().Pods(pod.Namespace).Create(
+					context.Background(), &pod, metav1.CreateOptions{})
+				require.NoError(t, err)
+			}
+
+			client := NewClientWithConfig(clientset, nil, "default")
+			pod, err := client.GetPod(context.Background(), tt.namespace, tt.podName)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.namespace != "" {
+					assert.Contains(t, err.Error(), tt.namespace)
+				}
+				assert.Contains(t, err.Error(), tt.podName)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.podName, pod.Name)
+		})
+	}
+}
+
+func TestListNodes_ReturnsNodeMetadata(t *testing.T) {
+	// Verify that ListNodes returns complete node metadata
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset()
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gpu-worker-1",
+			Labels: map[string]string{
+				"nvidia.com/gpu.present":           "true",
+				"nvidia.com/gpu.product":           "Tesla-T4",
+				"node.kubernetes.io/instance-type": "g4dn.xlarge",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: "10.0.1.100",
+				},
+			},
+		},
+	}
+	_, err := clientset.CoreV1().Nodes().Create(
+		context.Background(), &node, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	client := NewClientWithConfig(clientset, nil, "default")
+	nodes, err := client.ListNodes(context.Background(), "nvidia.com/gpu.present=true")
+
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+
+	// Verify metadata is accessible
+	assert.Equal(t, "gpu-worker-1", nodes[0].Name)
+	assert.Equal(t, "Tesla-T4", nodes[0].Labels["nvidia.com/gpu.product"])
+	assert.Equal(t, "g4dn.xlarge",
+		nodes[0].Labels["node.kubernetes.io/instance-type"])
+}
