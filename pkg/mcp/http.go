@@ -6,6 +6,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"time"
 
@@ -74,11 +75,20 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 
 	klog.InfoS("HTTP server starting", "addr", h.addr)
 
-	// Start server in goroutine
+	// Create listener first to verify the address is available.
+	// This prevents the race condition where close(h.ready) is called
+	// before we know if the server can actually bind to the address.
+	ln, err := net.Listen("tcp", h.addr)
+	if err != nil {
+		return err
+	}
+
+	// Start server in goroutine using the pre-created listener
 	errCh := make(chan error, 1)
 	go func() {
-		close(h.ready) // Signal that server is ready to accept connections
-		if err := h.httpServer.ListenAndServe(); err != http.ErrServerClosed {
+		// Signal ready only after we've successfully created the listener
+		close(h.ready)
+		if err := h.httpServer.Serve(ln); err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()
@@ -90,6 +100,12 @@ func (h *HTTPServer) ListenAndServe(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+// Ready returns a channel that is closed when the server is ready to accept
+// connections. This can be used to synchronize tests or health checks.
+func (h *HTTPServer) Ready() <-chan struct{} {
+	return h.ready
 }
 
 // Shutdown gracefully shuts down the HTTP server.
