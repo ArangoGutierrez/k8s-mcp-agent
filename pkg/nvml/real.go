@@ -9,13 +9,16 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // Real is a real implementation of the NVML Interface using go-nvml.
 // This requires the NVIDIA driver and libnvidia-ml.so to be available.
+// Real is safe for concurrent use.
 type Real struct {
+	mu          sync.Mutex
 	initialized bool
 }
 
@@ -27,11 +30,16 @@ func NewReal() *Real {
 }
 
 // Init initializes the NVML library.
+// Init is safe for concurrent calls; subsequent calls after successful
+// initialization are no-ops.
 func (r *Real) Init(ctx context.Context) error {
 	// Check context before expensive operation
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled before NVML init: %w", err)
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if r.initialized {
 		return nil
@@ -47,11 +55,16 @@ func (r *Real) Init(ctx context.Context) error {
 }
 
 // Shutdown shuts down the NVML library.
+// Shutdown is safe for concurrent calls; calls on an uninitialized
+// instance are no-ops.
 func (r *Real) Shutdown(ctx context.Context) error {
 	// Check context before shutdown
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled before NVML shutdown: %w", err)
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if !r.initialized {
 		return nil
