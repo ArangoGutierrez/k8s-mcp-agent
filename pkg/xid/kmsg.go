@@ -63,27 +63,38 @@ func (r *KmsgReader) ReadMessages(ctx context.Context) ([]string, error) {
 		}
 		return nil, fmt.Errorf("failed to open %s: %w", r.path, err)
 	}
-	defer func() { _ = file.Close() }()
+	// Note: file is closed explicitly in the timeout case; defer handles normal path
+	defer func() {
+		// Close is idempotent, safe to call even if already closed
+		_ = file.Close()
+	}()
 
 	// Seek to start to read all available messages
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("failed to seek in %s: %w", r.path, err)
 	}
 
-	var messages []string
-	scanner := bufio.NewScanner(file)
-
 	// Set up timeout context
 	readCtx, cancel := context.WithTimeout(ctx, kmsgReadTimeout)
 	defer cancel()
 
-	// Read messages until EOF, error, or timeout
-	done := make(chan struct{})
+	// Channel for results from scanner goroutine
+	type scanResult struct {
+		messages []string
+		err      error
+	}
+	resultCh := make(chan scanResult, 1)
+
+	// Read messages in a goroutine so we can cancel via context
 	go func() {
-		defer close(done)
+		var messages []string
+		scanner := bufio.NewScanner(file)
+
 		for scanner.Scan() {
+			// Check context before processing
 			select {
 			case <-readCtx.Done():
+				resultCh <- scanResult{messages: messages}
 				return
 			default:
 			}
@@ -99,24 +110,36 @@ func (r *KmsgReader) ReadMessages(ctx context.Context) ([]string, error) {
 				messages = append(messages, record.Message)
 			}
 		}
+
+		var scanErr error
+		if err := scanner.Err(); err != nil {
+			// EAGAIN is expected for non-blocking read; ignore it
+			if !strings.Contains(err.Error(), "resource temporarily unavailable") {
+				scanErr = fmt.Errorf("error reading %s: %w", r.path, err)
+			}
+		}
+		resultCh <- scanResult{messages: messages, err: scanErr}
 	}()
 
+	// Wait for completion or context cancellation
 	select {
-	case <-done:
-		// Reading completed normally
+	case result := <-resultCh:
+		// Goroutine completed normally
+		return result.messages, result.err
+
 	case <-readCtx.Done():
-		// Timeout or context cancelled - return what we have
-		// This is expected - /dev/kmsg doesn't EOF normally
-	}
-
-	if err := scanner.Err(); err != nil {
-		// EAGAIN is expected for non-blocking read
-		if !strings.Contains(err.Error(), "resource temporarily unavailable") {
-			return messages, fmt.Errorf("error reading %s: %w", r.path, err)
+		// Timeout or context cancelled
+		// Close the file to interrupt blocking read in goroutine
+		// This ensures the goroutine doesn't leak
+		if err := file.Close(); err != nil {
+			// Log but don't return error - we already have our messages
+			_ = err // Intentionally ignored as we're shutting down
 		}
-	}
 
-	return messages, nil
+		// Drain the result channel to avoid goroutine leak
+		result := <-resultCh
+		return result.messages, nil
+	}
 }
 
 // parseKmsgRecord parses a single /dev/kmsg record.
