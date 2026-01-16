@@ -34,8 +34,8 @@
 | 6 | Run full test suite | `[DONE]` | `make all` |
 | 7 | Test in real cluster | `[DONE]` | No cluster available - skipped |
 | 8 | Create pull request | `[DONE]` | [#134](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/pull/134) |
-| 9 | Wait for Copilot review | `[WIP]` | ⏳ Takes 1-2 min |
-| 10 | Address review comments | `[TODO]` | |
+| 9 | Wait for Copilot review | `[DONE]` | 4 comments addressed |
+| 10 | Address review comments | `[DONE]` | Simplified types, fixed docs |
 | 11 | **Merge after reviews** | `[WAIT]` | ⚠️ **Requires human approval** |
 
 **Status Legend:** `[TODO]` | `[WIP]` | `[DONE]` | `[WAIT]` (human approval) | `[BLOCKED:reason]`
