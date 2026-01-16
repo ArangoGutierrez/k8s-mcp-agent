@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/mark3labs/mcp-go/mcp"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -49,6 +51,14 @@ func (p *ProxyHandler) Handle(
 		"routingMode", p.router.RoutingMode(),
 		"correlationID", correlationID)
 
+	// Extract include_k8s_metadata parameter (default: true for gateway mode)
+	includeK8sMetadata := true
+	if args := request.GetArguments(); args != nil {
+		if v, ok := args["include_k8s_metadata"].(bool); ok {
+			includeK8sMetadata = v
+		}
+	}
+
 	var mcpRequest []byte
 	var err error
 
@@ -75,7 +85,7 @@ func (p *ProxyHandler) Handle(
 	}
 
 	// Aggregate results (parsing differs by mode)
-	aggregated := p.aggregateResults(results)
+	aggregated := p.aggregateResults(ctx, results, includeK8sMetadata)
 
 	jsonBytes, err := json.MarshalIndent(aggregated, "", "  ")
 	if err != nil {
@@ -90,10 +100,14 @@ func (p *ProxyHandler) Handle(
 }
 
 // aggregateResults combines results from multiple nodes.
-func (p *ProxyHandler) aggregateResults(results []NodeResult) interface{} {
+func (p *ProxyHandler) aggregateResults(
+	ctx context.Context,
+	results []NodeResult,
+	includeK8sMetadata bool,
+) interface{} {
 	// Special handling for get_gpu_inventory - create cluster summary
 	if p.toolName == "get_gpu_inventory" {
-		return p.aggregateGPUInventory(results)
+		return p.aggregateGPUInventory(ctx, results, includeK8sMetadata)
 	}
 
 	// Default aggregation for other tools
@@ -144,11 +158,19 @@ func (p *ProxyHandler) aggregateDefault(results []NodeResult) interface{} {
 }
 
 // aggregateGPUInventory creates a cluster-wide GPU inventory with summary.
-func (p *ProxyHandler) aggregateGPUInventory(results []NodeResult) interface{} {
+// Enriches node data with K8s metadata when the client is available.
+func (p *ProxyHandler) aggregateGPUInventory(
+	ctx context.Context,
+	results []NodeResult,
+	includeK8sMetadata bool,
+) interface{} {
 	totalGPUs := 0
 	readyNodes := 0
 	gpuTypes := make(map[string]bool)
-	nodes := make([]interface{}, 0, len(results))
+	nodes := make([]map[string]interface{}, 0, len(results))
+
+	// Track cluster-level GPU resources
+	var clusterCapacity, clusterAllocatable, clusterAllocated int64
 
 	for _, result := range results {
 		nodeData := map[string]interface{}{
@@ -196,6 +218,32 @@ func (p *ProxyHandler) aggregateGPUInventory(results []NodeResult) interface{} {
 		nodes = append(nodes, nodeData)
 	}
 
+	// Enrich with K8s metadata if requested and client available
+	if includeK8sMetadata && p.router.k8sClient != nil {
+		for i := range nodes {
+			nodeName, ok := nodes[i]["name"].(string)
+			if !ok || nodeName == "" {
+				continue
+			}
+
+			metadata, err := p.getNodeK8sMetadata(ctx, nodeName)
+			if err != nil {
+				klog.V(4).InfoS("failed to get K8s metadata",
+					"node", nodeName, "error", err)
+				continue
+			}
+
+			nodes[i]["kubernetes"] = metadata
+
+			// Accumulate cluster-level GPU resources
+			if metadata.GPUResources != nil {
+				clusterCapacity += metadata.GPUResources.Capacity
+				clusterAllocatable += metadata.GPUResources.Allocatable
+				clusterAllocated += metadata.GPUResources.Allocated
+			}
+		}
+	}
+
 	// Build GPU types list (sorted for deterministic output)
 	types := make([]string, 0, len(gpuTypes))
 	for t := range gpuTypes {
@@ -203,15 +251,32 @@ func (p *ProxyHandler) aggregateGPUInventory(results []NodeResult) interface{} {
 	}
 	sort.Strings(types)
 
+	// Build cluster summary
+	clusterSummary := map[string]interface{}{
+		"total_nodes": len(results),
+		"ready_nodes": readyNodes,
+		"total_gpus":  totalGPUs,
+		"gpu_types":   types,
+	}
+
+	// Add GPU resource counts if K8s metadata was included
+	if includeK8sMetadata && p.router.k8sClient != nil {
+		clusterSummary["gpus_capacity"] = clusterCapacity
+		clusterSummary["gpus_allocatable"] = clusterAllocatable
+		clusterSummary["gpus_allocated"] = clusterAllocated
+		clusterSummary["gpus_available"] = clusterAllocatable - clusterAllocated
+	}
+
+	// Convert []map to []interface{} for JSON marshaling
+	nodesInterface := make([]interface{}, len(nodes))
+	for i, n := range nodes {
+		nodesInterface[i] = n
+	}
+
 	return map[string]interface{}{
-		"status": "success",
-		"cluster_summary": map[string]interface{}{
-			"total_nodes": len(results),
-			"ready_nodes": readyNodes,
-			"total_gpus":  totalGPUs,
-			"gpu_types":   types,
-		},
-		"nodes": nodes,
+		"status":          "success",
+		"cluster_summary": clusterSummary,
+		"nodes":           nodesInterface,
 	}
 }
 
@@ -257,6 +322,131 @@ func flattenGPUInfo(dev map[string]interface{}) map[string]interface{} {
 	}
 
 	return gpu
+}
+
+// NodeK8sMetadata contains Kubernetes node information.
+type NodeK8sMetadata struct {
+	Labels       map[string]string `json:"labels,omitempty"`
+	Conditions   map[string]bool   `json:"conditions,omitempty"`
+	GPUResources *GPUResourceInfo  `json:"gpu_resources,omitempty"`
+}
+
+// GPUResourceInfo contains GPU resource capacity and allocation.
+type GPUResourceInfo struct {
+	Capacity    int64 `json:"capacity"`
+	Allocatable int64 `json:"allocatable"`
+	Allocated   int64 `json:"allocated"`
+}
+
+// getNodeK8sMetadata fetches K8s node information.
+func (p *ProxyHandler) getNodeK8sMetadata(
+	ctx context.Context,
+	nodeName string,
+) (*NodeK8sMetadata, error) {
+	node, err := p.router.k8sClient.GetNode(ctx, nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to GPU-relevant labels
+	labels := filterGPULabels(node.Labels)
+
+	// Extract conditions as bool map
+	conditions := make(map[string]bool)
+	for _, cond := range node.Status.Conditions {
+		conditions[string(cond.Type)] = cond.Status == corev1.ConditionTrue
+	}
+
+	// Get GPU resource info
+	gpuResources := &GPUResourceInfo{}
+	if qty, ok := node.Status.Capacity[corev1.ResourceName("nvidia.com/gpu")]; ok {
+		gpuResources.Capacity = qty.Value()
+	}
+	if qty, ok := node.Status.Allocatable[corev1.ResourceName("nvidia.com/gpu")]; ok {
+		gpuResources.Allocatable = qty.Value()
+	}
+
+	// Get accurate GPU allocation from pods
+	allocated, err := p.getNodeGPUAllocation(ctx, nodeName)
+	if err != nil {
+		klog.V(4).InfoS("failed to get GPU allocation, using fallback",
+			"node", nodeName, "error", err)
+		// Fall back to capacity - allocatable
+		allocated = gpuResources.Capacity - gpuResources.Allocatable
+	}
+	gpuResources.Allocated = allocated
+
+	return &NodeK8sMetadata{
+		Labels:       labels,
+		Conditions:   conditions,
+		GPUResources: gpuResources,
+	}, nil
+}
+
+// getNodeGPUAllocation returns the number of GPUs allocated on a node.
+func (p *ProxyHandler) getNodeGPUAllocation(
+	ctx context.Context,
+	nodeName string,
+) (int64, error) {
+	// List pods on this node (empty namespace = all namespaces via client)
+	pods, err := p.router.k8sClient.ListPods(ctx, "",
+		"", // all labels
+		fmt.Sprintf("spec.nodeName=%s", nodeName))
+	if err != nil {
+		return 0, err
+	}
+
+	var totalAllocated int64
+	for _, pod := range pods {
+		// Skip completed/failed pods
+		if pod.Status.Phase == corev1.PodSucceeded ||
+			pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+
+		for _, container := range pod.Spec.Containers {
+			if req, ok := container.Resources.Requests[corev1.ResourceName(
+				"nvidia.com/gpu")]; ok {
+				totalAllocated += req.Value()
+			}
+		}
+	}
+
+	return totalAllocated, nil
+}
+
+// filterGPULabels returns labels relevant to GPU operations.
+func filterGPULabels(labels map[string]string) map[string]string {
+	relevantPrefixes := []string{
+		"nvidia.com/",
+		"topology.kubernetes.io/",
+		"node.kubernetes.io/instance-type",
+		"kubernetes.io/arch",
+		"kubernetes.io/os",
+	}
+	relevantExact := []string{
+		"gpu-type",
+		"accelerator",
+	}
+
+	filtered := make(map[string]string)
+	for k, v := range labels {
+		// Check prefix matches
+		for _, prefix := range relevantPrefixes {
+			if strings.HasPrefix(k, prefix) {
+				filtered[k] = v
+				break
+			}
+		}
+		// Check exact matches
+		for _, exact := range relevantExact {
+			if k == exact {
+				filtered[k] = v
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 // parseToolResponse extracts the tool result from the MCP response.

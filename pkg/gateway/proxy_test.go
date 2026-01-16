@@ -4,11 +4,17 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestBuildMCPRequest_Proxy(t *testing.T) {
@@ -160,7 +166,10 @@ func TestSplitJSONObjects_Proxy(t *testing.T) {
 }
 
 func TestAggregateResults_AllSuccess(t *testing.T) {
-	handler := &ProxyHandler{toolName: "test"}
+	handler := &ProxyHandler{
+		toolName: "test",
+		router:   &Router{},
+	}
 
 	results := []NodeResult{
 		{
@@ -177,7 +186,7 @@ func TestAggregateResults_AllSuccess(t *testing.T) {
 		},
 	}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "success", aggMap["status"])
@@ -190,7 +199,10 @@ func TestAggregateResults_AllSuccess(t *testing.T) {
 }
 
 func TestAggregateResults_PartialSuccess(t *testing.T) {
-	handler := &ProxyHandler{toolName: "test"}
+	handler := &ProxyHandler{
+		toolName: "test",
+		router:   &Router{},
+	}
 
 	results := []NodeResult{
 		{
@@ -206,7 +218,7 @@ func TestAggregateResults_PartialSuccess(t *testing.T) {
 		},
 	}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "partial", aggMap["status"])
@@ -215,7 +227,10 @@ func TestAggregateResults_PartialSuccess(t *testing.T) {
 }
 
 func TestAggregateResults_AllError(t *testing.T) {
-	handler := &ProxyHandler{toolName: "test"}
+	handler := &ProxyHandler{
+		toolName: "test",
+		router:   &Router{},
+	}
 
 	results := []NodeResult{
 		{
@@ -230,7 +245,7 @@ func TestAggregateResults_AllError(t *testing.T) {
 		},
 	}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "error", aggMap["status"])
@@ -239,11 +254,14 @@ func TestAggregateResults_AllError(t *testing.T) {
 }
 
 func TestAggregateResults_Empty(t *testing.T) {
-	handler := &ProxyHandler{toolName: "test"}
+	handler := &ProxyHandler{
+		toolName: "test",
+		router:   &Router{},
+	}
 
 	results := []NodeResult{}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "success", aggMap["status"])
@@ -253,7 +271,10 @@ func TestAggregateResults_Empty(t *testing.T) {
 }
 
 func TestAggregateGPUInventory_ClusterSummary(t *testing.T) {
-	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   &Router{},
+	}
 
 	// Mock response from two nodes with different GPU types
 	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
@@ -273,7 +294,7 @@ func TestAggregateGPUInventory_ClusterSummary(t *testing.T) {
 		{NodeName: "node2", PodName: "pod2", Response: []byte(node2Response)},
 	}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "success", aggMap["status"])
@@ -300,7 +321,10 @@ func TestAggregateGPUInventory_ClusterSummary(t *testing.T) {
 }
 
 func TestAggregateGPUInventory_WithErrors(t *testing.T) {
-	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   &Router{},
+	}
 
 	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
 		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
@@ -312,7 +336,7 @@ func TestAggregateGPUInventory_WithErrors(t *testing.T) {
 		{NodeName: "node2", PodName: "pod2", Error: "connection refused"},
 	}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "success", aggMap["status"])
@@ -329,11 +353,14 @@ func TestAggregateGPUInventory_WithErrors(t *testing.T) {
 }
 
 func TestAggregateGPUInventory_Empty(t *testing.T) {
-	handler := &ProxyHandler{toolName: "get_gpu_inventory"}
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   &Router{},
+	}
 
 	results := []NodeResult{}
 
-	aggregated := handler.aggregateResults(results)
+	aggregated := handler.aggregateResults(context.Background(), results, false)
 	aggMap := aggregated.(map[string]interface{})
 
 	assert.Equal(t, "success", aggMap["status"])
@@ -418,4 +445,371 @@ func TestFlattenGPUInfo(t *testing.T) {
 			tt.checkFn(t, result)
 		})
 	}
+}
+
+func TestFilterGPULabels(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   map[string]string
+		want    []string
+		notWant []string
+	}{
+		{
+			name: "filters to GPU-relevant labels",
+			input: map[string]string{
+				"nvidia.com/gpu.product":           "Tesla-T4",
+				"nvidia.com/gpu.memory":            "16GB",
+				"topology.kubernetes.io/zone":      "us-west-2a",
+				"node.kubernetes.io/instance-type": "g4dn.xlarge",
+				"kubernetes.io/arch":               "amd64",
+				"kubernetes.io/os":                 "linux",
+				"app.kubernetes.io/name":           "my-app",
+				"random-label":                     "value",
+			},
+			want: []string{
+				"nvidia.com/gpu.product",
+				"nvidia.com/gpu.memory",
+				"topology.kubernetes.io/zone",
+				"node.kubernetes.io/instance-type",
+				"kubernetes.io/arch",
+				"kubernetes.io/os",
+			},
+			notWant: []string{
+				"app.kubernetes.io/name",
+				"random-label",
+			},
+		},
+		{
+			name: "includes exact match labels",
+			input: map[string]string{
+				"gpu-type":    "nvidia-a100",
+				"accelerator": "gpu",
+				"other":       "value",
+			},
+			want:    []string{"gpu-type", "accelerator"},
+			notWant: []string{"other"},
+		},
+		{
+			name:    "empty input",
+			input:   map[string]string{},
+			want:    []string{},
+			notWant: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterGPULabels(tt.input)
+			for _, k := range tt.want {
+				assert.Contains(t, result, k)
+			}
+			for _, k := range tt.notWant {
+				assert.NotContains(t, result, k)
+			}
+		})
+	}
+}
+
+func TestGetNodeK8sMetadata(t *testing.T) {
+	// Create fake K8s client with node
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gpu-node-1",
+			Labels: map[string]string{
+				"nvidia.com/gpu.product":           "Tesla-T4",
+				"topology.kubernetes.io/zone":      "us-west-2a",
+				"node.kubernetes.io/instance-type": "g4dn.xlarge",
+				"unrelated-label":                  "should-be-filtered",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{Type: corev1.NodeReady, Status: corev1.ConditionTrue},
+				{Type: corev1.NodeMemoryPressure, Status: corev1.ConditionFalse},
+				{Type: corev1.NodeDiskPressure, Status: corev1.ConditionFalse},
+				{Type: corev1.NodePIDPressure, Status: corev1.ConditionFalse},
+			},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+		},
+	}
+
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset(node)
+	k8sClient := k8s.NewClientWithConfig(clientset, nil, "default")
+
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   NewRouter(k8sClient),
+	}
+
+	ctx := context.Background()
+	metadata, err := handler.getNodeK8sMetadata(ctx, "gpu-node-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, metadata)
+
+	// Check labels filtered correctly
+	assert.Contains(t, metadata.Labels, "nvidia.com/gpu.product")
+	assert.Contains(t, metadata.Labels, "topology.kubernetes.io/zone")
+	assert.NotContains(t, metadata.Labels, "unrelated-label")
+
+	// Check conditions
+	assert.True(t, metadata.Conditions["Ready"])
+	assert.False(t, metadata.Conditions["MemoryPressure"])
+	assert.False(t, metadata.Conditions["DiskPressure"])
+
+	// Check GPU resources
+	require.NotNil(t, metadata.GPUResources)
+	assert.Equal(t, int64(4), metadata.GPUResources.Capacity)
+	assert.Equal(t, int64(4), metadata.GPUResources.Allocatable)
+}
+
+func TestGetNodeGPUAllocation(t *testing.T) {
+	// Create fake client with pods requesting GPUs
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "training-job-1",
+			Namespace: "ml-workloads",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "gpu-node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "trainer",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("2"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	pod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "inference-job-1",
+			Namespace: "ml-workloads",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "gpu-node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "inference",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	// Completed pod should not count
+	pod3 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "completed-job",
+			Namespace: "ml-workloads",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "gpu-node-1",
+			Containers: []corev1.Container{
+				{
+					Name: "job",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+		},
+	}
+
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset(pod1, pod2, pod3)
+	k8sClient := k8s.NewClientWithConfig(clientset, nil, "ml-workloads")
+
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   NewRouter(k8sClient),
+	}
+
+	ctx := context.Background()
+	allocated, err := handler.getNodeGPUAllocation(ctx, "gpu-node-1")
+
+	require.NoError(t, err)
+	// Should be 2 + 1 = 3 (completed pod excluded)
+	assert.Equal(t, int64(3), allocated)
+}
+
+func TestAggregateGPUInventory_WithK8sMetadata(t *testing.T) {
+	// Create fake K8s client with node and pods
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node1",
+			Labels: map[string]string{
+				"nvidia.com/gpu.product":      "Tesla-T4",
+				"topology.kubernetes.io/zone": "us-west-2a",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{Type: corev1.NodeReady, Status: corev1.ConditionTrue},
+			},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+		},
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gpu-workload",
+			Namespace: "default",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node1",
+			Containers: []corev1.Container{
+				{
+					Name: "worker",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("2"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset(node, pod)
+	k8sClient := k8s.NewClientWithConfig(clientset, nil, "default")
+
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   NewRouter(k8sClient),
+	}
+
+	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
+		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
+		`"text":"{\"driver_version\":\"575.57\",\"cuda_version\":\"12.9\",` +
+		`\"device_count\":4,\"devices\":[{\"name\":\"Tesla T4\",` +
+		`\"index\":0,\"uuid\":\"GPU-xxx\"}]}"}]}}`
+
+	results := []NodeResult{
+		{NodeName: "node1", PodName: "pod1", Response: []byte(node1Response)},
+	}
+
+	// Test with K8s metadata enabled
+	aggregated := handler.aggregateResults(
+		context.Background(), results, true)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+
+	// Check cluster summary has GPU resource counts
+	summary := aggMap["cluster_summary"].(map[string]interface{})
+	assert.Equal(t, int64(4), summary["gpus_capacity"])
+	assert.Equal(t, int64(4), summary["gpus_allocatable"])
+	assert.Equal(t, int64(2), summary["gpus_allocated"])
+	assert.Equal(t, int64(2), summary["gpus_available"])
+
+	// Check node has kubernetes metadata
+	nodes := aggMap["nodes"].([]interface{})
+	require.Len(t, nodes, 1)
+
+	nodeData := nodes[0].(map[string]interface{})
+	k8sMeta, ok := nodeData["kubernetes"].(*NodeK8sMetadata)
+	require.True(t, ok, "kubernetes field should be *NodeK8sMetadata")
+
+	assert.Contains(t, k8sMeta.Labels, "nvidia.com/gpu.product")
+	assert.True(t, k8sMeta.Conditions["Ready"])
+	assert.Equal(t, int64(4), k8sMeta.GPUResources.Capacity)
+	assert.Equal(t, int64(2), k8sMeta.GPUResources.Allocated)
+}
+
+func TestAggregateGPUInventory_WithoutK8sMetadata(t *testing.T) {
+	// Create fake K8s client with node
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node1",
+			Labels: map[string]string{
+				"nvidia.com/gpu.product": "Tesla-T4",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{Type: corev1.NodeReady, Status: corev1.ConditionTrue},
+			},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("4"),
+			},
+		},
+	}
+
+	//nolint:staticcheck // NewSimpleClientset used for testing
+	clientset := fake.NewSimpleClientset(node)
+	k8sClient := k8s.NewClientWithConfig(clientset, nil, "default")
+
+	handler := &ProxyHandler{
+		toolName: "get_gpu_inventory",
+		router:   NewRouter(k8sClient),
+	}
+
+	node1Response := `{"jsonrpc":"2.0","id":0,"result":{}}` +
+		`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text",` +
+		`"text":"{\"driver_version\":\"575.57\",\"cuda_version\":\"12.9\",` +
+		`\"device_count\":4,\"devices\":[{\"name\":\"Tesla T4\",` +
+		`\"index\":0,\"uuid\":\"GPU-xxx\"}]}"}]}}`
+
+	results := []NodeResult{
+		{NodeName: "node1", PodName: "pod1", Response: []byte(node1Response)},
+	}
+
+	// Test with K8s metadata disabled
+	aggregated := handler.aggregateResults(
+		context.Background(), results, false)
+	aggMap := aggregated.(map[string]interface{})
+
+	assert.Equal(t, "success", aggMap["status"])
+
+	// Check cluster summary does NOT have GPU resource counts
+	summary := aggMap["cluster_summary"].(map[string]interface{})
+	assert.NotContains(t, summary, "gpus_capacity")
+	assert.NotContains(t, summary, "gpus_allocatable")
+	assert.NotContains(t, summary, "gpus_allocated")
+	assert.NotContains(t, summary, "gpus_available")
+
+	// Check node does NOT have kubernetes metadata
+	nodes := aggMap["nodes"].([]interface{})
+	require.Len(t, nodes, 1)
+
+	nodeData := nodes[0].(map[string]interface{})
+	assert.NotContains(t, nodeData, "kubernetes")
 }

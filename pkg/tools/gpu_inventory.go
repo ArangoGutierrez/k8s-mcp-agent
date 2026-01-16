@@ -220,7 +220,17 @@ func GetGPUInventoryTool() mcp.Tool {
 				"In agent mode: returns local GPU hardware details. "+
 				"In gateway mode: returns cluster-wide inventory with "+
 				"summary (total nodes, GPUs, types) and per-node GPU list. "+
-				"Includes model, UUID, memory, temperature, and utilization.",
+				"Includes model, UUID, memory, temperature, and utilization. "+
+				"When include_k8s_metadata is true (default in gateway mode), "+
+				"also includes Kubernetes node labels, conditions, and GPU "+
+				"resource allocation counts.",
+		),
+		mcp.WithBoolean("include_k8s_metadata",
+			mcp.Description(
+				"Include Kubernetes node metadata (labels, conditions, "+
+					"GPU capacity/allocation). Default: true in gateway mode, "+
+					"ignored in agent mode.",
+			),
 		),
 	)
 }
