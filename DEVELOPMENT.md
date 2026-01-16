@@ -417,6 +417,39 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 golangci-lint run --verbose
 ```
 
+## AI-Assisted Development
+
+This project includes Cursor IDE rules and LLM context documentation to enable
+effective AI-assisted development.
+
+### Cursor IDE Rules
+
+The `.cursor/rules/` directory contains development standards that Cursor IDE
+automatically loads to provide context-aware assistance:
+
+| Rule File | Purpose |
+|-----------|---------|
+| `00-general-go.mdc` | Go style, error handling, testing patterns |
+| `01-mcp-server.mdc` | MCP protocol, HTTP/stdio transport modes |
+| `02-nvml-hardware.mdc` | NVML/CGO safety, GPU interaction patterns |
+| `03-k8s-constraints.mdc` | Kubernetes deployment constraints |
+| `04-workflow-git.mdc` | Git workflow, DCO signing requirements |
+
+These rules help AI assistants understand project conventions and generate
+code that matches the existing codebase style.
+
+### LLM Context Document
+
+For AI assistants working with this codebase, see
+[docs/llm-context.md](docs/llm-context.md) — a structured overview designed
+for LLM consumption with:
+
+- Project architecture summary
+- All 5 MCP tools with schemas
+- Common patterns and anti-patterns
+- CLI flags reference
+- Troubleshooting patterns
+
 ## Resources
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)

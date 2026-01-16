@@ -48,6 +48,14 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
   - Testing (538 tests)
   - Git workflow (DCO + GPG)
 
+### For AI Assistants
+
+- **[LLM Context](llm-context.md)** - Structured context for AI assistants
+  - Project architecture summary
+  - MCP tools reference
+  - Common patterns
+  - CLI flags reference
+
 ### Project Information
 
 - **[Main README](../README.md)** - Project overview
