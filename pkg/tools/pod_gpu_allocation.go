@@ -59,6 +59,8 @@ type PodGPUAllocationResponse struct {
 	NodeName string             `json:"node_name"`
 	Pods     []PodGPUAllocation `json:"pods"`
 	Summary  AllocationSummary  `json:"summary"`
+	Error    string             `json:"error,omitempty"`
+	Hint     string             `json:"hint,omitempty"`
 }
 
 // AllocationSummary provides summary statistics for GPU allocations.
@@ -73,6 +75,12 @@ func (h *PodGPUAllocationHandler) Handle(
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	klog.InfoS("get_pod_gpu_allocation invoked")
+
+	// Guard against nil clientset - this tool requires K8s access
+	if h.clientset == nil {
+		return mcp.NewToolResultError(
+			"K8s client not configured - this tool requires cluster access"), nil
+	}
 
 	args := request.GetArguments()
 
@@ -103,9 +111,23 @@ func (h *PodGPUAllocationHandler) Handle(
 
 	pods, err := h.clientset.CoreV1().Pods(namespace).List(ctx, listOpts)
 	if err != nil {
-		klog.ErrorS(err, "failed to list pods")
-		return mcp.NewToolResultError(
-			fmt.Sprintf("failed to list pods: %s", err)), nil
+		klog.ErrorS(err, "failed to list pods",
+			"hint", "Agent may lack RBAC permissions. Apply deployment/rbac/agent-rbac-readonly.yaml")
+		// Return structured error with troubleshooting hint
+		response := PodGPUAllocationResponse{
+			Status:   "error",
+			NodeName: nodeName,
+			Pods:     []PodGPUAllocation{},
+			Summary:  AllocationSummary{},
+			Error:    fmt.Sprintf("failed to list pods: %s", err),
+			Hint:     "Agent may lack RBAC permissions. Apply deployment/rbac/agent-rbac-readonly.yaml",
+		}
+		jsonBytes, marshalErr := json.MarshalIndent(response, "", "  ")
+		if marshalErr != nil {
+			return mcp.NewToolResultError(
+				fmt.Sprintf("failed to list pods: %s", err)), nil
+		}
+		return mcp.NewToolResultText(string(jsonBytes)), nil
 	}
 
 	// Process pods and filter for GPU allocations

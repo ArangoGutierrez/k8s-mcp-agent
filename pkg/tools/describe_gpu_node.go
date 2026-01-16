@@ -44,6 +44,13 @@ type GPUNodeDescription struct {
 	Summary GPUNodeSummary   `json:"summary"`
 }
 
+// NodeInfoPartial is used when K8s API access fails but NVML data is available.
+type NodeInfoPartial struct {
+	Name           string `json:"name"`
+	K8sUnavailable bool   `json:"k8s_unavailable,omitempty"`
+	K8sError       string `json:"k8s_error,omitempty"`
+}
+
 // NodeInfo contains Kubernetes node metadata.
 type NodeInfo struct {
 	Name        string            `json:"name"`
@@ -159,35 +166,71 @@ func (h *DescribeGPUNodeHandler) Handle(
 
 	klog.V(4).InfoS("describing node", "node", nodeName)
 
-	// Get Kubernetes node info
-	node, err := h.clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		klog.ErrorS(err, "failed to get node", "node", nodeName)
-		return mcp.NewToolResultError(
-			fmt.Sprintf("failed to get node: %s", err)), nil
-	}
-
-	// Extract node info
-	nodeInfo := h.extractNodeInfo(node)
-
-	// Get GPU hardware info if NVML client is available
+	// Get GPU hardware info first (NVML data is always available locally)
 	var driverInfo DriverInfo
 	var gpus []GPUDescription
 	if h.nvmlClient != nil {
 		driverInfo, gpus = h.collectGPUInfo(ctx)
 	}
 
-	// Get pods with GPU allocations on this node
-	pods, allocatedGPUs, err := h.getPodsSummary(ctx, nodeName)
-	if err != nil {
-		klog.ErrorS(err, "failed to get pods summary", "node", nodeName)
-		return mcp.NewToolResultError(
-			fmt.Sprintf("operation cancelled: %s", err)), nil
+	// Try to get Kubernetes node info, but don't fail if RBAC denies access
+	var nodeInfo NodeInfo
+	var k8sError string
+	var node *corev1.Node
+
+	if h.clientset != nil {
+		var err error
+		node, err = h.clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+		if err != nil {
+			klog.V(2).InfoS("K8s node access unavailable",
+				"node", nodeName,
+				"error", err,
+				"hint", "Agent may lack RBAC permissions, returning NVML-only data")
+			k8sError = err.Error()
+			// Continue without K8s metadata - provide partial node info
+			nodeInfo = NodeInfo{
+				Name:        nodeName,
+				Labels:      make(map[string]string),
+				Conditions:  make(map[string]bool),
+				Capacity:    ResourceInfo{},
+				Allocatable: ResourceInfo{},
+			}
+		} else {
+			nodeInfo = h.extractNodeInfo(node)
+		}
+	} else {
+		// No clientset available
+		nodeInfo = NodeInfo{
+			Name:        nodeName,
+			Labels:      make(map[string]string),
+			Conditions:  make(map[string]bool),
+			Capacity:    ResourceInfo{},
+			Allocatable: ResourceInfo{},
+		}
+		k8sError = "K8s client not configured"
+	}
+
+	// Get pods with GPU allocations on this node (graceful on failure)
+	var pods []PodGPUSummary
+	var allocatedGPUs int64
+	if h.clientset != nil {
+		var err error
+		pods, allocatedGPUs, err = h.getPodsSummary(ctx, nodeName)
+		if err != nil {
+			klog.V(2).InfoS("failed to get pods summary", "node", nodeName, "error", err)
+			// Context cancellation is fatal
+			if ctx.Err() != nil {
+				return mcp.NewToolResultError(
+					fmt.Sprintf("operation cancelled: %s", err)), nil
+			}
+			// RBAC errors are non-fatal, continue with empty pods list
+			pods = []PodGPUSummary{}
+		}
 	}
 
 	// Calculate summary
 	totalGPUs := len(gpus)
-	if totalGPUs == 0 {
+	if totalGPUs == 0 && node != nil {
 		// Fall back to K8s capacity if no NVML data
 		if gpuCap, ok := node.Status.Capacity[nvidiaGPUResource]; ok {
 			totalGPUs = int(gpuCap.Value())
@@ -201,9 +244,15 @@ func (h *DescribeGPUNodeHandler) Handle(
 		OverallHealth: h.calculateOverallHealth(gpus),
 	}
 
+	// Determine status based on data availability
+	status := "success"
+	if k8sError != "" {
+		status = "partial"
+	}
+
 	// Create response
 	response := GPUNodeDescription{
-		Status:  "success",
+		Status:  status,
 		Node:    nodeInfo,
 		Driver:  driverInfo,
 		GPUs:    gpus,

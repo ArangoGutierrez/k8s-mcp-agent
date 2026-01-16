@@ -1,0 +1,51 @@
+# Copyright 2026 k8s-gpu-mcp-server contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Agent RBAC - Namespace-Scoped (Multi-Tenant)
+# For environments where cluster-wide access is not permitted.
+# This variant only allows listing pods in the agent's own namespace.
+#
+# Limitations:
+#   - describe_gpu_node tool will not have K8s metadata (NVML-only data)
+#   - get_pod_gpu_allocation will only see pods in gpu-diagnostics namespace
+#
+# Usage:
+#   kubectl apply -f deployment/rbac/agent-rbac-namespaced.yaml
+#
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-gpu-mcp-server-agent
+  namespace: gpu-diagnostics
+  labels:
+    app.kubernetes.io/name: k8s-gpu-mcp-server
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: k8s-gpu-mcp-server
+rules:
+  # Limited to pods in the same namespace only
+  # get_pod_gpu_allocation will only see pods in this namespace
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # NOTE: Nodes are cluster-scoped resources and cannot be accessed
+  # with a namespace-scoped Role. The describe_gpu_node tool will
+  # return NVML-only data without K8s node metadata.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-gpu-mcp-server-agent
+  namespace: gpu-diagnostics
+  labels:
+    app.kubernetes.io/name: k8s-gpu-mcp-server
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: k8s-gpu-mcp-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8s-gpu-mcp-server-agent
+subjects:
+  - kind: ServiceAccount
+    name: k8s-gpu-mcp-server
+    namespace: gpu-diagnostics

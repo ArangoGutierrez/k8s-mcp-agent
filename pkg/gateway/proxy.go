@@ -373,16 +373,14 @@ func (p *ProxyHandler) getNodeK8sMetadata(
 }
 
 // getNodeGPUAllocation returns the number of GPUs allocated on a node.
-// Note: This queries pods in the client's configured namespace only.
-// For accurate cluster-wide allocation, the client should be configured
-// with the namespace where GPU workloads run, or this should be enhanced
-// to query all namespaces.
+// Queries pods across all namespaces for accurate cluster-wide allocation counts.
+// Requires ClusterRole with pods: list permission (granted to gateway by default).
 func (p *ProxyHandler) getNodeGPUAllocation(
 	ctx context.Context,
 	nodeName string,
 ) (int64, error) {
-	// List pods on this node; empty namespace uses client's configured namespace
-	pods, err := p.router.k8sClient.ListPods(ctx, "",
+	// List pods on this node across all namespaces for accurate allocation count
+	pods, err := p.router.k8sClient.ListPodsAllNamespaces(ctx,
 		"", // all labels
 		fmt.Sprintf("spec.nodeName=%s", nodeName))
 	if err != nil {
