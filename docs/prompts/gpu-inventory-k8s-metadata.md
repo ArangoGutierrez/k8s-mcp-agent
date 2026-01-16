@@ -33,8 +33,8 @@
 | 5 | Update gateway proxy tests | `[DONE]` | |
 | 6 | Run full test suite | `[DONE]` | `make all` |
 | 7 | Test in real cluster | `[DONE]` | No cluster available - skipped |
-| 8 | Create pull request | `[WIP]` | Closes #29 |
-| 9 | Wait for Copilot review | `[TODO]` | ⏳ Takes 1-2 min |
+| 8 | Create pull request | `[DONE]` | [#134](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/pull/134) |
+| 9 | Wait for Copilot review | `[WIP]` | ⏳ Takes 1-2 min |
 | 10 | Address review comments | `[TODO]` | |
 | 11 | **Merge after reviews** | `[WAIT]` | ⚠️ **Requires human approval** |
 

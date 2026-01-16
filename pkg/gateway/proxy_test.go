@@ -570,7 +570,10 @@ func TestGetNodeK8sMetadata(t *testing.T) {
 }
 
 func TestGetNodeGPUAllocation(t *testing.T) {
-	// Create fake client with pods requesting GPUs
+	// Create fake client with pods requesting GPUs.
+	// Note: This test verifies allocation counting within the client's
+	// configured namespace. Cross-namespace counting is not supported
+	// by the current implementation (see getNodeGPUAllocation docs).
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "training-job-1",
