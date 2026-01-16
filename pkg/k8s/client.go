@@ -391,3 +391,84 @@ func (c *Client) Namespace() string {
 func (c *Client) Clientset() kubernetes.Interface {
 	return c.clientset
 }
+
+// ListNodes returns nodes matching the optional label selector.
+// An empty labelSelector returns all nodes.
+// Common GPU-related selectors:
+//   - "nvidia.com/gpu.present=true"
+//   - "node.kubernetes.io/instance-type=p4d.24xlarge"
+func (c *Client) ListNodes(
+	ctx context.Context,
+	labelSelector string,
+) ([]corev1.Node, error) {
+	nodeList, err := c.clientset.CoreV1().Nodes().List(ctx,
+		metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	return nodeList.Items, nil
+}
+
+// GetNode returns a node by name.
+// Returns an error if the node does not exist.
+func (c *Client) GetNode(
+	ctx context.Context,
+	name string,
+) (*corev1.Node, error) {
+	node, err := c.clientset.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node %s: %w", name, err)
+	}
+	return node, nil
+}
+
+// ListPods returns pods in the specified namespace matching the selectors.
+// If namespace is empty, uses the client's configured namespace.
+// If labelSelector is empty, returns all pods in the namespace.
+// If fieldSelector is empty, no field filtering is applied.
+//
+// Common selectors:
+//   - labelSelector: "app.kubernetes.io/name=my-app"
+//   - fieldSelector: "spec.nodeName=gpu-node-1"
+func (c *Client) ListPods(
+	ctx context.Context,
+	namespace string,
+	labelSelector string,
+	fieldSelector string,
+) ([]corev1.Pod, error) {
+	if namespace == "" {
+		namespace = c.namespace
+	}
+
+	podList, err := c.clientset.CoreV1().Pods(namespace).List(ctx,
+		metav1.ListOptions{
+			LabelSelector: labelSelector,
+			FieldSelector: fieldSelector,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods in %s: %w", namespace, err)
+	}
+	return podList.Items, nil
+}
+
+// GetPod returns a pod by namespace and name.
+// If namespace is empty, uses the client's configured namespace.
+func (c *Client) GetPod(
+	ctx context.Context,
+	namespace string,
+	name string,
+) (*corev1.Pod, error) {
+	if namespace == "" {
+		namespace = c.namespace
+	}
+
+	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, name,
+		metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pod %s/%s: %w",
+			namespace, name, err)
+	}
+	return pod, nil
+}
