@@ -80,12 +80,13 @@ func TestNewDescribeGPUNodeHandler(t *testing.T) {
 
 func TestDescribeGPUNodeHandler_Handle(t *testing.T) {
 	tests := []struct {
-		name      string
-		nodeName  string
-		node      *corev1.Node
-		pods      []corev1.Pod
-		gpuCount  int
-		wantError bool
+		name        string
+		nodeName    string
+		node        *corev1.Node
+		pods        []corev1.Pod
+		gpuCount    int
+		wantError   bool
+		wantPartial bool // expect partial status (K8s unavailable but NVML data)
 	}{
 		{
 			name:     "healthy node with GPUs",
@@ -97,9 +98,10 @@ func TestDescribeGPUNodeHandler_Handle(t *testing.T) {
 			gpuCount: 4,
 		},
 		{
-			name:      "node not found",
-			nodeName:  "missing-node",
-			wantError: true,
+			name:        "node not found returns partial data",
+			nodeName:    "missing-node",
+			gpuCount:    2,
+			wantPartial: true, // NVML data still returned
 		},
 		{
 			name:     "node with no GPU pods",
@@ -154,6 +156,15 @@ func TestDescribeGPUNodeHandler_Handle(t *testing.T) {
 			var response GPUNodeDescription
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
+
+			if tt.wantPartial {
+				// Graceful failure: K8s unavailable but NVML data returned
+				assert.Equal(t, "partial", response.Status)
+				assert.Equal(t, tt.nodeName, response.Node.Name)
+				// NVML data should still be present
+				assert.Equal(t, tt.gpuCount, len(response.GPUs))
+				return
+			}
 
 			assert.Equal(t, "success", response.Status)
 			assert.Equal(t, tt.nodeName, response.Node.Name)

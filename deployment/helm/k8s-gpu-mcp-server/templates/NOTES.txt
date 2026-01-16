@@ -81,12 +81,45 @@ Install NVIDIA DRA Driver:
 {{- end }}
 
 -------------------------------------------------------------------------------
+RBAC PERMISSIONS
+-------------------------------------------------------------------------------
+
+Agent RBAC: {{ if .Values.agent.rbac.create }}✓ Enabled{{ else }}✗ Disabled{{ end }}
+Agent Mode: {{ .Values.agent.mode }}
+{{- if .Values.agent.rbac.create }}
+
+The agent ServiceAccount has been granted:
+  - nodes: get, list (for describe_gpu_node)
+  - pods: get, list (for get_pod_gpu_allocation)
+{{- if eq .Values.agent.mode "operator" }}
+  - pods/eviction: create (operator mode only)
+{{- end }}
+
+Verify permissions:
+  $ kubectl auth can-i get nodes \
+      --as=system:serviceaccount:{{ include "k8s-gpu-mcp-server.namespace" . }}:{{ include "k8s-gpu-mcp-server.serviceAccountName" . }}
+{{- else }}
+
+Agent RBAC is disabled. Tools requiring K8s API access will return partial data.
+To enable:
+  $ helm upgrade {{ .Release.Name }} {{ .Chart.Name }} --set agent.rbac.create=true
+{{- end }}
+
+{{- if .Values.gateway.enabled }}
+
+Gateway RBAC: ✓ Enabled
+The gateway ServiceAccount has additional permissions for:
+  - pods/exec: create (for stdio mode routing)
+{{- end }}
+
+-------------------------------------------------------------------------------
 DOCUMENTATION
 -------------------------------------------------------------------------------
 
 - Architecture: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/architecture.md
 - MCP Usage: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/mcp-usage.md
 - Quick Start: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/quickstart.md
+- Security: https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/blob/main/docs/security.md
 
 ===============================================================================
 

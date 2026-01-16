@@ -10,6 +10,13 @@ nameOverride: ""
 agent:
   # -- Operation mode: read-only or operator
   mode: "read-only"
+
+  # RBAC configuration for agent DaemonSet
+  rbac:
+    # -- Create RBAC resources for agent
+    # Enable if agents need direct K8s API access (describe_gpu_node, get_pod_gpu_allocation)
+    # Disable if all K8s access is through gateway (gateway already has its own RBAC)
+    create: true
 # -- Override the full name of the chart
 fullnameOverride: ""
 

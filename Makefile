@@ -284,6 +284,35 @@ dist-checksums: dist ## Generate checksums for release binaries
 		find . -type f -name 'agent' -exec sha256sum {} \; > SHA256SUMS
 	@echo "✓ Checksums generated: $(DIST_DIR)/SHA256SUMS"
 
+##@ Validation
+
+.PHONY: validate-rbac
+validate-rbac: ## Validate RBAC manifests (dry-run)
+	@echo "Validating standalone RBAC manifests..."
+	@kubectl apply --dry-run=client -f deployment/rbac/ 2>&1 || \
+		(echo "✗ Standalone RBAC validation failed"; exit 1)
+	@echo "✓ Standalone RBAC manifests valid"
+	@echo "Validating Helm RBAC templates (agent.rbac.create=true)..."
+	@helm template test ./deployment/helm/k8s-gpu-mcp-server \
+		--set agent.rbac.create=true 2>/dev/null | \
+		kubectl apply --dry-run=client -f - 2>&1 || \
+		(echo "✗ Helm agent RBAC validation failed"; exit 1)
+	@echo "✓ Helm agent RBAC templates valid"
+	@echo "Validating Helm RBAC templates (gateway.enabled=true)..."
+	@helm template test ./deployment/helm/k8s-gpu-mcp-server \
+		--set gateway.enabled=true 2>/dev/null | \
+		kubectl apply --dry-run=client -f - 2>&1 || \
+		(echo "✗ Helm gateway RBAC validation failed"; exit 1)
+	@echo "✓ Helm gateway RBAC templates valid"
+	@echo "Validating Helm RBAC templates (operator mode)..."
+	@helm template test ./deployment/helm/k8s-gpu-mcp-server \
+		--set agent.mode=operator \
+		--set agent.rbac.create=true 2>/dev/null | \
+		kubectl apply --dry-run=client -f - 2>&1 || \
+		(echo "✗ Helm operator RBAC validation failed"; exit 1)
+	@echo "✓ Helm operator RBAC templates valid"
+	@echo "✓ All RBAC validations passed"
+
 ##@ Information
 
 info: ## Display build information

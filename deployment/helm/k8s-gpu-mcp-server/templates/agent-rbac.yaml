@@ -1,0 +1,47 @@
+{{/*
+Copyright 2026 k8s-gpu-mcp-server contributors
+SPDX-License-Identifier: Apache-2.0
+*/}}
+{{- if .Values.agent.rbac.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-agent
+  labels:
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+rules:
+  # Node information for describe_gpu_node tool
+  # Required to query GPU node labels, taints, capacity, and conditions
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Pod information for get_pod_gpu_allocation tool
+  # Required to list pods with GPU allocations across all namespaces
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+{{- if eq .Values.agent.mode "operator" }}
+  # Operator mode: allow pod eviction for kill_gpu_process (future)
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-agent
+  labels:
+    {{- include "k8s-gpu-mcp-server.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "k8s-gpu-mcp-server.fullname" . }}-agent
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-gpu-mcp-server.serviceAccountName" . }}
+    namespace: {{ include "k8s-gpu-mcp-server.namespace" . }}
+{{- end }}

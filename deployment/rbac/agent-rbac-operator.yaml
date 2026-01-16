@@ -1,0 +1,63 @@
+# Copyright 2026 k8s-gpu-mcp-server contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Agent RBAC - Operator Mode (Future)
+# Extended permissions for active GPU management operations.
+#
+# WARNING: This grants additional permissions beyond read-only mode.
+# Only use if you need features like:
+#   - kill_gpu_process (future): evict pods consuming GPU resources
+#   - GPU health auto-remediation (future)
+#
+# Usage:
+#   kubectl apply -f deployment/rbac/agent-rbac-operator.yaml
+#
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-gpu-mcp-server-agent-operator
+  labels:
+    app.kubernetes.io/name: k8s-gpu-mcp-server
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: k8s-gpu-mcp-server
+rules:
+  # Read-only permissions (same as agent-rbac-readonly.yaml)
+  # Node information for describe_gpu_node tool
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Pod information for get_pod_gpu_allocation tool
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+
+  # Operator-only permissions below
+  # Pod eviction for kill_gpu_process tool (future)
+  # Allows graceful pod termination for GPU resource management
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+
+  # RESERVED: Node status patch for GPU health reporting (future)
+  # Uncomment when GPU health conditions are implemented
+  # - apiGroups: [""]
+  #   resources: ["nodes/status"]
+  #   verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-gpu-mcp-server-agent-operator
+  labels:
+    app.kubernetes.io/name: k8s-gpu-mcp-server
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: k8s-gpu-mcp-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-gpu-mcp-server-agent-operator
+subjects:
+  - kind: ServiceAccount
+    name: k8s-gpu-mcp-server
+    namespace: gpu-diagnostics
