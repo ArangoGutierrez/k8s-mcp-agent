@@ -453,6 +453,26 @@ func (c *Client) ListPods(
 	return podList.Items, nil
 }
 
+// ListPodsAllNamespaces returns pods across all namespaces matching the selectors.
+// This requires cluster-wide RBAC permissions (ClusterRole with pods: list).
+// Use this for accurate GPU allocation counts that span multiple namespaces.
+func (c *Client) ListPodsAllNamespaces(
+	ctx context.Context,
+	labelSelector string,
+	fieldSelector string,
+) ([]corev1.Pod, error) {
+	// Empty string queries all namespaces in Kubernetes API
+	podList, err := c.clientset.CoreV1().Pods("").List(ctx,
+		metav1.ListOptions{
+			LabelSelector: labelSelector,
+			FieldSelector: fieldSelector,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods cluster-wide: %w", err)
+	}
+	return podList.Items, nil
+}
+
 // GetPod returns a pod by namespace and name.
 // If namespace is empty, uses the client's configured namespace.
 func (c *Client) GetPod(
