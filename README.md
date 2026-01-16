@@ -23,7 +23,7 @@ Kubernetes APIs cannot detect.
 
 ### ✨ Key Features
 
-- 🎯 **Low Footprint** - Persistent HTTP server with ~15-20MB memory when idle
+- 🎯 **Low-Footprint, Always-Available** - Persistent HTTP server (~15-20MB idle) performs GPU work only when tools are invoked
 - 🔌 **HTTP Transport** - JSON-RPC 2.0 over HTTP/SSE (production default)
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts

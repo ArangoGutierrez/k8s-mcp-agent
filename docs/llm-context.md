@@ -11,7 +11,7 @@
 |----------|-------|
 | **Name** | k8s-gpu-mcp-server |
 | **Purpose** | NVIDIA GPU diagnostics for Kubernetes via MCP |
-| **Language** | Go 1.25+ |
+| **Language** | Go 1.25.0+ |
 | **Protocol** | MCP (Model Context Protocol) / JSON-RPC 2.0 |
 | **Transport** | HTTP (default), Stdio (legacy) |
 | **License** | Apache 2.0 |

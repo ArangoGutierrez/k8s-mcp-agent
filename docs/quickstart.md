@@ -183,7 +183,7 @@ allowing the agent to monitor all GPUs without blocking the scheduler.
 
 ## Available Tools
 
-Once the agent is running, you can call these 5 MCP tools:
+Once the agent is running, you can call these MCP tools:
 
 | Tool | Category | Description |
 |------|----------|-------------|

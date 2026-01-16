@@ -62,7 +62,7 @@ Traditional Monitoring:              k8s-gpu-mcp-server:
 
 **Benefits:**
 - **Low resource usage** when idle (~15-20MB resident memory)
-- **On-demand** diagnostics via HTTP or kubectl exec
+- **Always-available** diagnostics via persistent HTTP server or kubectl exec
 - **No GPU allocation** — doesn't block scheduler
 - **Works with AI agents** and human SREs alike
 
@@ -534,7 +534,7 @@ See [Security Model](security.md) for detailed RBAC configuration.
 
 **Chosen**: HTTP primary, Stdio secondary
 
-**History:** Initially stdio-only (M1), HTTP added in M3 (Epic #112)
+**History:** Initially stdio-only (M1), HTTP added in M3 ([Epic #112](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/112))
 
 **Rationale:**
 - HTTP: 150× faster than exec-based routing
