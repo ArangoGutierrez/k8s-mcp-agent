@@ -1,0 +1,12 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "describe_gpu_node",
+    "arguments": {
+      "node_name": "gpu-node-1"
+    }
+  },
+  "id": 5
+}
+

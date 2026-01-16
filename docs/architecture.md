@@ -12,6 +12,9 @@ implementation of `k8s-gpu-mcp-server`.
 - [Data Flow](#data-flow)
 - [Security Model](#security-model)
 - [Performance Considerations](#performance-considerations)
+- [Design Decisions](#design-decisions)
+- [File Structure](#file-structure)
+- [Extension Points](#extension-points)
 
 ## Overview
 
@@ -21,12 +24,12 @@ Context Protocol (MCP).
 
 ### Key Characteristics
 
+- **HTTP-First**: JSON-RPC 2.0 over HTTP/SSE (production default)
 - **On-Demand**: Agent runs only during diagnostic sessions
-- **HTTP Transport**: JSON-RPC 2.0 over HTTP/SSE (production default)
-- **Stdio Transport**: Legacy mode for direct kubectl exec
 - **AI-Native**: Designed for AI assistant consumption (Claude, Cursor)
 - **Hardware-Focused**: Direct NVML access for deep GPU diagnostics
-- **Multi-Platform**: Kubernetes (DaemonSet), Docker, Slurm, workstations
+- **Multi-Node**: Gateway architecture for cluster-wide diagnostics
+- **Observable**: Prometheus metrics, circuit breaker, distributed tracing
 
 ## Design Principles
 
@@ -37,29 +40,29 @@ the agent only runs during active diagnostic sessions:
 
 ```
 Traditional Monitoring:              k8s-gpu-mcp-server:
-┌─────────────┐                     ┌─────────────────────────┐
-│ DaemonSet   │                     │ DaemonSet               │
-│ (Always On) │                     │ └─ sleep infinity       │
-└──────┬──────┘                     └───────────┬─────────────┘
-       │                                        │
-       ▼                                        │ kubectl exec
-┌─────────────┐                                 ▼
-│   Metrics   │                     ┌─────────────────────────┐
-│   Server    │                     │ /agent runs             │
-│  :9090/tcp  │                     │ └─ MCP session (stdio)  │
-└─────────────┘                     └───────────┬─────────────┘
-                                                │
-                                                ▼ session ends
-                                    ┌─────────────────────────┐
-                                    │ Back to sleep infinity  │
-                                    │ (near-zero resource)    │
-                                    └─────────────────────────┘
+┌─────────────────┐                 ┌─────────────────────────────┐
+│ DaemonSet       │                 │ DaemonSet                   │
+│ (Always On)     │                 │ └─ HTTP server on :8080     │
+└────────┬────────┘                 └───────────────┬─────────────┘
+         │                                          │
+         ▼                                          │ HTTP request
+┌─────────────────┐                                 ▼
+│   Metrics       │                 ┌─────────────────────────────┐
+│   Server        │                 │ Process request             │
+│  :9090/tcp      │                 │ └─ Query NVML               │
+│  (always open)  │                 │ └─ Return JSON response     │
+└─────────────────┘                 └───────────────┬─────────────┘
+                                                    │
+                                                    ▼ idle
+                                    ┌─────────────────────────────┐
+                                    │ Wait for next request       │
+                                    │ (15-20MB memory footprint)  │
+                                    └─────────────────────────────┘
 ```
 
 **Benefits:**
-- **Minimal resource usage** when idle (sleeping container ≈ 0 CPU)
-- **No port exposure** or network listeners
-- **On-demand** diagnostics via `kubectl exec`
+- **Low resource usage** when idle (~15-20MB resident memory)
+- **Always-available** diagnostics via persistent HTTP server or kubectl exec
 - **No GPU allocation** — doesn't block scheduler
 - **Works with AI agents** and human SREs alike
 
@@ -67,27 +70,75 @@ Traditional Monitoring:              k8s-gpu-mcp-server:
 
 The agent supports two transport modes:
 
-**HTTP Mode (Default for Gateway):**
+| Transport | Default For | Use Case | Overhead |
+|-----------|-------------|----------|----------|
+| **HTTP** | Gateway, Production | Multi-node clusters | Low (~12-57ms/request) |
+| **Stdio** | Direct Access | Single-node debugging | Higher (process spawn) |
+
+**HTTP Mode (Production Default):**
 - Persistent HTTP server on port 8080
 - Low memory footprint (~15-20MB resident)
 - Direct pod-to-pod HTTP routing
 - Health endpoints (`/healthz`, `/readyz`, `/metrics`)
 - Ideal for multi-node gateway deployments
 
-**Stdio Mode (Default for Direct Access):**
+**Stdio Mode (Direct Access):**
 - Works through `kubectl exec` SPDY tunneling
 - Works with Docker direct stdin/stdout
 - No network configuration required
 - Firewall-friendly (no listening ports)
 - Ideal for single-node debugging
 
-**Trade-offs:**
-- HTTP: Requires network connectivity between pods
-- Stdio: Higher per-request overhead (process spawn + NVML init)
+### 3. Gateway Architecture
 
-### 3. Interface Abstraction
+For multi-node clusters, the gateway provides unified access:
 
-We abstract NVML behind a Go interface:
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MCP Client (Claude/Cursor)                        │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ MCP over stdio
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NPM Bridge (local workstation)                    │
+│                    kubectl port-forward :8080                        │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ HTTP
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Gateway Pod (:8080)                               │
+│  ┌──────────────┐  ┌─────────────────┐  ┌────────────────┐         │
+│  │    Router    │─▶│ Circuit Breaker │─▶│  HTTP Client   │         │
+│  └──────────────┘  └─────────────────┘  └───────┬────────┘         │
+│                                                  │                   │
+│  Prometheus Metrics: mcp_gateway_request_duration_seconds{node}     │
+└──────────────────────────────────────────────────┼──────────────────┘
+                                                   │ HTTP (pod-to-pod)
+              ┌────────────────────────────────────┼────────────────┐
+              ▼                                    ▼                ▼
+┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+│  Agent Pod (Node 1) │  │  Agent Pod (Node 2) │  │  Agent Pod (Node N) │
+│  :8080              │  │  :8080              │  │  :8080              │
+│  ┌───────────────┐  │  │  ┌───────────────┐  │  │  ┌───────────────┐  │
+│  │ 5 MCP Tools   │  │  │  │ 5 MCP Tools   │  │  │  │ 5 MCP Tools   │  │
+│  │ NVML Client   │  │  │  │ NVML Client   │  │  │  │ NVML Client   │  │
+│  └───────┬───────┘  │  │  └───────┬───────┘  │  │  └───────┬───────┘  │
+│          │ CGO      │  │          │ CGO      │  │          │ CGO      │
+│          ▼          │  │          ▼          │  │          ▼          │
+│       GPU 0..N      │  │       GPU 0..N      │  │       GPU 0..N      │
+└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+```
+
+**Gateway Routing Modes:**
+
+| Mode | Flag | Description | Performance |
+|------|------|-------------|-------------|
+| **HTTP** (default) | `--routing-mode=http` | Direct HTTP to agent pods | ~12-57ms |
+| **Exec** (legacy) | `--routing-mode=exec` | kubectl exec to agents | ~30s |
+
+### 4. Interface Abstraction
+
+We abstract NVML behind a Go interface for testability:
 
 ```go
 type Interface interface {
@@ -102,114 +153,67 @@ type Interface interface {
 - **Testable**: Mock implementation for CI/development
 - **Flexible**: Can add other GPU vendors (AMD, Intel)
 - **Safe**: Isolates CGO complexity
-- **Portable**: Tests run on any platform
+- **Portable**: Tests run on any platform (538 tests, no GPU required)
 
 ## System Architecture
 
 ### Deployment Modes
 
-k8s-gpu-mcp-server supports multiple deployment modes:
-
 | Mode | Use Case | Command |
 |------|----------|---------|
-| **Kubernetes** | Production GPU clusters | `kubectl exec -it <pod> -- /agent` |
-| **Docker** | Slurm, workstations, NVIDIA Spark | `docker run --gpus all ... /agent` |
-| **Direct** | Development, testing | `./agent --nvml-mode=mock` |
+| **Kubernetes (Gateway)** | Production GPU clusters | `helm install ...` |
+| **Kubernetes (Direct)** | Single-node debugging | `kubectl exec -it <pod> -- /agent` |
+| **Docker** | Slurm, workstations | `docker run --gpus all ... /agent` |
+| **Local** | Development, testing | `./agent --nvml-mode=mock` |
 
-### High-Level Architecture (Kubernetes)
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                      AI Host / SRE Workstation                │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  MCP Client (Claude Desktop, Cursor, or AI Agent)      │  │
-│  │  - Sends JSON-RPC 2.0 requests                         │  │
-│  │  - Receives structured responses                       │  │
-│  └────────────┬───────────────────────────────────────────┘  │
-└───────────────┼──────────────────────────────────────────────┘
-                │
-                │ kubectl exec -it <daemonset-pod> -- /agent
-                │ (SPDY Stdio Tunnel)
-                ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    Kubernetes Node (GPU-enabled)              │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  DaemonSet Pod (k8s-gpu-mcp-server)                         │  │
-│  │  - runtimeClassName: nvidia (CDI injection)            │  │
-│  │  - No nvidia.com/gpu request (doesn't block scheduler) │  │
-│  │  ┌──────────────────────────────────────────────────┐  │  │
-│  │  │  /agent (runs on exec, exits on disconnect)      │  │  │
-│  │  │                                                   │  │  │
-│  │  │  ┌─────────────┐      ┌──────────────┐          │  │  │
-│  │  │  │ MCP Server  │◄────►│ Tool Handlers│          │  │  │
-│  │  │  │ (stdio)     │      │              │          │  │  │
-│  │  │  └─────────────┘      └──────┬───────┘          │  │  │
-│  │  │                              │                   │  │  │
-│  │  │                              ▼                   │  │  │
-│  │  │                       ┌──────────────┐          │  │  │
-│  │  │                       │ NVML Client  │          │  │  │
-│  │  │                       │ (Real)       │          │  │  │
-│  │  │                       └──────┬───────┘          │  │  │
-│  │  └──────────────────────────────┼──────────────────┘  │  │
-│  └─────────────────────────────────┼─────────────────────┘  │
-│                                    │                         │
-│                                    ▼                         │
-│                            ┌──────────────┐                  │
-│                            │ libnvidia-ml │                  │
-│                            │  (via CDI)   │                  │
-│                            └──────┬───────┘                  │
-│                                   │                          │
-│                                   ▼                          │
-│                          ┌──────────────────┐                │
-│                          │  GPU Hardware    │                │
-│                          │  (Tesla T4, A100)│                │
-│                          └──────────────────┘                │
-└──────────────────────────────────────────────────────────────┘
-
-### HTTP Transport Architecture
-
-The gateway routes requests to agents via HTTP for low-overhead communication:
+### Component Layers
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Gateway → Agent HTTP Routing                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Cursor/Claude                                                       │
-│       │                                                              │
-│       │ MCP over stdio                                               │
-│       ▼                                                              │
-│  ┌─────────────────┐                                                 │
-│  │  NPM Bridge     │ (kubectl port-forward)                          │
-│  │  (local)        │                                                 │
-│  └────────┬────────┘                                                 │
-│           │ HTTP                                                     │
-│           ▼                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │                    Kubernetes Cluster                        │    │
-│  │  ┌─────────────────┐         ┌─────────────────────────┐    │    │
-│  │  │  Gateway Pod    │  HTTP   │  Agent DaemonSet        │    │    │
-│  │  │  :8080          │────────▶│  :8080 (per GPU node)   │    │    │
-│  │  │  - Router       │         │  - NVML Client          │    │    │
-│  │  │  - Circuit Breaker│       │  - GPU Tools            │    │    │
-│  │  │  - Metrics      │         │  - Health Endpoints     │    │    │
-│  │  └─────────────────┘         └─────────────────────────┘    │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  CLI Layer (cmd/agent/main.go)                                   │
+│  - Flag parsing (--port, --gateway, --routing-mode)              │
+│  - Lifecycle management                                          │
+│  - Signal handling (SIGINT, SIGTERM)                             │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────┐
+│  MCP Server Layer (pkg/mcp/)                                     │
+│  - JSON-RPC 2.0 protocol                                         │
+│  - HTTP transport (HTTPServer)                                   │
+│  - Stdio transport (ServeStdio)                                  │
+│  - Tool registration and routing                                 │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+        ▼                  ▼                  ▼
+┌───────────────┐  ┌───────────────┐  ┌───────────────────────────┐
+│ Gateway Layer │  │  Tool Layer   │  │  K8s Client Layer         │
+│ (pkg/gateway/)│  │ (pkg/tools/)  │  │  (pkg/k8s/)               │
+│               │  │               │  │                           │
+│ - Router      │  │ - gpu_inv     │  │ - Pod discovery           │
+│ - CircuitBrkr │  │ - gpu_health  │  │ - Node listing            │
+│ - HTTPClient  │  │ - xid_errors  │  │ - Exec in pod             │
+│ - Tracing     │  │ - describe_   │  │ - Service discovery       │
+│               │  │   gpu_node    │  │                           │
+│               │  │ - pod_gpu_    │  │                           │
+│               │  │   allocation  │  │                           │
+└───────────────┘  └───────┬───────┘  └───────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────┐
+│  NVML Abstraction Layer (pkg/nvml/)                              │
+│  ┌─────────────────┐    ┌─────────────────┐                     │
+│  │    Mock         │    │    Real         │                     │
+│  │  (Testing)      │    │  (go-nvml/CGO)  │                     │
+│  │  No GPU needed  │    │  Requires GPU   │                     │
+│  └─────────────────┘    └─────────────────┘                     │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-**Key Benefits of HTTP Routing:**
-- **Low latency**: Direct HTTP calls (~12-57ms per request)
-- **Low memory**: Persistent process (~15-20MB vs 200MB spikes with exec)
-- **Circuit breaker**: Automatic failover for unhealthy nodes
-- **Metrics**: Prometheus-compatible observability
 
 ### GPU Access in Kubernetes
 
-GPU access requires CDI (Container Device Interface) injection, which is provided
-by the nvidia-container-toolkit. The agent supports clusters with:
+GPU access requires CDI (Container Device Interface) injection, provided
+by nvidia-container-toolkit. The agent supports clusters with:
 
 - **NVIDIA Device Plugin** — Standard GPU scheduling
 - **NVIDIA GPU Operator** — Full-stack GPU management
@@ -218,89 +222,82 @@ by the nvidia-container-toolkit. The agent supports clusters with:
 > **Note:** The agent does NOT request `nvidia.com/gpu` resources. It monitors
 > all GPUs on a node without consuming scheduler-visible resources.
 
-For detailed deployment information, see
-[Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
-
 **Helm Chart:** [`deployment/helm/k8s-gpu-mcp-server/`](../deployment/helm/k8s-gpu-mcp-server/)
-
-The chart supports three GPU access modes:
 
 | Mode | Default | Description |
 |------|---------|-------------|
 | **RuntimeClass** | ✓ | Uses `runtimeClassName: nvidia` + `NVIDIA_VISIBLE_DEVICES=all` |
 | **Resource Request** | | Requests `nvidia.com/gpu` from device plugin (fallback) |
-| **DRA** | | Uses Kubernetes Dynamic Resource Allocation (K8s 1.26+) |
-
-Install with:
-```bash
-# RuntimeClass mode (recommended)
-helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server
-
-# Fallback mode (no RuntimeClass)
-helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
-  --set gpu.runtimeClass.enabled=false \
-  --set gpu.resourceRequest.enabled=true
-```
-
-### Component Layers
-
-```
-┌─────────────────────────────────────────┐
-│  CLI Layer (cmd/agent/main.go)          │
-│  - Flag parsing                          │
-│  - Lifecycle management                  │
-│  - Signal handling                       │
-└──────────────────┬──────────────────────┘
-                   │
-┌──────────────────▼──────────────────────┐
-│  MCP Server Layer (pkg/mcp/)            │
-│  - JSON-RPC 2.0 protocol                │
-│  - Stdio transport                       │
-│  - Tool registration                     │
-│  - Request routing                       │
-└──────────────────┬──────────────────────┘
-                   │
-┌──────────────────▼──────────────────────┐
-│  Tool Layer (pkg/tools/)                │
-│  - get_gpu_inventory                     │
-│  - get_gpu_health                        │
-│  - analyze_xid_errors                    │
-└──────────────────┬──────────────────────┘
-                   │
-┌──────────────────▼──────────────────────┐
-│  NVML Abstraction (pkg/nvml/)           │
-│  ┌─────────────┐    ┌─────────────┐    │
-│  │    Mock     │    │    Real     │    │
-│  │ (Testing)   │    │ (go-nvml)   │    │
-│  └─────────────┘    └─────────────┘    │
-└───────────────────────────────────────┘
-```
 
 ## Component Design
 
 ### MCP Server (`pkg/mcp/`)
 
-**Responsibilities:**
-- Initialize MCP server with stdio transport
-- Register tool handlers
-- Parse JSON-RPC 2.0 requests
-- Route to appropriate handlers
-- Marshal responses
-- Manage server lifecycle
+The MCP server supports dual transport modes:
 
-**Key Implementation:**
 ```go
 type Server struct {
-    mcpServer  *server.MCPServer
-    mode       string
-    nvmlClient nvml.Interface
-}
-
-func (s *Server) Run(ctx context.Context) error {
-    // Blocks on stdio, serves JSON-RPC requests
-    return server.ServeStdio(s.mcpServer)
+    mcpServer   *server.MCPServer
+    mode        string           // "read-only" or "operator"
+    nvmlClient  nvml.Interface
+    transport   TransportType    // "stdio" or "http"
+    httpAddr    string           // e.g., "0.0.0.0:8080"
+    gatewayMode bool
+    k8sClient   *k8s.Client
 }
 ```
+
+**Key Files:**
+- `server.go` - Main server, tool registration, transport selection
+- `http.go` - HTTP transport with health endpoints
+- `oneshot.go` - Single-request mode for exec-based invocations
+
+### Gateway (`pkg/gateway/`)
+
+The gateway routes requests to agent pods across the cluster:
+
+```go
+type Router struct {
+    k8sClient      *k8s.Client
+    httpClient     *AgentHTTPClient
+    routingMode    RoutingMode        // "http" or "exec"
+    circuitBreaker *CircuitBreaker
+    maxConcurrency int                // Default: 10
+}
+```
+
+**Key Files:**
+- `router.go` - Request routing, node discovery, result aggregation
+- `circuit_breaker.go` - Per-node circuit breaker (closed/open/half-open)
+- `http_client.go` - HTTP client for agent communication
+- `proxy.go` - Tool proxy handlers for gateway mode
+- `tracing.go` - Distributed tracing with correlation IDs
+- `framing.go` - MCP message framing utilities
+
+**Circuit Breaker States:**
+
+| State | Behavior |
+|-------|----------|
+| **Closed** | Requests flow normally |
+| **Open** | Requests fail fast (node unhealthy) |
+| **Half-Open** | Probe requests to test recovery |
+
+### K8s Client (`pkg/k8s/`)
+
+Provides Kubernetes API access for the gateway and K8s-aware tools:
+
+```go
+type Client struct {
+    clientset kubernetes.Interface
+    namespace string
+    config    *rest.Config
+}
+```
+
+**Capabilities:**
+- `ListGPUNodes()` - Discover agent pods on GPU nodes
+- `GetPodForNode()` - Find agent pod for specific node
+- `ExecInPod()` - Execute commands in agent pods (legacy routing)
 
 ### NVML Abstraction (`pkg/nvml/`)
 
@@ -316,35 +313,38 @@ type Interface interface {
 type Device interface {
     GetName(ctx context.Context) (string, error)
     GetUUID(ctx context.Context) (string, error)
+    GetTemperature(ctx context.Context) (uint32, error)
+    GetPowerUsage(ctx context.Context) (uint32, error)
+    GetMemoryInfo(ctx context.Context) (*MemoryInfo, error)
+    GetUtilizationRates(ctx context.Context) (*Utilization, error)
     // ... more methods
 }
 ```
 
 **Implementations:**
 
-1. **Mock** (`mock.go`)
-   - Fake NVIDIA A100 GPUs
-   - No CGO dependency
-   - Fast, deterministic tests
-   - Used in CI/CD
-
-2. **Real** (`real.go`) - **Requires CGO**
-   - Wraps `github.com/NVIDIA/go-nvml`
-   - Requires NVIDIA driver
-   - Production use
-
-3. **Stub** (`real_stub.go`) - **Non-CGO Fallback**
-   - Compiles without CGO
-   - Returns helpful error messages
-   - Used in non-GPU CI builds
+| Implementation | File | Use Case |
+|----------------|------|----------|
+| **Mock** | `mock.go` | Testing, CI/CD, no GPU required |
+| **Real** | `real.go` | Production, requires GPU + CGO |
+| **Stub** | `real_stub.go` | Non-CGO builds, returns errors |
 
 ### Tool Handlers (`pkg/tools/`)
 
-Each tool follows a consistent pattern:
+Five MCP tools are available:
 
+| Tool | File | Category | Description |
+|------|------|----------|-------------|
+| `get_gpu_inventory` | `gpu_inventory.go` | NVML | Hardware inventory + telemetry |
+| `get_gpu_health` | `gpu_health.go` | NVML | Health monitoring with scoring |
+| `analyze_xid_errors` | `analyze_xid.go` | NVML | XID error parsing from kernel logs |
+| `describe_gpu_node` | `describe_gpu_node.go` | K8s + NVML | Node-level diagnostics |
+| `get_pod_gpu_allocation` | `pod_gpu_allocation.go` | K8s | GPU-to-Pod correlation |
+
+**Tool Handler Pattern:**
 ```go
 type XYZHandler struct {
-    nvmlClient nvml.Interface
+    nvmlClient nvml.Interface  // or k8s clientset
 }
 
 func (h *XYZHandler) Handle(
@@ -352,71 +352,94 @@ func (h *XYZHandler) Handle(
     request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
     // 1. Check context cancellation
-    // 2. Extract arguments
-    // 3. Call NVML
+    // 2. Extract and validate arguments
+    // 3. Query NVML or K8s API
     // 4. Format response as JSON
     // 5. Return MCP result
 }
 ```
 
+### Metrics (`pkg/metrics/`)
+
+Prometheus metrics for observability:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `mcp_gateway_request_duration_seconds` | Histogram | `node`, `transport`, `status` | Per-node request latency |
+| `mcp_circuit_breaker_state` | Gauge | `node` | Circuit state (0=closed, 1=open, 2=half-open) |
+| `mcp_node_healthy` | Gauge | `node` | Node health (0/1) |
+
 ## Data Flow
 
-### 1. Agent Startup
+### HTTP Transport Flow (Production)
 
 ```
-main() 
-  └─► Parse flags (--mode, --nvml-mode)
-      └─► Initialize NVML (mock or real)
-          └─► Create MCP Server
-              └─► Register tools
-                  └─► Start stdio server
-                      └─► Block on stdin
+MCP Client
+    │
+    │ HTTP POST /mcp
+    ▼
+Gateway Pod
+    │
+    ├─► Router.RouteToAllNodes()
+    │     │
+    │     ├─► CircuitBreaker.Allow(node)
+    │     │
+    │     ├─► HTTPClient.CallMCP(endpoint, request)
+    │     │         │
+    │     │         │ HTTP POST http://<pod-ip>:8080/mcp
+    │     │         ▼
+    │     │   Agent Pod
+    │     │         │
+    │     │         ├─► MCP Server parses JSON-RPC
+    │     │         ├─► Route to tool handler
+    │     │         ├─► Query NVML
+    │     │         ├─► Return JSON response
+    │     │         │
+    │     │   ◄─────┘
+    │     │
+    │     ├─► CircuitBreaker.RecordSuccess/Failure()
+    │     ├─► metrics.RecordGatewayRequest()
+    │     │
+    │     └─► Aggregate results from all nodes
+    │
+    └─► Return aggregated JSON-RPC response
 ```
 
-### 2. Request Processing
+### Stdio Transport Flow (Direct Access)
 
 ```
-stdin (JSON-RPC)
-  │
-  ▼
-MCP Server
-  │
-  ├─► Parse JSON-RPC 2.0
-  ├─► Validate protocol version
-  ├─► Route to handler
-  │
-  ▼
-Tool Handler
-  │
-  ├─► Check context
-  ├─► Validate arguments
-  ├─► Call NVML client
-  │
-  ▼
-NVML Client (Mock or Real)
-  │
-  ├─► Query GPU hardware
-  ├─► Format data
-  │
-  ▼
-Tool Handler
-  │
-  ├─► Marshal to JSON
-  │
-  ▼
-MCP Server
-  │
-  ├─► Wrap in JSON-RPC response
-  │
-  ▼
-stdout (JSON-RPC)
+kubectl exec -it <pod> -- /agent
+    │
+    │ stdin (JSON-RPC)
+    ▼
+Agent Process
+    │
+    ├─► MCP Server (stdio transport)
+    │     │
+    │     ├─► Parse JSON-RPC 2.0
+    │     ├─► Route to tool handler
+    │     │
+    │     ▼
+    │   Tool Handler
+    │     │
+    │     ├─► Validate arguments
+    │     ├─► Call NVML client
+    │     │
+    │     ▼
+    │   NVML Client
+    │     │
+    │     ├─► Query GPU hardware
+    │     │
+    │   ◄─┘
+    │
+    └─► stdout (JSON-RPC response)
 ```
 
-### 3. Logging Flow
+### Logging Flow
 
 ```
-Application Logs ──► stderr (Structured JSON)
-MCP Protocol    ──► stdout (JSON-RPC messages)
+Application Logs ──► stderr (klog structured JSON)
+MCP Protocol    ──► stdout (JSON-RPC messages only)
 ```
 
 **Critical**: Logs NEVER go to stdout (breaks MCP protocol)
@@ -432,6 +455,7 @@ Allowed:
 ✓ Inspect topology (NVLink, PCIe)
 ✓ Read ECC counters
 ✓ Parse XID errors
+✓ Query K8s node/pod metadata
 
 Denied:
 ✗ Kill GPU processes
@@ -444,60 +468,41 @@ Denied:
 ```
 --mode=operator enables:
 ✓ All read-only operations
-✓ Kill GPU processes by PID
-✓ Trigger GPU reset
-```
-
-**Activation:**
-```bash
-# Kubernetes
-kubectl exec -it <daemonset-pod> -- /agent --mode=operator
-
-# Docker
-docker run --rm -it --gpus all <image> --mode=operator
+✓ Kill GPU processes by PID (future)
+✓ Trigger GPU reset (future)
 ```
 
 ### Kubernetes Security Context
 
-When deployed as a DaemonSet with RuntimeClass:
-
 ```yaml
 securityContext:
-  runAsUser: 0                    # Root may be required for NVML
+  runAsUser: 0                    # May be required for NVML
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   capabilities:
     drop: ["ALL"]
-    # add: ["SYS_ADMIN"]          # Only if profiling metrics needed
+    add: ["SYSLOG"]               # Required for /dev/kmsg (XID errors)
 ```
 
-**Key Security Properties:**
-- **NOT Privileged**: Uses RuntimeClass for GPU access, not privileged mode
-- **No GPU Resource Request**: Doesn't consume `nvidia.com/gpu` resources
-- **Host Network**: No
-- **Host PID**: No (not needed for basic monitoring)
-- **Zero Trust**: Follows principle of least privilege
-
-For detailed security analysis, see
-[Architecture Decision Report](reports/k8s-deploy-architecture-decision.md).
-
-### Input Sanitization
-
-All tool inputs are validated:
-
-```go
-// Example: GPU index validation
-if idx < 0 || idx >= deviceCount {
-    return error
-}
-
-// Example: PID validation
-if pid <= 0 || pid > maxPID {
-    return error
-}
-```
+See [Security Model](security.md) for detailed RBAC configuration.
 
 ## Performance Considerations
+
+### Latency Comparison
+
+| Transport | P50 Latency | P95 Latency | Notes |
+|-----------|-------------|-------------|-------|
+| HTTP (gateway) | ~50ms | ~200ms | Includes network hop |
+| HTTP (direct) | ~12ms | ~57ms | Direct to agent pod |
+| Stdio (exec) | ~30s | ~45s | Process spawn overhead |
+
+### Memory Footprint
+
+| Mode | Memory | Notes |
+|------|--------|-------|
+| HTTP server (idle) | ~15-20MB | Persistent process |
+| HTTP server (active) | ~20-25MB | During request processing |
+| Exec mode | ~200MB spike | Per-request process spawn |
 
 ### Binary Size
 
@@ -506,148 +511,13 @@ if pid <= 0 || pid > maxPID {
 | Go runtime | ~2MB | Stripped binaries (`-ldflags="-s -w"`) |
 | MCP library | ~1MB | Minimal dependencies |
 | NVML bindings | ~4MB | Dynamic linking to `libnvidia-ml.so` |
-| **Total** | **~7MB** | 86% under 50MB target |
+| **Total** | **~7-8MB** | 84% under 50MB target |
 
-### Response Time
+### Concurrency
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Initialization | <100ms | One-time cost |
-| GPU Inventory | <50ms | Cached device handles |
-| Telemetry Query | <10ms | Direct NVML calls |
-| XID Analysis | <200ms | Parses dmesg buffer |
-
-### Memory Footprint
-
-- **Base**: ~15MB (Go runtime + libraries)
-- **Per GPU**: ~100KB (device handles + state)
-- **Typical**: <30MB for 8-GPU node
-
-### Concurrency Model
-
-```go
-// Main goroutine
-main() {
-    ctx, cancel := context.WithCancel(context.Background())
-    
-    // Server goroutine
-    go mcpServer.Run(ctx)
-    
-    // Signal handler goroutine
-    go handleSignals(cancel)
-    
-    <-done // Wait for completion
-}
-```
-
-**Thread Safety:**
-- NVML is **not thread-safe**: We serialize all calls
-- Context propagation ensures coordinated cancellation
-- No shared state between requests
-
-## Technology Stack
-
-### Core Dependencies
-
-```go
-require (
-    github.com/mark3labs/mcp-go v0.43.2        // MCP protocol
-    github.com/NVIDIA/go-nvml v0.13.0-1        // NVML bindings
-    github.com/stretchr/testify v1.10.0        // Testing
-)
-```
-
-### Build Configuration
-
-- **Language**: Go 1.25+
-- **CGO**: Enabled for real NVML, disabled for CI
-- **Static Binary**: Yes (with dynamic NVML linking)
-- **Base Image**: `gcr.io/distroless/base-debian12`
-
-### NVML Library
-
-**Dynamic Linking:**
-```
-agent (binary)
-  │
-  ├─► dlopen("libnvidia-ml.so.1")
-  │     │
-  │     └─► NVIDIA Driver (/usr/lib/x86_64-linux-gnu/)
-  │
-  └─► If not found: Error or fallback to mock
-```
-
-**Why Dynamic?**
-- Different driver versions have different libraries
-- Avoids binary bloat
-- Works across NVIDIA driver versions
-
-## Component Interactions
-
-### Startup Sequence
-
-```mermaid
-sequenceDiagram
-    participant M as main()
-    participant N as NVML Client
-    participant S as MCP Server
-    participant H as Tool Handlers
-
-    M->>M: Parse flags
-    M->>N: Init(ctx)
-    N-->>M: Success
-    M->>S: New(config)
-    S->>H: Register tools
-    H-->>S: Tools registered
-    M->>S: Run(ctx)
-    S->>S: ServeStdio()
-    Note over S: Blocks on stdin
-```
-
-### Request/Response Cycle
-
-```mermaid
-sequenceDiagram
-    participant C as Client (stdin)
-    participant S as MCP Server
-    participant H as Tool Handler
-    participant N as NVML Client
-    participant G as GPU Hardware
-
-    C->>S: JSON-RPC Request
-    S->>S: Parse & Validate
-    S->>H: Route to handler
-    H->>H: Check context
-    H->>H: Validate args
-    H->>N: Query GPU
-    N->>G: NVML API call
-    G-->>N: Hardware response
-    N-->>H: Typed data
-    H->>H: Format as JSON
-    H-->>S: MCP Result
-    S->>S: Wrap in JSON-RPC
-    S-->>C: Response (stdout)
-```
-
-### Error Handling Flow
-
-```
-User Error (bad args)
-  └─► Tool Handler
-      └─► Returns MCP error result
-          └─► Client sees error, can retry
-
-System Error (no GPU)
-  └─► NVML Client
-      └─► Returns Go error
-          └─► Tool Handler
-              └─► Returns MCP error result
-
-Protocol Error (bad JSON)
-  └─► MCP Server
-      └─► Returns JSON-RPC error
-          └─► Client sees protocol error
-```
+- **Gateway**: Configurable `maxConcurrency` (default: 10 concurrent requests)
+- **NVML**: Serialized calls (NVML is not thread-safe)
+- **Circuit Breaker**: Per-node state with `sync.RWMutex`
 
 ## Design Decisions
 
@@ -655,169 +525,231 @@ Protocol Error (bad JSON)
 
 **Chosen**: Interface abstraction
 
-**Alternatives Considered:**
-1. Direct `go-nvml` usage everywhere
-2. Dependency injection
-3. **Selected: Interface abstraction**
-
 **Rationale:**
-- Enables testing without GPU
+- Enables testing without GPU (538 tests pass in CI)
 - Isolates CGO complexity
-- Future-proof for multi-vendor
+- Future-proof for multi-vendor (AMD ROCm, Intel)
 
 ### Decision 2: HTTP vs Stdio Transport
 
 **Chosen**: HTTP primary, Stdio secondary
 
-**Alternatives Considered:**
-1. HTTP + Stdio
-2. WebSocket
-3. gRPC
-4. **Selected: Stdio only**
+**History:** Initially stdio-only (M1), HTTP added in M3 ([Epic #112](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/112))
 
 **Rationale:**
-- Aligns with on-demand design
-- Works through kubectl exec
-- Works with Docker direct execution
-- Zero network exposure
-- Simpler security
+- HTTP: 150× faster than exec-based routing
+- HTTP: Constant memory (~15-20MB vs 200MB spikes)
+- HTTP: Enables circuit breaker and metrics
+- Stdio: Still valuable for direct debugging
 
-### Decision 5: DaemonSet vs kubectl debug
+### Decision 3: HTTP Routing vs Exec Routing (Gateway)
 
-**Chosen**: DaemonSet with `kubectl exec`
-
-**Alternatives Considered:**
-1. `kubectl debug` ephemeral containers
-2. On-demand Pod creation
-3. **Selected: DaemonSet with sleeping container**
+**Chosen**: HTTP routing (default), Exec routing (legacy fallback)
 
 **Rationale:**
-- `kubectl debug` cannot access GPUs (bypasses device plugin)
-- On-demand Pod has ~5-10s startup overhead
-- DaemonSet provides instant access via exec
-- Sleeping container has near-zero resource usage
-- Agent runs only during active sessions
+- HTTP routing: Direct pod-to-pod, ~50ms latency
+- Exec routing: Via API server, ~30s latency
+- HTTP requires CNI to support cross-node pod networking
+  (see [Cross-Node Networking](troubleshooting/cross-node-networking.md))
 
-See [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md)
-for detailed analysis.
+### Decision 4: DaemonSet vs kubectl debug
 
-### Decision 3: Runtime vs Compile-Time Mode Selection
-
-**Chosen**: Runtime flag (`--nvml-mode`)
+**Chosen**: DaemonSet with persistent HTTP server
 
 **Alternatives Considered:**
-1. Compile two binaries (mock/real)
-2. Auto-detect GPU
-3. **Selected: Runtime flag**
+1. `kubectl debug` ephemeral containers - Cannot access GPUs
+2. On-demand Pod creation - 5-10s startup overhead
+3. DaemonSet with sleeping container - Near-zero resource but exec overhead
+
+**Rationale:**
+- DaemonSet provides instant access
+- HTTP server has low idle resource usage (~15MB)
+- Gateway can route to any node immediately
+
+### Decision 5: Runtime vs Compile-Time Mode Selection
+
+**Chosen**: Runtime flags (`--nvml-mode`, `--routing-mode`)
 
 **Rationale:**
 - Single binary for all environments
-- Explicit control
-- Easy testing
-- Clear intent
+- Explicit control over behavior
+- Easy testing and debugging
 
-### Decision 4: Go 1.25 (Latest)
+### Decision 6: Go 1.25 (Latest Stable)
 
-**Chosen**: Go 1.25.5
-
-**Alternatives Considered:**
-1. Go 1.23 (conservative)
-2. Go 1.24 (stable)
-3. **Selected: Go 1.25 (latest)**
+**Chosen**: Go 1.25.x
 
 **Rationale:**
 - Go 1.23 EOL in August 2025
 - Latest features and security patches
 - Better performance
-- Community moving forward
+- `klog/v2` requires Go 1.21+
 
 ## File Structure
 
 ```
 k8s-gpu-mcp-server/
-├── cmd/agent/              # Entry point
-│   └── main.go             # CLI, lifecycle, wiring
+├── cmd/agent/                   # Entry point
+│   └── main.go                  # CLI, flags, lifecycle
 │
-├── pkg/                    # Public packages
-│   ├── mcp/                # MCP protocol layer
-│   │   ├── server.go       # Stdio server wrapper
-│   │   └── server_test.go  # Unit tests
+├── pkg/                         # Public packages
+│   ├── gateway/                 # Gateway router (M3)
+│   │   ├── router.go            # Request routing, node discovery
+│   │   ├── circuit_breaker.go   # Per-node circuit breaker
+│   │   ├── http_client.go       # HTTP client for agents
+│   │   ├── proxy.go             # Tool proxy handlers
+│   │   ├── tracing.go           # Correlation ID generation
+│   │   └── framing.go           # MCP message framing
 │   │
-│   ├── nvml/               # NVML abstraction
-│   │   ├── interface.go    # Contract
-│   │   ├── mock.go         # Fake implementation
-│   │   ├── real.go         # Real NVML (CGO)
-│   │   ├── real_stub.go    # Non-CGO stub
-│   │   ├── mock_test.go    # Mock tests
-│   │   └── real_test.go    # Integration tests
+│   ├── k8s/                     # Kubernetes client (M3)
+│   │   └── client.go            # Pod discovery, exec, node listing
 │   │
-│   └── tools/              # MCP tool handlers
-│       ├── gpu_inventory.go
-│       └── gpu_inventory_test.go
+│   ├── mcp/                     # MCP protocol layer
+│   │   ├── server.go            # Server, tool registration
+│   │   ├── http.go              # HTTP transport
+│   │   ├── oneshot.go           # Single-request mode
+│   │   └── metrics.go           # Request metrics
+│   │
+│   ├── metrics/                 # Prometheus metrics
+│   │   └── metrics.go           # Metric definitions
+│   │
+│   ├── nvml/                    # NVML abstraction
+│   │   ├── interface.go         # Interface definition
+│   │   ├── mock.go              # Mock implementation
+│   │   ├── real.go              # Real NVML (CGO)
+│   │   └── real_stub.go         # Non-CGO stub
+│   │
+│   ├── tools/                   # MCP tool handlers
+│   │   ├── gpu_inventory.go     # get_gpu_inventory
+│   │   ├── gpu_health.go        # get_gpu_health
+│   │   ├── analyze_xid.go       # analyze_xid_errors
+│   │   ├── describe_gpu_node.go # describe_gpu_node
+│   │   ├── pod_gpu_allocation.go# get_pod_gpu_allocation
+│   │   └── validation.go        # Input validation
+│   │
+│   └── xid/                     # XID error parsing
+│       ├── codes.go             # XID code database
+│       ├── parser.go            # Log parsing
+│       └── kmsg.go              # /dev/kmsg reader
 │
-├── internal/               # Private implementation
-│   └── info/               # Version injection
+├── internal/                    # Private implementation
+│   └── info/                    # Build-time version info
 │
-├── examples/               # Sample requests
+├── deployment/                  # Deployment manifests
+│   ├── helm/                    # Helm chart
+│   │   └── k8s-gpu-mcp-server/
+│   ├── rbac/                    # Standalone RBAC manifests
+│   └── Containerfile            # Container build
+│
+├── examples/                    # Sample JSON-RPC requests
 │   ├── initialize.json
 │   ├── gpu_inventory.json
 │   ├── gpu_health.json
 │   └── analyze_xid.json
 │
-└── docs/                   # Documentation
-    ├── quickstart.md
-    ├── architecture.md     # This file
-    └── mcp-usage.md
+├── npm/                         # npm package
+│   ├── package.json
+│   └── bin/                     # Binary wrapper
+│
+└── docs/                        # Documentation
+    ├── architecture.md          # This file
+    ├── quickstart.md            # Getting started
+    ├── mcp-usage.md             # MCP protocol guide
+    ├── security.md              # Security model
+    ├── troubleshooting/         # Troubleshooting guides
+    └── reports/                 # Milestone reports
 ```
 
 ## Extension Points
 
 ### Adding New Tools
 
-1. **Define tool in `pkg/tools/`**
-2. **Create handler struct**
-3. **Implement `Handle()` method**
-4. **Register in `pkg/mcp/server.go`**
-5. **Add example in `examples/`**
-6. **Write tests**
+1. **Create handler** in `pkg/tools/`:
 
-Example:
 ```go
 // pkg/tools/my_tool.go
+type MyToolHandler struct {
+    nvmlClient nvml.Interface
+}
+
+func NewMyToolHandler(nvml nvml.Interface) *MyToolHandler {
+    return &MyToolHandler{nvmlClient: nvml}
+}
+
 func (h *MyToolHandler) Handle(
     ctx context.Context,
     request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
     // Implementation
+    return mcp.NewToolResultText("result"), nil
+}
+
+func GetMyTool() mcp.Tool {
+    return mcp.NewTool("my_tool",
+        mcp.WithDescription("My tool description"),
+        mcp.WithString("param1",
+            mcp.Required(),
+            mcp.Description("Parameter description"),
+        ),
+    )
 }
 ```
 
+2. **Register in `pkg/mcp/server.go`**:
+
+```go
+myToolHandler := tools.NewMyToolHandler(cfg.NVMLClient)
+mcpServer.AddTool(tools.GetMyTool(), myToolHandler.Handle)
+```
+
+3. **Add tests** in `pkg/tools/my_tool_test.go`
+
+4. **Add example** in `examples/my_tool.json`
+
 ### Supporting New GPU Vendors
 
-To add AMD or Intel GPU support:
+The `nvml.Interface` abstraction allows adding support for other GPU vendors:
 
-1. **Implement `nvml.Interface`** for vendor SDK
-2. **Add runtime flag**: `--nvml-mode=amd|intel`
-3. **Update main.go** selection logic
-4. **Add tests**
+1. Implement `nvml.Interface` for vendor SDK (e.g., AMD ROCm)
+2. Add runtime flag: `--gpu-vendor=nvidia|amd|intel`
+3. Update `main.go` selection logic
+4. Add tests
 
 No changes needed to MCP layer or tool handlers!
 
-### Future Enhancements
+### Adding New Metrics
 
-- **eBPF Integration**: Real-time XID error streaming via kernel tracing
-- **kubectl Plugin**: `kubectl mcp diagnose <node>` for simplified UX
-- **Streaming Telemetry**: Server-Sent Events for real-time data
-- **Batch Operations**: Query multiple GPUs in parallel
-- **Caching**: Cache device handles to reduce latency
-- **Multi-Vendor**: AMD ROCm, Intel oneAPI support
+1. Define metric in `pkg/metrics/metrics.go`:
+
+```go
+var myMetric = prometheus.NewGaugeVec(
+    prometheus.GaugeOpts{
+        Name: "mcp_my_metric",
+        Help: "Description",
+    },
+    []string{"label1", "label2"},
+)
+```
+
+2. Register in `init()`:
+
+```go
+prometheus.MustRegister(myMetric)
+```
+
+3. Record values:
+
+```go
+metrics.SetMyMetric(label1, label2, value)
+```
 
 ## References
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [NVIDIA NVML Documentation](https://docs.nvidia.com/deploy/nvml-api/)
 - [go-nvml Library](https://github.com/NVIDIA/go-nvml)
+- [mcp-go Library](https://github.com/mark3labs/mcp-go)
 - [NVIDIA Device Plugin](https://github.com/NVIDIA/k8s-device-plugin)
 - [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator)
 - [Architecture Decision Report](reports/k8s-deploy-architecture-decision.md)
-
+- [Cross-Node Networking Guide](troubleshooting/cross-node-networking.md)

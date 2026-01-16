@@ -9,39 +9,58 @@ This guide provides detailed information for developers working on
 
 ## Prerequisites
 
-- **Go 1.25+**: Required for building the agent
+- **Go 1.25+**: Required for building the agent (tested with 1.25.0)
 - **golangci-lint v2.7+**: For code linting
 - **Docker/Podman**: For container builds
 - **make**: Build automation
 - **Git**: Version control with DCO signing
+- **kubectl**: For Kubernetes deployments (optional)
 
 ## Project Structure
 
 ```
 k8s-gpu-mcp-server/
 ├── cmd/
-│   └── agent/              # Main application entry point
-│       └── main.go         # CLI setup, server initialization
-├── pkg/                    # Public, reusable packages
-│   ├── mcp/                # MCP server implementation
-│   │   └── server.go       # Stdio transport, tool registration
-│   ├── nvml/               # NVML abstraction layer
-│   │   ├── interface.go    # NVML interface definition
-│   │   ├── mock.go         # Mock implementation (M1)
-│   │   └── mock_test.go    # Unit tests
-│   └── tools/              # MCP tool handlers
-│       └── gpu_inventory.go # GPU inventory tool
-├── internal/               # Private implementation details
-│   └── info/               # Build-time version info
-├── examples/               # Example JSON-RPC requests
-│   ├── gpu_inventory.json
-│   ├── gpu_health.json
-│   ├── analyze_xid.json
-│   └── initialize.json
-├── .github/
-│   └── workflows/
-│       └── ci.yml          # CI/CD pipeline
-└── .cursor/rules/          # Cursor IDE development standards
+│   └── agent/                  # Main application entry point
+│       └── main.go             # CLI, flags, lifecycle management
+├── pkg/                        # Public, reusable packages
+│   ├── gateway/                # Gateway router (multi-node clusters)
+│   │   ├── router.go           # Request routing, node discovery
+│   │   ├── circuit_breaker.go  # Per-node circuit breaker
+│   │   ├── http_client.go      # HTTP client for agent pods
+│   │   └── proxy.go            # Tool proxy handlers
+│   ├── k8s/                    # Kubernetes client
+│   │   └── client.go           # Pod discovery, exec, node listing
+│   ├── mcp/                    # MCP server implementation
+│   │   ├── server.go           # Tool registration, transport selection
+│   │   ├── http.go             # HTTP transport with health endpoints
+│   │   └── oneshot.go          # Single-request mode
+│   ├── metrics/                # Prometheus metrics
+│   │   └── metrics.go          # Metric definitions
+│   ├── nvml/                   # NVML abstraction layer
+│   │   ├── interface.go        # NVML interface definition
+│   │   ├── mock.go             # Mock implementation (testing)
+│   │   ├── real.go             # Real NVML (CGO)
+│   │   └── real_stub.go        # Non-CGO stub
+│   ├── tools/                  # MCP tool handlers (5 tools)
+│   │   ├── gpu_inventory.go    # get_gpu_inventory
+│   │   ├── gpu_health.go       # get_gpu_health
+│   │   ├── analyze_xid.go      # analyze_xid_errors
+│   │   ├── describe_gpu_node.go# describe_gpu_node (K8s + NVML)
+│   │   └── pod_gpu_allocation.go # get_pod_gpu_allocation (K8s)
+│   └── xid/                    # XID error parsing
+│       ├── codes.go            # XID code database
+│       └── parser.go           # Log parsing
+├── internal/                   # Private implementation
+│   └── info/                   # Build-time version info
+├── deployment/                 # Deployment manifests
+│   ├── helm/                   # Helm chart
+│   └── rbac/                   # Standalone RBAC manifests
+├── examples/                   # Example JSON-RPC requests
+├── npm/                        # npm package distribution
+├── docs/                       # Documentation
+├── .github/workflows/          # CI/CD pipeline
+└── .cursor/rules/              # Cursor IDE development standards
 ```
 
 ## Development Workflow
@@ -62,7 +81,7 @@ make info
 
 ### 2. Make Changes
 
-Follow the [Git Protocol](init.md#git-protocol):
+Follow the Git Protocol (DCO + GPG signing):
 
 ```bash
 # Create feature branch
@@ -398,6 +417,39 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 golangci-lint run --verbose
 ```
 
+## AI-Assisted Development
+
+This project includes Cursor IDE rules and LLM context documentation to enable
+effective AI-assisted development.
+
+### Cursor IDE Rules
+
+The `.cursor/rules/` directory contains development standards that Cursor IDE
+automatically loads to provide context-aware assistance:
+
+| Rule File | Purpose |
+|-----------|---------|
+| `00-general-go.mdc` | Go style, error handling, testing patterns |
+| `01-mcp-server.mdc` | MCP protocol, HTTP/stdio transport modes |
+| `02-nvml-hardware.mdc` | NVML/CGO safety, GPU interaction patterns |
+| `03-k8s-constraints.mdc` | Kubernetes deployment constraints |
+| `04-workflow-git.mdc` | Git workflow, DCO signing requirements |
+
+These rules help AI assistants understand project conventions and generate
+code that matches the existing codebase style.
+
+### LLM Context Document
+
+For AI assistants working with this codebase, see
+[docs/llm-context.md](docs/llm-context.md) — a structured overview designed
+for LLM consumption with:
+
+- Project architecture summary
+- All 5 MCP tools with schemas
+- Common patterns and anti-patterns
+- CLI flags reference
+- Troubleshooting patterns
+
 ## Resources
 
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
@@ -410,5 +462,5 @@ golangci-lint run --verbose
 
 - Open an [issue](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues/new)
 - Check [existing issues](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/issues)
-- Review [init.md](init.md) for workflow standards
+- Review [Architecture](docs/architecture.md) for system design
 
