@@ -28,7 +28,7 @@ Kubernetes APIs cannot detect.
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts
 - 🔒 **Secure by Default** - Read-only operations with explicit operator mode
-- ⚡ **Production Ready** - Real Tesla T4 testing, 74/74 tests passing
+- ⚡ **Production Ready** - Real Tesla T4 testing, 538 tests passing
 
 ---
 
@@ -148,26 +148,30 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 ## 📊 Architecture
 
 ```
-┌──────────────┐     kubectl debug      ┌────────────────┐
-│   Claude     │ ──────────────────────> │  K8s Node      │
-│   Desktop    │   SPDY Stdio Tunnel     │  ┌──────────┐  │
-└──────────────┘                         │  │  Agent   │  │
-       ▲                                 │  │  (stdio) │  │
-       │         JSON-RPC 2.0             │  └────┬─────┘  │
-       │         MCP Protocol             │       │        │
-       └──────────────────────────────────│   ┌───▼────┐  │
-                                          │   │  NVML  │  │
-                                          │   │  API   │  │
-                                          │   └───┬────┘  │
-                                          │       │       │
-                                          │   GPU 0...N   │
-                                          └───────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MCP Client (Claude/Cursor)                        │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ stdio / HTTP
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Gateway Pod (:8080)                               │
+│       Router → Circuit Breaker → HTTP Client                         │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │ HTTP (pod-to-pod)
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Agent (Node 1) │  │  Agent (Node 2) │  │  Agent (Node N) │
+│  5 MCP Tools    │  │  5 MCP Tools    │  │  5 MCP Tools    │
+│  NVML → GPU     │  │  NVML → GPU     │  │  NVML → GPU     │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
 **Design Principles:**
+- **HTTP-First**: Gateway routes via HTTP to agent pods (~50ms latency)
 - **Low Footprint**: Persistent HTTP server, ~15-20MB memory
-- **HTTP-First**: Gateway routes via HTTP to agent pods
-- **Interface Abstraction**: Testable, flexible, portable
+- **Observable**: Circuit breaker, Prometheus metrics, distributed tracing
+- **Interface Abstraction**: Testable, flexible, portable (538 tests)
 
 📖 **[Architecture Documentation →](docs/architecture.md)**
 
@@ -178,12 +182,12 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 | Tool | Description | Status |
 |------|-------------|--------|
 | `get_gpu_inventory` | Hardware inventory + telemetry | ✅ Available |
-| `analyze_xid_errors` | Parse GPU XID error codes from kernel logs | ✅ Available |
 | `get_gpu_health` | GPU health monitoring with scoring | ✅ Available |
-| `get_gpu_telemetry` | Real-time metrics | 🚧 M2 Phase 3 |
-| `inspect_topology` | NVLink/PCIe topology | 🚧 M2 Phase 4 |
-| `kill_gpu_process` | Terminate GPU process | 🚧 M3 (Operator) |
-| `reset_gpu` | GPU reset | 🚧 M3 (Operator) |
+| `analyze_xid_errors` | Parse GPU XID error codes from kernel logs | ✅ Available |
+| `describe_gpu_node` | Node-level GPU diagnostics with K8s metadata | ✅ Available |
+| `get_pod_gpu_allocation` | GPU-to-Pod correlation via resource requests | ✅ Available |
+| `kill_gpu_process` | Terminate GPU process | 🚧 M4 (Operator) |
+| `reset_gpu` | GPU reset | 🚧 M4 (Operator) |
 
 📖 **[MCP Usage Guide →](docs/mcp-usage.md)**
 
@@ -192,7 +196,7 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 ## 📈 Project Status
 
 ### Current Milestone: [M3: Kubernetes Integration](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/3)
-**Progress:** ~80% Complete (HTTP Transport ✅, Gateway ✅)
+**Progress:** ~90% Complete (HTTP Transport ✅, Gateway ✅, K8s Tools ✅)
 
 ### Completed Milestones
 - ✅ [M1: Foundation & API](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestone/1) - Completed Jan 3, 2026
@@ -202,10 +206,11 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
   - npm/Helm distribution
 
 ### Recent Updates (Jan 2026)
+- **Jan 16**: Documentation 360 review for external contributors
+- **Jan 15**: K8s tools complete (`describe_gpu_node`, `get_pod_gpu_allocation`)
 - **Jan 14**: HTTP Transport Epic complete - 150× latency improvement
 - **Jan 14**: Cross-node networking fix (Calico VXLAN)
 - **Jan 13**: Gateway mode with circuit breaker & Prometheus metrics
-- **Jan 12**: Per-node latency tracking (`mcp_gateway_request_duration_seconds`)
 
 📊 **[View All Milestones →](https://github.com/ArangoGutierrez/k8s-gpu-mcp-server/milestones)**
 
@@ -216,7 +221,7 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 ### Unit Tests (No GPU Required)
 
 ```bash
-make test                   # Run all unit tests (74/74 passing)
+make test                   # Run all unit tests (538 tests passing)
 make coverage               # Generate coverage report
 make coverage-html          # View coverage in browser
 ```
@@ -229,16 +234,17 @@ make test-integration       # Run on GPU hardware
 go test -tags=integration -v ./pkg/nvml/
 ```
 
-**Latest Test Results on Tesla T4:**
+**Latest Test Results:**
 ```
-✓ TestRealNVML_Integration
+✓ 538 total tests passing
+✓ Race detector enabled (-race)
+✓ Coverage: 58-80% by package
+
+Integration tested on Tesla T4:
   - GPU: Tesla T4 (15GB)
   - Temperature: 29°C
   - Power: 13.9W
-  - Utilization: 0% (idle)
-
-✓ 5/5 integration tests passing
-✓ 74/74 total tests passing
+  - All NVML operations verified
 ```
 
 ---
@@ -378,11 +384,12 @@ Claude: "Found zombie process PID 12345 using 8GB. Kill it?"
 
 - ✅ **Go 1.25** - Latest Go version
 - ✅ **Real NVML** - Tested on Tesla T4
-- ✅ **All Tests Passing** - Race detector enabled, 58-80% coverage
-- ✅ **Zero Lint Issues** - Clean codebase
-- ✅ **7.9MB Binary** - 84% under 50MB target
+- ✅ **538 Tests Passing** - Race detector enabled, 58-80% coverage
+- ✅ **HTTP-First Architecture** - 150× faster than exec routing
+- ✅ **Gateway + Circuit Breaker** - Production-grade reliability
+- ✅ **Prometheus Metrics** - Per-node latency tracking
+- ✅ **~8MB Binary** - 84% under 50MB target
 - ✅ **MCP 2025-06-18** - Latest protocol version
-- ✅ **Production Ready** - Used on real hardware
 
 ---
 

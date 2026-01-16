@@ -183,7 +183,15 @@ allowing the agent to monitor all GPUs without blocking the scheduler.
 
 ## Available Tools
 
-Once the agent is running, you can call these MCP tools:
+Once the agent is running, you can call these 5 MCP tools:
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| `get_gpu_inventory` | NVML | Hardware inventory + telemetry |
+| `get_gpu_health` | NVML | Health monitoring with scoring |
+| `analyze_xid_errors` | NVML | XID error parsing from kernel logs |
+| `describe_gpu_node` | K8s + NVML | Node-level diagnostics |
+| `get_pod_gpu_allocation` | K8s | GPU-to-Pod correlation |
 
 ### 1. GPU Inventory
 **Purpose:** Get hardware inventory and current telemetry
@@ -208,6 +216,36 @@ Once the agent is running, you can call these MCP tools:
 - Temperature (°C)
 - Power usage (milliwatts)
 - Utilization (GPU %, Memory %)
+
+### 2. GPU Health
+**Purpose:** Health monitoring with scoring and recommendations
+
+```bash
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_gpu_health","arguments":{}},"id":3}' | ./bin/agent
+```
+
+### 3. XID Error Analysis
+**Purpose:** Parse NVIDIA XID errors from kernel logs
+
+```bash
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"analyze_xid_errors","arguments":{}},"id":4}' | ./bin/agent
+```
+
+### 4. Describe GPU Node (Kubernetes)
+**Purpose:** Comprehensive node view with K8s metadata
+
+```bash
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"describe_gpu_node","arguments":{"node_name":"gpu-node-1"}},"id":5}' | ./bin/agent
+```
+
+### 5. Pod GPU Allocation (Kubernetes)
+**Purpose:** GPU-to-Pod correlation
+
+```bash
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_pod_gpu_allocation","arguments":{"node_name":"gpu-node-1"}},"id":6}' | ./bin/agent
+```
+
+📖 **[Full MCP Usage Guide →](mcp-usage.md)**
 
 ## Common Workflows
 
@@ -242,6 +280,12 @@ cat examples/gpu_inventory.json | ./bin/agent --nvml-mode=real | jq '.devices[].
 |------|---------|-------------|
 | `--mode` | `read-only` | Operation mode: `read-only` or `operator` |
 | `--nvml-mode` | `mock` | NVML mode: `mock` or `real` |
+| `--port` | `0` | HTTP port (0 = stdio mode, >0 = HTTP mode) |
+| `--addr` | `0.0.0.0` | HTTP listen address |
+| `--gateway` | `false` | Enable gateway mode (routes to node agents) |
+| `--routing-mode` | `http` | Gateway routing: `http` (direct) or `exec` (legacy) |
+| `--namespace` | `gpu-diagnostics` | Namespace for GPU agent pods (gateway mode) |
+| `--oneshot` | `0` | Exit after N requests (0=disabled) |
 | `--log-level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `--version` | - | Show version and exit |
 

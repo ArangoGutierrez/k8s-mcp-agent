@@ -8,44 +8,53 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 ### Getting Started
 
 - **[Quick Start Guide](quickstart.md)** - Get running in 5 minutes
-  - Installation options
+  - Installation options (npm, source, container)
   - Basic usage examples
   - Testing with mock/real GPUs
-  - Kubernetes deployment
+  - Kubernetes deployment with Helm
 
 ### Understanding the Project
 
 - **[Architecture](architecture.md)** - System design and technical details
-  - Design principles
-  - Component architecture
-  - Data flow diagrams
-  - Technology stack
-  - Design decisions
+  - HTTP-first transport design
+  - Gateway architecture for multi-node clusters
+  - Component layers (5 MCP tools)
+  - NVML abstraction layer
+  - Design decisions and rationale
 
 ### Using the Agent
 
 - **[MCP Usage Guide](mcp-usage.md)** - How to consume the MCP server
-  - Protocol basics
-  - Claude Desktop integration
-  - Cursor IDE integration
+  - Protocol basics (JSON-RPC 2.0)
+  - All 5 MCP tools documented
+  - Claude Desktop / Cursor integration
   - Manual JSON-RPC examples
-  - Client implementation guides
+  - Client implementation guides (Python, Go, Bash)
+
+### Security
+
+- **[Security Model](security.md)** - Production security configuration
+  - RBAC requirements
+  - Security contexts
+  - Network policies
+  - Permission verification
 
 ### Development
 
 - **[Development Guide](../DEVELOPMENT.md)** - Contributing to the project
-  - Setup instructions
-  - Code standards
-  - Testing guidelines
-  - Git workflow
+  - Go 1.25+ setup
+  - Project structure
+  - Adding new tools
+  - Testing (538 tests)
+  - Git workflow (DCO + GPG)
 
 ### Project Information
 
 - **[Main README](../README.md)** - Project overview
 - **[License](../LICENSE)** - Apache 2.0
 - **[Milestone Reports](reports/)** - Completion reports
-  - [M1 Completion](reports/m1-completion.md)
-  - [M2 Completion](reports/m2-completion.md)
+  - [M1 Completion](reports/m1-completion.md) - Core NVML
+  - [M2 Completion](reports/m2-completion.md) - Distribution
   - [Project 360 Review (Jan 15, 2026)](reports/project-360-review-2026-01-15.md)
 
 ### Troubleshooting
@@ -55,26 +64,27 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 ### Internal Resources
 
 - **[Implementation Prompts](prompts/)** - AI-assisted development prompts
-  - [NPM kubectl Bridge](prompts/npm-kubectl-bridge.md) - Remote cluster access
-  - [M3 Kubernetes Tools](prompts/m3-kubernetes-tools.md) - K8s integration
+  - Active prompts for ongoing work
+  - Archived prompts for reference
 
 ## 🎯 Quick Links
 
 ### For Users
 - [Installation](quickstart.md#installation)
 - [Basic Usage](quickstart.md#basic-usage)
-- [Available Tools](mcp-usage.md#available-tools)
+- [5 Available Tools](mcp-usage.md#available-tools)
 - [Troubleshooting](quickstart.md#troubleshooting)
 
 ### For Developers
 - [Project Structure](architecture.md#file-structure)
-- [Adding New Tools](architecture.md#adding-new-tools)
-- [Testing](../DEVELOPMENT.md#testing)
+- [Adding New Tools](architecture.md#extension-points)
+- [538 Tests](../DEVELOPMENT.md#testing)
 - [Contributing](../DEVELOPMENT.md#development-workflow)
 
 ### For SREs
 - [Kubernetes Deployment](quickstart.md#kubernetes-deployment)
-- [Security Model](architecture.md#security-model)
+- [Security & RBAC](security.md)
+- [Gateway Architecture](architecture.md#gateway-architecture)
 - [Performance](architecture.md#performance-considerations)
 
 ## 🔗 External Resources

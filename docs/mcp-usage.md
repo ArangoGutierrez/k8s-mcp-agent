@@ -215,26 +215,38 @@ echo '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}' | ./bin/agent
     "tools": [
       {
         "name": "get_gpu_inventory",
-        "description": "Returns static hardware inventory for all GPU devices...",
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
+        "description": "Returns hardware inventory and telemetry for all GPUs",
+        "inputSchema": {"type": "object", "properties": {}}
       },
       {
         "name": "get_gpu_health",
-        "description": "GPU health monitoring with scoring...",
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
+        "description": "GPU health monitoring with scoring and recommendations",
+        "inputSchema": {"type": "object", "properties": {}}
       },
       {
         "name": "analyze_xid_errors",
-        "description": "Parse GPU XID error codes from kernel logs...",
+        "description": "Parse GPU XID error codes from kernel logs",
+        "inputSchema": {"type": "object", "properties": {}}
+      },
+      {
+        "name": "describe_gpu_node",
+        "description": "Comprehensive view of a GPU node with K8s metadata",
         "inputSchema": {
           "type": "object",
-          "properties": {}
+          "properties": {"node_name": {"type": "string"}},
+          "required": ["node_name"]
+        }
+      },
+      {
+        "name": "get_pod_gpu_allocation",
+        "description": "Shows GPU allocation for pods on a specific node",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "node_name": {"type": "string"},
+            "namespace": {"type": "string"}
+          },
+          "required": ["node_name"]
         }
       }
     ]
@@ -341,6 +353,232 @@ sufficient in most Kubernetes deployments.
 - `PowerUsage`: Milliwatts
 - `GPUUtil`: Percentage (0-100)
 - `MemoryUtil`: Percentage (0-100)
+
+### get_gpu_health
+
+**Purpose:** GPU health monitoring with scoring and recommendations
+
+**Arguments:** None
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_gpu_health",
+    "arguments": {}
+  },
+  "id": 3
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "devices": [
+    {
+      "index": 0,
+      "name": "Tesla T4",
+      "uuid": "GPU-xxx",
+      "health_score": 95,
+      "health_status": "healthy",
+      "checks": {
+        "temperature": {"status": "ok", "value": 45, "threshold": 83},
+        "power": {"status": "ok", "value": 70, "threshold": 70},
+        "memory": {"status": "ok", "used_percent": 12},
+        "ecc": {"status": "ok", "correctable": 0, "uncorrectable": 0}
+      },
+      "recommendations": []
+    }
+  ],
+  "overall_health": "healthy"
+}
+```
+
+### analyze_xid_errors
+
+**Purpose:** Parse GPU XID error codes from kernel logs
+
+**Arguments:** None (reads from `/dev/kmsg` or `dmesg`)
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "analyze_xid_errors",
+    "arguments": {}
+  },
+  "id": 4
+}
+```
+
+**Response (with errors):**
+```json
+{
+  "status": "success",
+  "errors": [
+    {
+      "timestamp": "2026-01-15T10:30:00Z",
+      "xid": 48,
+      "gpu_index": 0,
+      "description": "Double Bit ECC Error",
+      "severity": "critical",
+      "recommendation": "GPU memory error detected. Consider draining workloads and replacing GPU."
+    }
+  ],
+  "summary": {
+    "total_errors": 1,
+    "by_severity": {"critical": 1},
+    "by_xid": {"48": 1}
+  }
+}
+```
+
+### describe_gpu_node
+
+**Purpose:** Comprehensive view of a GPU node combining Kubernetes metadata
+with NVML hardware data
+
+**Arguments:**
+- `node_name` (required): Node name to describe
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "describe_gpu_node",
+    "arguments": {
+      "node_name": "gpu-node-1"
+    }
+  },
+  "id": 5
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "node": {
+    "name": "gpu-node-1",
+    "labels": {
+      "nvidia.com/gpu.product": "Tesla-T4",
+      "nvidia.com/gpu.count": "1",
+      "node.kubernetes.io/instance-type": "g4dn.xlarge"
+    },
+    "taints": [],
+    "conditions": {
+      "Ready": true,
+      "MemoryPressure": false,
+      "DiskPressure": false
+    },
+    "capacity": {
+      "cpu": "4",
+      "memory": "16Gi",
+      "nvidia.com/gpu": "1"
+    },
+    "allocatable": {
+      "cpu": "3920m",
+      "memory": "15Gi",
+      "nvidia.com/gpu": "1"
+    }
+  },
+  "driver": {
+    "version": "535.154.05",
+    "cuda_version": "12.2"
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "name": "Tesla T4",
+      "uuid": "GPU-xxx",
+      "health_score": 95,
+      "temperature": 45,
+      "utilization": 0,
+      "memory_used_percent": 3
+    }
+  ],
+  "pods": [
+    {
+      "name": "training-job-abc",
+      "namespace": "ml-workloads",
+      "gpu_count": 1,
+      "status": "Running"
+    }
+  ],
+  "summary": {
+    "total_gpus": 1,
+    "allocated_gpus": 1,
+    "available_gpus": 0,
+    "overall_health": "healthy"
+  }
+}
+```
+
+**Use Case:** Get a complete picture of a GPU node for troubleshooting,
+including hardware status, Kubernetes metadata, and running workloads.
+
+### get_pod_gpu_allocation
+
+**Purpose:** Shows GPU allocation for pods on a specific node
+
+**Arguments:**
+- `node_name` (required): Node name to query
+- `namespace` (optional): Namespace filter (default: all namespaces)
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "get_pod_gpu_allocation",
+    "arguments": {
+      "node_name": "gpu-node-1",
+      "namespace": "ml-workloads"
+    }
+  },
+  "id": 6
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "node_name": "gpu-node-1",
+  "pods": [
+    {
+      "name": "training-job-abc",
+      "namespace": "ml-workloads",
+      "status": "Running",
+      "node": "gpu-node-1",
+      "containers": [
+        {
+          "name": "trainer",
+          "gpu_request": 1,
+          "gpu_limit": 1,
+          "gpu_uuids": ["GPU-d129fc5b-2d51-cec7-d985-49168c12716f"]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_pods": 1,
+    "total_gpus_allocated": 1
+  }
+}
+```
+
+**Use Case:** Correlate GPU hardware with Kubernetes workloads. Useful for
+identifying which pods are using specific GPUs, debugging resource contention,
+and capacity planning.
 
 ## Error Handling
 
