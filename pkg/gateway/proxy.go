@@ -167,7 +167,7 @@ func (p *ProxyHandler) aggregateGPUInventory(
 	totalGPUs := 0
 	readyNodes := 0
 	gpuTypes := make(map[string]bool)
-	nodes := make([]map[string]interface{}, 0, len(results))
+	nodes := make([]interface{}, 0, len(results))
 
 	// Track cluster-level GPU resources
 	var clusterCapacity, clusterAllocatable, clusterAllocated int64
@@ -237,32 +237,6 @@ func (p *ProxyHandler) aggregateGPUInventory(
 		}
 
 		nodes = append(nodes, nodeData)
-	}
-
-	// Enrich with K8s metadata if requested and client available
-	if includeK8sMetadata && p.router.k8sClient != nil {
-		for i := range nodes {
-			nodeName, ok := nodes[i]["name"].(string)
-			if !ok || nodeName == "" {
-				continue
-			}
-
-			metadata, err := p.getNodeK8sMetadata(ctx, nodeName)
-			if err != nil {
-				klog.V(4).InfoS("failed to get K8s metadata",
-					"node", nodeName, "error", err)
-				continue
-			}
-
-			nodes[i]["kubernetes"] = metadata
-
-			// Accumulate cluster-level GPU resources
-			if metadata.GPUResources != nil {
-				clusterCapacity += metadata.GPUResources.Capacity
-				clusterAllocatable += metadata.GPUResources.Allocatable
-				clusterAllocated += metadata.GPUResources.Allocated
-			}
-		}
 	}
 
 	// Build GPU types list (sorted for deterministic output)
@@ -404,7 +378,7 @@ func (p *ProxyHandler) getNodeGPUAllocation(
 	ctx context.Context,
 	nodeName string,
 ) (int64, error) {
-	// List pods on this node (empty namespace = all namespaces via client)
+	// List pods on this node; empty namespace uses client's configured namespace
 	pods, err := p.router.k8sClient.ListPods(ctx, "",
 		"", // all labels
 		fmt.Sprintf("spec.nodeName=%s", nodeName))
