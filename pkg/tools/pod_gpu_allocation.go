@@ -76,6 +76,12 @@ func (h *PodGPUAllocationHandler) Handle(
 ) (*mcp.CallToolResult, error) {
 	klog.InfoS("get_pod_gpu_allocation invoked")
 
+	// Guard against nil clientset - this tool requires K8s access
+	if h.clientset == nil {
+		return mcp.NewToolResultError(
+			"K8s client not configured - this tool requires cluster access"), nil
+	}
+
 	args := request.GetArguments()
 
 	// Extract node_name (required)
