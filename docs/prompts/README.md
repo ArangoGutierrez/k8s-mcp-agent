@@ -140,6 +140,7 @@ cp docs/prompts/TEMPLATE.md docs/prompts/feat-new-feature.md
 
 | Prompt | Issue | Status | Description |
 |--------|-------|--------|-------------|
+| [mcp-prompts-implementation.md](mcp-prompts-implementation.md) | #78 | 🔴 P1 | MCP Prompts support for GPU diagnostic workflows |
 | [docs-http-transport-update.md](docs-http-transport-update.md) | #117 | 🟡 P2 | Update docs for HTTP transport (Phase 5) |
 | [npm-kubectl-bridge.md](npm-kubectl-bridge.md) | #97 | 🟡 P1 | NPM package kubectl port-forward bridge |
 
