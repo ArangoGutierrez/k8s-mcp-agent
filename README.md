@@ -27,8 +27,9 @@ Kubernetes APIs cannot detect.
 - 🔌 **HTTP Transport** - JSON-RPC 2.0 over HTTP/SSE (production default)
 - 🔍 **Deep Hardware Access** - Direct NVML integration for GPU diagnostics
 - 🤖 **AI-Native** - Built for Claude Desktop, Cursor, and MCP-compatible hosts
+- 📋 **MCP Prompts** - Pre-built GPU diagnostic workflows for guided troubleshooting
 - 🔒 **Secure by Default** - Read-only operations with explicit operator mode
-- ⚡ **Production Ready** - Real Tesla T4 testing, 538 tests passing
+- ⚡ **Production Ready** - Real Tesla T4 testing, 550+ tests passing
 
 ---
 
@@ -194,6 +195,25 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
 | `kill_gpu_process` | Terminate GPU process | 🚧 M4 (Operator) |
 | `reset_gpu` | GPU reset | 🚧 M4 (Operator) |
 
+### 📋 Available Prompts
+
+MCP Prompts provide guided diagnostic workflows that orchestrate multiple tools:
+
+| Prompt | Description |
+|--------|-------------|
+| `gpu-health-check` | Comprehensive GPU health assessment with recommendations |
+| `diagnose-xid-errors` | Analyze NVIDIA XID errors with remediation guidance |
+| `gpu-triage` | Standard SRE triage workflow: inventory → health → XID analysis |
+
+**Example usage with Claude:**
+```
+You: "Run the GPU triage workflow for node gpu-worker-5"
+
+Claude: [Executes gpu-triage prompt]
+        → Calls get_gpu_inventory, get_gpu_health, analyze_xid_errors
+        → Returns structured triage report with recommendations
+```
+
 📖 **[MCP Usage Guide →](docs/mcp-usage.md)**
 
 ---
@@ -211,6 +231,7 @@ Then ask Claude: *"What's the temperature of the GPUs?"*
   - npm/Helm distribution
 
 ### Recent Updates (Jan 2026)
+- **Jan 17**: MCP Prompts support - 3 built-in GPU diagnostic workflows
 - **Jan 16**: Documentation 360 review for external contributors
 - **Jan 15**: K8s tools complete (`describe_gpu_node`, `get_pod_gpu_allocation`)
 - **Jan 14**: HTTP Transport Epic complete - 150× latency improvement
@@ -398,9 +419,10 @@ Claude: "Found zombie process PID 12345 using 8GB. Kill it?"
 
 - ✅ **Go 1.25** - Latest Go version
 - ✅ **Real NVML** - Tested on Tesla T4
-- ✅ **538 Tests Passing** - Race detector enabled, 58-80% coverage
+- ✅ **550+ Tests Passing** - Race detector enabled, 58-80% coverage
 - ✅ **HTTP-First Architecture** - 150× faster than exec routing
 - ✅ **Gateway + Circuit Breaker** - Production-grade reliability
+- ✅ **MCP Prompts** - Guided diagnostic workflows for SRE troubleshooting
 - ✅ **Prometheus Metrics** - Per-node latency tracking
 - ✅ **~8MB Binary** - 84% under 50MB target
 - ✅ **MCP 2025-06-18** - Latest protocol version

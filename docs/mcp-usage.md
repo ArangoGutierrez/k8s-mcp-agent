@@ -587,6 +587,11 @@ MCP Prompts provide guided diagnostic workflows. Unlike tools (which perform
 single actions), prompts orchestrate multi-step workflows with contextual
 instructions for AI assistants.
 
+**Key Features:**
+- **Context-aware**: Prompts respect context cancellation for graceful timeouts
+- **Parameterized**: Arguments with sensible defaults for flexible invocation
+- **Structured output**: Returns formatted workflow instructions for AI assistants
+
 ### Listing Prompts
 
 ```bash
