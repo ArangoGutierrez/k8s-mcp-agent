@@ -29,10 +29,15 @@ vendor/
 # IDE and editor files
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
 .DS_Store
+
+# Project scratchpad (local development notes)
+SCRATCHPAD.md
+AUDIT_REPORT.md
 
 # Environment files
 .env
