@@ -56,6 +56,10 @@ func (p *PromptDef) ToMCPPrompt() mcp.Prompt {
 }
 
 // RenderTemplate renders the prompt template with provided arguments.
+// Placeholders use the format {{key}} and are replaced with corresponding
+// argument values. For placeholders defined in Arguments but not provided,
+// the Default value is used. Undefined placeholders (not in Arguments) are
+// left unchanged in the output.
 func (p *PromptDef) RenderTemplate(args map[string]string) string {
 	result := p.Template
 	for key, value := range args {

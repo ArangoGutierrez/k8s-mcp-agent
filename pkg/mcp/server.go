@@ -153,11 +153,7 @@ func New(cfg Config) (*Server, error) {
 		mcpServer.AddTool(tools.GetDescribeGPUNodeTool(), describeHandler.Handle)
 
 		// Register prompts
-		for _, promptDef := range prompts.Library {
-			p := promptDef.ToMCPPrompt()
-			handler := promptDef.BuildHandler()
-			mcpServer.AddPrompt(p, handler)
-		}
+		registerPrompts(mcpServer)
 
 		klog.InfoS("MCP server initialized",
 			"mode", cfg.Mode,
@@ -182,11 +178,7 @@ func New(cfg Config) (*Server, error) {
 		mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
 
 		// Register prompts
-		for _, promptDef := range prompts.Library {
-			p := promptDef.ToMCPPrompt()
-			handler := promptDef.BuildHandler()
-			mcpServer.AddPrompt(p, handler)
-		}
+		registerPrompts(mcpServer)
 
 		klog.InfoS("MCP server initialized",
 			"mode", cfg.Mode,
@@ -288,6 +280,15 @@ func (s *Server) runHTTP(ctx context.Context) error {
 
 	httpServer := NewHTTPServer(s.mcpServer, s.httpAddr, s.version)
 	return httpServer.ListenAndServe(ctx)
+}
+
+// registerPrompts registers all prompts from the library with the MCP server.
+func registerPrompts(mcpServer *server.MCPServer) {
+	for _, promptDef := range prompts.Library {
+		p := promptDef.ToMCPPrompt()
+		handler := promptDef.BuildHandler()
+		mcpServer.AddPrompt(p, handler)
+	}
 }
 
 // Shutdown gracefully shuts down the MCP server.
