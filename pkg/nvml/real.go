@@ -35,7 +35,7 @@ func NewReal() *Real {
 func (r *Real) Init(ctx context.Context) error {
 	// Check context before expensive operation
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	r.mu.Lock()
@@ -60,7 +60,7 @@ func (r *Real) Init(ctx context.Context) error {
 func (r *Real) Shutdown(ctx context.Context) error {
 	// Check context before shutdown
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	r.mu.Lock()
@@ -83,7 +83,7 @@ func (r *Real) Shutdown(ctx context.Context) error {
 func (r *Real) GetDeviceCount(ctx context.Context) (int, error) {
 	// Check context cancellation
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	if !r.initialized {
@@ -103,7 +103,7 @@ func (r *Real) GetDeviceCount(ctx context.Context) (int, error) {
 func (r *Real) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	// Check context cancellation
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return nil, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	if !r.initialized {
@@ -122,7 +122,7 @@ func (r *Real) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 // GetDriverVersion returns the NVIDIA driver version string.
 func (r *Real) GetDriverVersion(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return "", fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	if !r.initialized {
@@ -140,7 +140,7 @@ func (r *Real) GetDriverVersion(ctx context.Context) (string, error) {
 // GetCudaDriverVersion returns the CUDA driver version as a string.
 func (r *Real) GetCudaDriverVersion(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return "", fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	if !r.initialized {
@@ -166,7 +166,7 @@ type RealDevice struct {
 // GetName returns the product name of the device.
 func (d *RealDevice) GetName(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return "", fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	name, ret := d.device.GetName()
@@ -180,7 +180,7 @@ func (d *RealDevice) GetName(ctx context.Context) (string, error) {
 // GetUUID returns the globally unique identifier of the device.
 func (d *RealDevice) GetUUID(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return "", fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	uuid, ret := d.device.GetUUID()
@@ -194,7 +194,7 @@ func (d *RealDevice) GetUUID(ctx context.Context) (string, error) {
 // GetPCIInfo returns PCI bus information for the device.
 func (d *RealDevice) GetPCIInfo(ctx context.Context) (*PCIInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return nil, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	pciInfo, ret := d.device.GetPciInfo()
@@ -224,7 +224,7 @@ func (d *RealDevice) GetPCIInfo(ctx context.Context) (*PCIInfo, error) {
 // GetMemoryInfo returns memory usage information.
 func (d *RealDevice) GetMemoryInfo(ctx context.Context) (*MemoryInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return nil, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	memInfo, ret := d.device.GetMemoryInfo()
@@ -243,7 +243,7 @@ func (d *RealDevice) GetMemoryInfo(ctx context.Context) (*MemoryInfo, error) {
 // GetTemperature returns the current temperature in Celsius.
 func (d *RealDevice) GetTemperature(ctx context.Context) (uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	temp, ret := d.device.GetTemperature(nvml.TEMPERATURE_GPU)
@@ -257,7 +257,7 @@ func (d *RealDevice) GetTemperature(ctx context.Context) (uint32, error) {
 // GetPowerUsage returns the current power usage in milliwatts.
 func (d *RealDevice) GetPowerUsage(ctx context.Context) (uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	power, ret := d.device.GetPowerUsage()
@@ -273,7 +273,7 @@ func (d *RealDevice) GetUtilizationRates(
 	ctx context.Context,
 ) (*Utilization, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return nil, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	util, ret := d.device.GetUtilizationRates()
@@ -293,7 +293,7 @@ func (d *RealDevice) GetPowerManagementLimit(
 	ctx context.Context,
 ) (uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	limit, ret := d.device.GetPowerManagementLimit()
@@ -309,7 +309,7 @@ func (d *RealDevice) GetEccMode(
 	ctx context.Context,
 ) (current, pending bool, err error) {
 	if err := ctx.Err(); err != nil {
-		return false, false, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return false, false, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	curr, pend, ret := d.device.GetEccMode()
@@ -330,7 +330,7 @@ func (d *RealDevice) GetTotalEccErrors(
 	errorType int,
 ) (uint64, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	var nvmlErrorType nvml.MemoryErrorType
@@ -357,7 +357,7 @@ func (d *RealDevice) GetCurrentClocksThrottleReasons(
 	ctx context.Context,
 ) (uint64, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	reasons, ret := d.device.GetCurrentClocksThrottleReasons()
@@ -377,7 +377,7 @@ func (d *RealDevice) GetClockInfo(
 	clockType int,
 ) (uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	var nvmlClockType nvml.ClockType
@@ -401,7 +401,7 @@ func (d *RealDevice) GetTemperatureThreshold(
 	thresholdType int,
 ) (uint32, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return 0, fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	var nvmlThresholdType nvml.TemperatureThresholds
@@ -427,7 +427,7 @@ func (d *RealDevice) GetCudaComputeCapability(
 	ctx context.Context,
 ) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrContextCancelled, err)
+		return "", fmt.Errorf("%w: %w", ErrContextCancelled, err)
 	}
 
 	major, minor, ret := d.device.GetCudaComputeCapability()
