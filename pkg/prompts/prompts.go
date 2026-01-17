@@ -21,7 +21,8 @@ type PromptDef struct {
 	Description string
 	// Arguments defines the parameters the prompt accepts.
 	Arguments []ArgumentDef
-	// Template is the Go template for generating messages.
+	// Template uses simple placeholder syntax (e.g., "{{name}}") for variable
+	// substitution. This is NOT Go's text/template - just string replacement.
 	Template string
 }
 
@@ -82,7 +83,12 @@ func (p *PromptDef) RenderTemplate(args map[string]string) string {
 
 // BuildHandler creates a standard handler for a PromptDef.
 func (p *PromptDef) BuildHandler() Handler {
-	return func(_ context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	return func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		// Respect context cancellation
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("prompt handler: %w", err)
+		}
+
 		// Extract arguments
 		args := make(map[string]string)
 		for key, value := range req.Params.Arguments {
@@ -93,7 +99,7 @@ func (p *PromptDef) BuildHandler() Handler {
 		for _, arg := range p.Arguments {
 			if arg.Required {
 				if _, ok := args[arg.Name]; !ok {
-					return nil, fmt.Errorf("missing required argument: %s", arg.Name)
+					return nil, fmt.Errorf("prompt %q: missing required argument %q", p.Name, arg.Name)
 				}
 			}
 		}

@@ -135,9 +135,10 @@ var GPUTriage = PromptDef{
 			Default:     "",
 		},
 	},
-	Template: `## GPU Triage Report {{incident_id}}
+	Template: `## GPU Triage Report
 
-Performing standard GPU triage for: {{node}}
+**Target:** {{node}}
+**Incident:** {{incident_id}}
 
 ### Step 1: Hardware Inventory
 

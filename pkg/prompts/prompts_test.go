@@ -148,6 +148,27 @@ func TestPromptDef_BuildHandler_RequiredArg(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing required argument")
 }
 
+func TestPromptDef_BuildHandler_ContextCancellation(t *testing.T) {
+	def := PromptDef{
+		Name:        "test",
+		Description: "Test prompt",
+		Template:    "Check GPUs",
+	}
+
+	handler := def.BuildHandler()
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	req := mcp.GetPromptRequest{}
+	req.Params.Name = "test"
+
+	_, err := handler(ctx, req)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
+}
+
 func TestGetPromptByName(t *testing.T) {
 	tests := []struct {
 		name     string
