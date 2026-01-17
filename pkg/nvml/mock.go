@@ -16,6 +16,12 @@ type Mock struct {
 	devices                []*MockDevice
 }
 
+// Compile-time interface satisfaction checks.
+var (
+	_ Interface = (*Mock)(nil)
+	_ Device    = (*MockDevice)(nil)
+)
+
 // NewMock creates a new mock NVML implementation with the specified
 // number of fake GPU devices.
 func NewMock(deviceCount int) *Mock {

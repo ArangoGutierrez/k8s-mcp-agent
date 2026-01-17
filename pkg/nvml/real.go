@@ -23,6 +23,12 @@ type Real struct {
 	initialized            bool
 }
 
+// Compile-time interface satisfaction checks.
+var (
+	_ Interface = (*Real)(nil)
+	_ Device    = (*RealDevice)(nil)
+)
+
 // NewReal creates a new real NVML implementation.
 func NewReal() *Real {
 	return &Real{

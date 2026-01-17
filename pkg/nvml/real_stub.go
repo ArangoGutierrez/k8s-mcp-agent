@@ -16,6 +16,12 @@ type Real struct {
 	UnimplementedInterface // Embedded for forward compatibility
 }
 
+// Compile-time interface satisfaction checks.
+var (
+	_ Interface = (*Real)(nil)
+	_ Device    = (*RealDevice)(nil)
+)
+
 // NewReal creates a stub that will error on init.
 func NewReal() *Real {
 	return &Real{}
