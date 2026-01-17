@@ -153,6 +153,7 @@ Completed prompts are moved to `archive/` for reference:
 
 | Prompt | Related Issue/PR | Completed |
 |--------|-----------------|-----------|
+| mcp-prompts-implementation.md | #78, PR #140 | Jan 2026 |
 | gateway-resilience-observability.md | #116, PR #123 | Jan 2026 |
 | gateway-http-routing.md | #115, PR #122 | Jan 2026 |
 | agent-http-default.md | #114, PR #121 | Jan 2026 |

@@ -10,6 +10,7 @@ Learn how to interact with `k8s-gpu-mcp-server` using the Model Context Protocol
 - [Using with Cursor IDE](#using-with-cursor-ide)
 - [Manual JSON-RPC](#manual-json-rpc)
 - [Available Tools](#available-tools)
+- [Available Prompts](#available-prompts)
 - [Error Handling](#error-handling)
 - [Best Practices](#best-practices)
 
@@ -579,6 +580,188 @@ including hardware status, Kubernetes metadata, and running workloads.
 **Use Case:** Correlate GPU hardware with Kubernetes workloads. Useful for
 identifying which pods are using specific GPUs, debugging resource contention,
 and capacity planning.
+
+## Available Prompts
+
+MCP Prompts provide guided diagnostic workflows. Unlike tools (which perform
+single actions), prompts orchestrate multi-step workflows with contextual
+instructions for AI assistants.
+
+### Listing Prompts
+
+```bash
+echo '{"jsonrpc":"2.0","method":"prompts/list","params":{},"id":1}' | ./bin/agent --nvml-mode=mock 2>/dev/null
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "prompts": [
+      {
+        "name": "gpu-health-check",
+        "description": "Comprehensive GPU health assessment with recommendations",
+        "arguments": [
+          {"name": "node", "description": "Optional: specific node name", "required": false}
+        ]
+      },
+      {
+        "name": "diagnose-xid-errors",
+        "description": "Analyze NVIDIA XID errors from kernel logs",
+        "arguments": [
+          {"name": "time_range", "description": "Time range (e.g., '24h')", "required": false}
+        ]
+      },
+      {
+        "name": "gpu-triage",
+        "description": "Standard GPU triage workflow: inventory → health → XID analysis",
+        "arguments": [
+          {"name": "node", "description": "Node name to triage", "required": false},
+          {"name": "incident_id", "description": "Optional incident ID", "required": false}
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Getting a Prompt
+
+```bash
+echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":0}
+{"jsonrpc":"2.0","method":"prompts/get","params":{"name":"gpu-health-check","arguments":{"node":"gpu-worker-1"}},"id":1}' | ./bin/agent --nvml-mode=mock 2>/dev/null
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "description": "Comprehensive GPU health assessment with recommendations",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "## GPU Health Check Request\n\nPlease perform a comprehensive GPU health assessment on gpu-worker-1.\n\n### Workflow\n..."
+        }
+      }
+    ]
+  }
+}
+```
+
+### gpu-health-check
+
+**Purpose:** Comprehensive GPU health assessment
+
+**Arguments:**
+- `node` (optional): Specific node name to check. Default: "all nodes"
+
+**Workflow:**
+1. Inventory check using `get_gpu_inventory`
+2. Health assessment using `get_gpu_health`
+3. Analysis of thermal and memory status
+4. Summary with recommendations
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "prompts/get",
+  "params": {
+    "name": "gpu-health-check",
+    "arguments": {"node": "gpu-node-5"}
+  },
+  "id": 1
+}
+```
+
+### diagnose-xid-errors
+
+**Purpose:** Analyze NVIDIA XID errors with remediation guidance
+
+**Arguments:**
+- `time_range` (optional): Time range to analyze. Default: "24h"
+
+**Workflow:**
+1. Error collection using `analyze_xid_errors`
+2. Classification by XID code and severity
+3. Root cause analysis
+4. Remediation guidance
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "prompts/get",
+  "params": {
+    "name": "diagnose-xid-errors",
+    "arguments": {"time_range": "7d"}
+  },
+  "id": 1
+}
+```
+
+### gpu-triage
+
+**Purpose:** Standard SRE triage procedure
+
+**Arguments:**
+- `node` (optional): Node name to triage. Default: "cluster-wide"
+- `incident_id` (optional): Incident/ticket ID for tracking
+
+**Workflow:**
+1. Hardware inventory
+2. Health assessment
+3. Error analysis
+4. Workload correlation (if K8s available)
+5. Triage decision based on findings
+
+**Example:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "prompts/get",
+  "params": {
+    "name": "gpu-triage",
+    "arguments": {
+      "node": "gpu-worker-42",
+      "incident_id": "INC-12345"
+    }
+  },
+  "id": 1
+}
+```
+
+### Using Prompts with Claude Desktop
+
+When prompts are available, Claude can execute guided workflows:
+
+```
+You: "Run the GPU triage workflow for node gpu-worker-5"
+
+Claude: [Calls prompts/get for gpu-triage]
+        [Follows the workflow steps]
+        [Calls get_gpu_inventory, get_gpu_health, analyze_xid_errors]
+        
+        "## GPU Triage Report
+         
+         Node: gpu-worker-5
+         Status: ⚠️ Degraded
+         
+         ### Findings:
+         - GPU 0: Healthy (score: 98)
+         - GPU 1: Warning (score: 75) - elevated temperature
+         
+         ### Recommendations:
+         1. Monitor GPU 1 temperature
+         2. Check cooling system
+         ..."
+```
 
 ## Error Handling
 

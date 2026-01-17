@@ -13,6 +13,7 @@ import (
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/gateway"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
+	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/prompts"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/tools"
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/klog/v2"
@@ -105,10 +106,11 @@ func New(cfg Config) (*Server, error) {
 		oneshot:     cfg.Oneshot,
 	}
 
-	// Create MCP server
+	// Create MCP server with prompt capabilities
 	mcpServer := server.NewMCPServer(
 		"k8s-gpu-mcp-server",
 		cfg.Version,
+		server.WithPromptCapabilities(true),
 	)
 
 	if cfg.GatewayMode {
@@ -150,6 +152,9 @@ func New(cfg Config) (*Server, error) {
 			cfg.K8sClient.Clientset(), nil)
 		mcpServer.AddTool(tools.GetDescribeGPUNodeTool(), describeHandler.Handle)
 
+		// Register prompts
+		registerPrompts(mcpServer)
+
 		klog.InfoS("MCP server initialized",
 			"mode", cfg.Mode,
 			"gateway", true,
@@ -157,6 +162,7 @@ func New(cfg Config) (*Server, error) {
 			"routingMode", cfg.RoutingMode,
 			"tools", []string{"get_gpu_inventory", "get_gpu_health",
 				"analyze_xid_errors", "get_pod_gpu_allocation", "describe_gpu_node"},
+			"prompts", prompts.GetAllPromptNames(),
 			"version", cfg.Version,
 			"commit", cfg.GitCommit)
 	} else {
@@ -171,9 +177,14 @@ func New(cfg Config) (*Server, error) {
 		healthHandler := tools.NewGPUHealthHandler(cfg.NVMLClient)
 		mcpServer.AddTool(tools.GetGPUHealthTool(), healthHandler.Handle)
 
+		// Register prompts
+		registerPrompts(mcpServer)
+
 		klog.InfoS("MCP server initialized",
 			"mode", cfg.Mode,
 			"gateway", false,
+			"tools", []string{"get_gpu_inventory", "get_gpu_health", "analyze_xid_errors"},
+			"prompts", prompts.GetAllPromptNames(),
 			"version", cfg.Version,
 			"commit", cfg.GitCommit)
 	}
@@ -269,6 +280,15 @@ func (s *Server) runHTTP(ctx context.Context) error {
 
 	httpServer := NewHTTPServer(s.mcpServer, s.httpAddr, s.version)
 	return httpServer.ListenAndServe(ctx)
+}
+
+// registerPrompts registers all prompts from the library with the MCP server.
+func registerPrompts(mcpServer *server.MCPServer) {
+	for _, promptDef := range prompts.Library {
+		p := promptDef.ToMCPPrompt()
+		handler := promptDef.BuildHandler()
+		mcpServer.AddPrompt(p, handler)
+	}
 }
 
 // Shutdown gracefully shuts down the MCP server.
