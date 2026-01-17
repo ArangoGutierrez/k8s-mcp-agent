@@ -78,8 +78,8 @@ func (m *Mock) GetDeviceCount(ctx context.Context) (int, error) {
 // GetDeviceByIndex returns a mock Device handle for the given index.
 func (m *Mock) GetDeviceByIndex(ctx context.Context, idx int) (Device, error) {
 	if idx < 0 || idx >= m.deviceCount {
-		return nil, fmt.Errorf("invalid device index %d (count: %d)",
-			idx, m.deviceCount)
+		return nil, fmt.Errorf("%w: %d (count: %d)",
+			ErrInvalidDevice, idx, m.deviceCount)
 	}
 	return m.devices[idx], nil
 }
