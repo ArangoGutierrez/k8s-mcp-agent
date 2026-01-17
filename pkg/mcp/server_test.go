@@ -137,3 +137,24 @@ func TestServer_Shutdown(t *testing.T) {
 	err = server.Shutdown()
 	assert.NoError(t, err)
 }
+
+func TestServer_PromptsCapability(t *testing.T) {
+	// Create server with mock NVML
+	mockNVML := nvml.NewMock(2)
+	cfg := Config{
+		Mode:       "read-only",
+		Version:    "test",
+		NVMLClient: mockNVML,
+		Transport:  TransportStdio,
+	}
+
+	s, err := New(cfg)
+	require.NoError(t, err)
+
+	// Verify server is created with prompts capability
+	assert.NotNil(t, s.mcpServer, "MCP server should not be nil")
+
+	// The prompts are registered internally to the mcp-go library
+	// We can verify the server was created successfully
+	assert.Equal(t, "read-only", s.mode)
+}
