@@ -14,6 +14,8 @@ var (
 
 	// ErrNotSupported indicates the operation is not supported on this GPU.
 	// This is not a failure - the feature is simply unavailable.
+	// Reserved for future use: tool handlers may use this for graceful
+	// degradation when optional features are unavailable.
 	ErrNotSupported = errors.New("operation not supported")
 
 	// ErrInvalidDevice indicates an invalid device index was provided.

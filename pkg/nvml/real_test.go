@@ -8,6 +8,7 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestRealNVML_ContextCancellation(t *testing.T) {
 	// Operations should fail with context error
 	_, err = real.GetDeviceCount(cancelledCtx)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context cancelled")
+	assert.True(t, errors.Is(err, ErrContextCancelled), "expected ErrContextCancelled, got %v", err)
 }
 
 func TestRealNVML_Timeout(t *testing.T) {
@@ -116,10 +117,10 @@ func TestRealNVML_Timeout(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond) // Ensure timeout fires
 
-	// Operations should fail with timeout
+	// Operations should fail with timeout (context deadline exceeded)
 	_, err = real.GetDeviceCount(timeoutCtx)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context")
+	assert.True(t, errors.Is(err, ErrContextCancelled), "expected ErrContextCancelled, got %v", err)
 }
 
 func TestRealNVML_InvalidIndex(t *testing.T) {
@@ -143,7 +144,7 @@ func TestRealNVML_UninitializedAccess(t *testing.T) {
 	// Try to use without initialization
 	_, err := real.GetDeviceCount(ctx)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
+	assert.True(t, errors.Is(err, ErrNotInitialized), "expected ErrNotInitialized, got %v", err)
 }
 
 // TestRealNVML_ConcurrentInit verifies that concurrent Init calls are safe.
