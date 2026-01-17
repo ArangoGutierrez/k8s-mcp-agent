@@ -23,7 +23,7 @@ By participating, you are expected to uphold this code.
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.25 or later
 - Access to a Kubernetes cluster (for integration testing)
 - NVIDIA GPU (optional, for real hardware testing)
 - Docker or Podman (for container builds)
