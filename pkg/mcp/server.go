@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/gateway"
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/k8s"
@@ -40,6 +41,7 @@ type Server struct {
 	gatewayMode bool
 	k8sClient   *k8s.Client
 	oneshot     int
+	wg          sync.WaitGroup // goroutine lifecycle coordination
 }
 
 // Config holds server configuration.
@@ -238,7 +240,9 @@ func (s *Server) runStdio(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	done := make(chan struct{})
 
+	s.wg.Add(1) // Track goroutine in WaitGroup
 	go func() {
+		defer s.wg.Done() // Signal completion
 		defer close(done)
 		if err := server.ServeStdio(s.mcpServer); err != nil {
 			errCh <- fmt.Errorf("MCP server error: %w", err)
@@ -295,8 +299,11 @@ func registerPrompts(mcpServer *server.MCPServer) {
 func (s *Server) Shutdown() error {
 	klog.InfoS("MCP server shutdown initiated")
 
-	// The mcp-go library doesn't expose a shutdown method,
-	// so we just log the shutdown
+	// Wait for all tracked goroutines to complete.
+	// Note: The mcp-go library doesn't expose a shutdown method,
+	// so we rely on context cancellation and stdin closure in runStdio
+	// to signal the server to stop.
+	s.wg.Wait()
 
 	klog.InfoS("MCP server shutdown complete")
 	return nil
