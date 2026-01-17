@@ -105,7 +105,12 @@ cat examples/gpu_inventory.json | ./bin/agent --nvml-mode=real
 ### Deploy to Kubernetes
 
 ```bash
-# Deploy with Helm (RuntimeClass mode - recommended)
+# Deploy with Helm OCI (recommended)
+helm install k8s-gpu-mcp-server \
+  oci://ghcr.io/arangogutierrez/charts/k8s-gpu-mcp-server \
+  --namespace gpu-diagnostics --create-namespace
+
+# Or from local chart
 helm install k8s-gpu-mcp-server ./deployment/helm/k8s-gpu-mcp-server \
   --namespace gpu-diagnostics --create-namespace
 
@@ -298,10 +303,19 @@ sudo mv bin/agent /usr/local/bin/k8s-gpu-mcp-server
 go install github.com/ArangoGutierrez/k8s-gpu-mcp-server/cmd/agent@latest
 ```
 
-### Container Image (Coming in M3)
+### Container Image
 
 ```bash
 docker pull ghcr.io/arangogutierrez/k8s-gpu-mcp-server:latest
+```
+
+### Helm Chart (OCI)
+
+```bash
+# Install from GHCR OCI registry
+helm install k8s-gpu-mcp-server \
+  oci://ghcr.io/arangogutierrez/charts/k8s-gpu-mcp-server \
+  --namespace gpu-diagnostics --create-namespace
 ```
 
 ---
