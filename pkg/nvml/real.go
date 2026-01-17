@@ -18,9 +18,16 @@ import (
 // This requires the NVIDIA driver and libnvidia-ml.so to be available.
 // Real is safe for concurrent use.
 type Real struct {
-	mu          sync.Mutex
-	initialized bool
+	UnimplementedInterface // Embedded for forward compatibility
+	mu                     sync.Mutex
+	initialized            bool
 }
+
+// Compile-time interface satisfaction checks.
+var (
+	_ Interface = (*Real)(nil)
+	_ Device    = (*RealDevice)(nil)
+)
 
 // NewReal creates a new real NVML implementation.
 func NewReal() *Real {
@@ -160,7 +167,8 @@ func (r *Real) GetCudaDriverVersion(ctx context.Context) (string, error) {
 
 // RealDevice is a real implementation of the Device interface.
 type RealDevice struct {
-	device nvml.Device
+	UnimplementedDevice // Embedded for forward compatibility
+	device              nvml.Device
 }
 
 // GetName returns the product name of the device.

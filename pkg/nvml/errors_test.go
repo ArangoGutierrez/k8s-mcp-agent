@@ -44,6 +44,7 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 	sentinels := []error{
 		ErrNotInitialized,
 		ErrNotSupported,
+		ErrNotImplemented,
 		ErrInvalidDevice,
 		ErrCGORequired,
 		ErrContextCancelled,
@@ -66,6 +67,7 @@ func TestSentinelErrors_HaveMessages(t *testing.T) {
 	}{
 		{"ErrNotInitialized", ErrNotInitialized, "not initialized"},
 		{"ErrNotSupported", ErrNotSupported, "not supported"},
+		{"ErrNotImplemented", ErrNotImplemented, "not implemented"},
 		{"ErrInvalidDevice", ErrInvalidDevice, "invalid device"},
 		{"ErrCGORequired", ErrCGORequired, "CGO"},
 		{"ErrContextCancelled", ErrContextCancelled, "cancelled"},
