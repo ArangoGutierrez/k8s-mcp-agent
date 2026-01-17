@@ -18,6 +18,11 @@ var (
 	// degradation when optional features are unavailable.
 	ErrNotSupported = errors.New("operation not supported")
 
+	// ErrNotImplemented indicates a method is not implemented.
+	// Used by UnimplementedInterface and UnimplementedDevice for forward
+	// compatibility when new methods are added to interfaces.
+	ErrNotImplemented = errors.New("method not implemented")
+
 	// ErrInvalidDevice indicates an invalid device index was provided.
 	ErrInvalidDevice = errors.New("invalid device index")
 

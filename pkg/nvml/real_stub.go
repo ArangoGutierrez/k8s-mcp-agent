@@ -12,7 +12,9 @@ import (
 
 // Real is a stub that returns an error when CGO is disabled.
 // This allows the code to compile without NVML library.
-type Real struct{}
+type Real struct {
+	UnimplementedInterface // Embedded for forward compatibility
+}
 
 // NewReal creates a stub that will error on init.
 func NewReal() *Real {
@@ -50,7 +52,9 @@ func (r *Real) GetCudaDriverVersion(ctx context.Context) (string, error) {
 }
 
 // RealDevice is a stub for non-CGO builds.
-type RealDevice struct{}
+type RealDevice struct {
+	UnimplementedDevice // Embedded for forward compatibility
+}
 
 // GetName returns an error indicating CGO is required.
 func (d *RealDevice) GetName(ctx context.Context) (string, error) {

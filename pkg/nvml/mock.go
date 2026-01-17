@@ -11,8 +11,9 @@ import (
 // Mock is a mock implementation of the NVML Interface for testing.
 // It returns fake but consistent GPU data without requiring real hardware.
 type Mock struct {
-	deviceCount int
-	devices     []*MockDevice
+	UnimplementedInterface // Embedded for forward compatibility
+	deviceCount            int
+	devices                []*MockDevice
 }
 
 // NewMock creates a new mock NVML implementation with the specified
@@ -96,19 +97,20 @@ func (m *Mock) GetCudaDriverVersion(ctx context.Context) (string, error) {
 
 // MockDevice is a mock implementation of the Device interface.
 type MockDevice struct {
-	index       int
-	name        string
-	uuid        string
-	busID       string
-	domain      uint32
-	bus         uint32
-	device      uint32
-	memoryTotal uint64
-	memoryUsed  uint64
-	temperature uint32
-	powerUsage  uint32
-	gpuUtil     uint32
-	memoryUtil  uint32
+	UnimplementedDevice // Embedded for forward compatibility
+	index               int
+	name                string
+	uuid                string
+	busID               string
+	domain              uint32
+	bus                 uint32
+	device              uint32
+	memoryTotal         uint64
+	memoryUsed          uint64
+	temperature         uint32
+	powerUsage          uint32
+	gpuUtil             uint32
+	memoryUtil          uint32
 
 	// Extended health monitoring fields
 	powerLimit       uint32
