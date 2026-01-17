@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ArangoGutierrez/k8s-gpu-mcp-server/pkg/nvml"
 	"github.com/stretchr/testify/assert"
@@ -136,6 +137,67 @@ func TestServer_Shutdown(t *testing.T) {
 
 	err = server.Shutdown()
 	assert.NoError(t, err)
+}
+
+func TestServer_ShutdownWaitsForGoroutines(t *testing.T) {
+	// This test verifies that Shutdown() waits for tracked goroutines.
+	// We use a mock scenario since we can't easily test the full stdio path.
+
+	mockClient := nvml.NewMock(2)
+	s, err := New(Config{
+		Mode:       "read-only",
+		Version:    "1.0.0",
+		GitCommit:  "test",
+		NVMLClient: mockClient,
+	})
+	require.NoError(t, err)
+
+	// Simulate a tracked goroutine
+	done := make(chan struct{})
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(50 * time.Millisecond)
+		close(done)
+	}()
+
+	// Shutdown should wait for the goroutine
+	start := time.Now()
+	err = s.Shutdown()
+	elapsed := time.Since(start)
+
+	assert.NoError(t, err)
+	assert.True(t, elapsed >= 50*time.Millisecond,
+		"Shutdown should wait for goroutines, elapsed: %v", elapsed)
+
+	// Verify goroutine completed
+	select {
+	case <-done:
+		// Good - goroutine completed
+	default:
+		t.Fatal("goroutine should have completed before Shutdown returned")
+	}
+}
+
+func TestServer_ShutdownEmptyWaitGroup(t *testing.T) {
+	// Verify Shutdown works correctly with no tracked goroutines
+	mockClient := nvml.NewMock(2)
+	s, err := New(Config{
+		Mode:       "read-only",
+		Version:    "1.0.0",
+		GitCommit:  "test",
+		NVMLClient: mockClient,
+	})
+	require.NoError(t, err)
+
+	// Shutdown with empty WaitGroup should return immediately
+	start := time.Now()
+	err = s.Shutdown()
+	elapsed := time.Since(start)
+
+	assert.NoError(t, err)
+	assert.True(t, elapsed < 10*time.Millisecond,
+		"Shutdown with empty WaitGroup should be fast, elapsed: %v", elapsed)
 }
 
 func TestServer_PromptsCapability(t *testing.T) {
