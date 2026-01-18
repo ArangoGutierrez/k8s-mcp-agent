@@ -60,10 +60,7 @@ Agent for NVIDIA GPU Clusters on Kubernetes.
 
 - **[Main README](../README.md)** - Project overview
 - **[License](../LICENSE)** - Apache 2.0
-- **[Milestone Reports](reports/)** - Completion reports
-  - [M1 Completion](reports/m1-completion.md) - Core NVML
-  - [M2 Completion](reports/m2-completion.md) - Distribution
-  - [Project 360 Review (Jan 15, 2026)](reports/project-360-review-2026-01-15.md)
+- **[Reports](reports/)** - Internal development reports (gitignored)
 
 ### Troubleshooting
 
