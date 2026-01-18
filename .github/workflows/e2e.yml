@@ -1,0 +1,113 @@
+# Copyright 2026 k8s-gpu-mcp-server contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: E2E Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Run nightly at 6 AM UTC to catch regressions
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.16.0'
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          config: test/e2e/testdata/kind-config.yaml
+          cluster_name: e2e-gpu-mcp
+
+      - name: Build container image
+        run: |
+          # Build local image for testing
+          docker build -t ghcr.io/arangogutierrez/k8s-gpu-mcp-server:e2e-test \
+            -f deployment/Containerfile .
+
+      - name: Load image into Kind
+        run: |
+          kind load docker-image ghcr.io/arangogutierrez/k8s-gpu-mcp-server:e2e-test \
+            --name e2e-gpu-mcp
+
+      - name: Deploy via Helm
+        run: |
+          helm install e2e-test deployment/helm/k8s-gpu-mcp-server \
+            --namespace gpu-diagnostics \
+            --create-namespace \
+            --set image.tag=e2e-test \
+            --set image.pullPolicy=Never \
+            --set agent.nvmlMode=mock \
+            --set gateway.enabled=true \
+            --set gpu.runtimeClass.enabled=false \
+            --set gpu.resourceRequest.enabled=false \
+            --wait --timeout 180s
+
+      - name: Wait for pods
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=k8s-gpu-mcp-server \
+            -n gpu-diagnostics \
+            --timeout=180s
+
+      - name: Show pod status
+        run: |
+          kubectl get pods -n gpu-diagnostics -o wide
+          kubectl get services -n gpu-diagnostics
+
+      - name: Run E2E tests
+        run: |
+          # Start port-forward in background with cleanup trap
+          kubectl port-forward -n gpu-diagnostics \
+            svc/e2e-test-k8s-gpu-mcp-server-gateway 18080:8080 &
+          PF_PID=$!
+          trap "kill $PF_PID 2>/dev/null || true" EXIT
+          sleep 5
+
+          # Verify connectivity with timeout to prevent hangs
+          curl --connect-timeout 5 --max-time 10 -sf http://localhost:18080/healthz
+
+          # Run tests
+          E2E_TEST=1 go test -v -timeout=10m -short ./test/e2e/...
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n gpu-diagnostics -o wide
+
+          echo "=== Pod Descriptions ==="
+          kubectl describe pods -n gpu-diagnostics
+
+          echo "=== Agent Logs ==="
+          kubectl logs -n gpu-diagnostics \
+            -l app.kubernetes.io/component=gpu-diagnostics \
+            --all-containers --tail=200 || true
+
+          echo "=== Gateway Logs ==="
+          kubectl logs -n gpu-diagnostics \
+            -l app.kubernetes.io/component=gateway \
+            --all-containers --tail=200 || true
+
+          echo "=== Events ==="
+          kubectl get events -n gpu-diagnostics --sort-by='.lastTimestamp'
