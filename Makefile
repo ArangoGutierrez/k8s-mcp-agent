@@ -335,6 +335,7 @@ test-e2e-setup: ## Setup Kind cluster for E2E tests
 		helm install e2e-test deployment/helm/k8s-gpu-mcp-server \
 			--namespace gpu-diagnostics \
 			--create-namespace \
+			--set namespace.create=false \
 			--set agent.nvmlMode=mock \
 			--set gateway.enabled=true \
 			--set gpu.runtimeClass.enabled=false \

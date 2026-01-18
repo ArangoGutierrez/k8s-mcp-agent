@@ -159,6 +159,7 @@ func deployHelm() error {
 		chartPath,
 		"--namespace", namespace,
 		"--create-namespace",
+		"--set", "namespace.create=false",
 		"--set", "agent.nvmlMode=mock",
 		"--set", "gateway.enabled=true",
 		"--set", "gpu.runtimeClass.enabled=false",
