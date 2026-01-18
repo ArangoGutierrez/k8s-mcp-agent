@@ -88,8 +88,8 @@ jobs:
           # Verify connectivity with timeout to prevent hangs
           curl --connect-timeout 5 --max-time 10 -sf http://localhost:18080/healthz
 
-          # Run tests
-          E2E_TEST=1 go test -v -timeout=10m -short ./test/e2e/...
+          # Run tests (requires -tags=e2e to match //go:build e2e)
+          go test -v -timeout=10m -short -tags=e2e ./test/e2e/...
 
       - name: Collect logs on failure
         if: failure()
