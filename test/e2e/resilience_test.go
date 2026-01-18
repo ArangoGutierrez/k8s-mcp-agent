@@ -144,8 +144,10 @@ func TestResilience_RetryAfterError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both should have content
-	content1 := result1["content"].([]interface{})
-	content2 := result2["content"].([]interface{})
+	content1, ok := result1["content"].([]interface{})
+	require.True(t, ok, "Result1 should contain content array")
+	content2, ok := result2["content"].([]interface{})
+	require.True(t, ok, "Result2 should contain content array")
 	assert.NotEmpty(t, content1)
 	assert.NotEmpty(t, content2)
 

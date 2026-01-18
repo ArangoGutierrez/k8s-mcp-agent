@@ -81,11 +81,14 @@ func TestGateway_AllNodesRespond(t *testing.T) {
 	err = json.Unmarshal(rpcResp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("GPU Health response:\n%s", text)
 
 	// Should show health information
@@ -114,11 +117,14 @@ func TestGateway_AnalyzeXIDErrors(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("XID Analysis response:\n%s", text)
 
 	// Response should exist (may show no errors in mock mode)
@@ -155,11 +161,14 @@ func TestGateway_DescribeGPUNode(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("Describe GPU Node response:\n%s", text)
 }
 
@@ -184,11 +193,14 @@ func TestGateway_GetPodGPUAllocation(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("Pod GPU Allocation response:\n%s", text)
 
 	// May show no pods using GPUs in test environment

@@ -73,11 +73,13 @@ func TestTool_GetGPUInventory(t *testing.T) {
 	require.True(t, ok, "Should have content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
 	assert.Equal(t, "text", firstItem["type"])
 	assert.Contains(t, firstItem, "text")
 
-	text := firstItem["text"].(string)
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("get_gpu_inventory output:\n%s", text)
 }
 
@@ -92,11 +94,14 @@ func TestTool_GetGPUHealth(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("get_gpu_health output:\n%s", text)
 
 	// Should contain health-related information
@@ -115,11 +120,14 @@ func TestTool_AnalyzeXIDErrors(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("analyze_xid_errors output:\n%s", text)
 }
 
@@ -141,11 +149,14 @@ func TestTool_DescribeGPUNode(t *testing.T) {
 		err := json.Unmarshal(resp.Result, &result)
 		require.NoError(t, err)
 
-		content := result["content"].([]interface{})
+		content, ok := result["content"].([]interface{})
+		require.True(t, ok, "Result should contain content array")
 		require.NotEmpty(t, content)
 
-		firstItem := content[0].(map[string]interface{})
-		text := firstItem["text"].(string)
+		firstItem, ok := content[0].(map[string]interface{})
+		require.True(t, ok, "Content item should be object")
+		text, ok := firstItem["text"].(string)
+		require.True(t, ok, "Content should have text string")
 		t.Logf("describe_gpu_node output:\n%s", text)
 	}
 }
@@ -161,11 +172,14 @@ func TestTool_GetPodGPUAllocation(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	content := result["content"].([]interface{})
+	content, ok := result["content"].([]interface{})
+	require.True(t, ok, "Result should contain content array")
 	require.NotEmpty(t, content)
 
-	firstItem := content[0].(map[string]interface{})
-	text := firstItem["text"].(string)
+	firstItem, ok := content[0].(map[string]interface{})
+	require.True(t, ok, "Content item should be object")
+	text, ok := firstItem["text"].(string)
+	require.True(t, ok, "Content should have text string")
 	t.Logf("get_pod_gpu_allocation output:\n%s", text)
 }
 

@@ -315,6 +315,8 @@ validate-rbac: ## Validate RBAC manifests (dry-run)
 
 ##@ E2E Testing
 
+.PHONY: test-e2e test-e2e-short test-e2e-setup test-e2e-teardown
+
 test-e2e: build ## Run E2E tests (requires kind, helm, kubectl)
 	E2E_TEST=1 go test -v -timeout=10m ./test/e2e/...
 

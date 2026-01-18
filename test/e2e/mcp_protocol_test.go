@@ -148,10 +148,13 @@ func TestMCP_ToolsHaveSchemas(t *testing.T) {
 	err := json.Unmarshal(resp.Result, &result)
 	require.NoError(t, err)
 
-	tools := result["tools"].([]interface{})
+	tools, ok := result["tools"].([]interface{})
+	require.True(t, ok, "Result should contain tools array")
 	for _, tool := range tools {
-		toolMap := tool.(map[string]interface{})
-		name := toolMap["name"].(string)
+		toolMap, ok := tool.(map[string]interface{})
+		require.True(t, ok, "Tool should be an object")
+		name, ok := toolMap["name"].(string)
+		require.True(t, ok, "Tool should have name string")
 
 		// Each tool should have description and inputSchema
 		assert.Contains(t, toolMap, "description",
