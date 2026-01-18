@@ -1,0 +1,12 @@
+# Kind cluster configuration for E2E tests.
+# Creates a cluster with 2 worker nodes labeled for GPU.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      nvidia.com/gpu.present: "true"
+  - role: worker
+    labels:
+      nvidia.com/gpu.present: "true"
