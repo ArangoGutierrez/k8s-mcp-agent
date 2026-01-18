@@ -32,7 +32,9 @@ func TestResilience_PartialNodeFailure(t *testing.T) {
 	require.Nil(t, resp.Error, "Initial request should succeed")
 	t.Log("Initial inventory request succeeded")
 
-	// Get list of agent pods
+	// Get list of agent pods.
+	// Note: ctx is the package-level context with 10-minute timeout from TestMain.
+	// Individual test timeouts can be enforced via testing.T.Deadline() if needed.
 	cmd := exec.CommandContext(ctx, "kubectl", "get", "pods",
 		"-n", namespace,
 		"-l", "app.kubernetes.io/component=gpu-diagnostics",

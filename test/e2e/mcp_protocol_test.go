@@ -195,12 +195,12 @@ func TestMCP_MalformedJSON(t *testing.T) {
 
 	t.Logf("Malformed JSON response: %s", string(body))
 
-	var rpcResp JSONRPCResponse
-	err = json.Unmarshal(body, &rpcResp)
+	var rpcResponse JSONRPCResponse
+	err = json.Unmarshal(body, &rpcResponse)
 	require.NoError(t, err, "Server should return valid JSON-RPC error")
 
-	require.NotNil(t, rpcResp.Error, "Malformed JSON should return error")
-	assert.Equal(t, -32700, rpcResp.Error.Code,
+	require.NotNil(t, rpcResponse.Error, "Malformed JSON should return error")
+	assert.Equal(t, -32700, rpcResponse.Error.Code,
 		"Malformed JSON should return -32700 (parse error)")
 }
 

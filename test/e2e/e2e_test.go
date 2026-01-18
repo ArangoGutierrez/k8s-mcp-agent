@@ -229,9 +229,12 @@ func setupPortForward() error {
 }
 
 // teardownKindCluster deletes the Kind cluster.
+// Uses a fresh context with timeout since the test context may be cancelled.
 func teardownKindCluster() {
 	fmt.Println("Tearing down Kind cluster...")
-	cmd := exec.Command("kind", "delete", "cluster", "--name", kindClusterName)
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cleanupCancel()
+	cmd := exec.CommandContext(cleanupCtx, "kind", "delete", "cluster", "--name", kindClusterName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	_ = cmd.Run()
