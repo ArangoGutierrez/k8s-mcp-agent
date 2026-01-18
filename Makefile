@@ -313,6 +313,40 @@ validate-rbac: ## Validate RBAC manifests (dry-run)
 	@echo "✓ Helm operator RBAC templates valid"
 	@echo "✓ All RBAC validations passed"
 
+##@ E2E Testing
+
+test-e2e: build ## Run E2E tests (requires kind, helm, kubectl)
+	E2E_TEST=1 go test -v -timeout=10m ./test/e2e/...
+
+test-e2e-short: build ## Run E2E tests without resilience tests
+	E2E_TEST=1 go test -v -timeout=10m -short ./test/e2e/...
+
+test-e2e-setup: ## Setup Kind cluster for E2E tests
+	@if ! kind get clusters 2>/dev/null | grep -q '^e2e-gpu-mcp$$'; then \
+		echo "Creating Kind cluster 'e2e-gpu-mcp'..."; \
+		kind create cluster --name e2e-gpu-mcp --config test/e2e/testdata/kind-config.yaml --wait 120s; \
+	else \
+		echo "Kind cluster 'e2e-gpu-mcp' already exists, skipping create"; \
+	fi
+	@if ! helm list -n gpu-diagnostics -q 2>/dev/null | grep -q '^e2e-test$$'; then \
+		echo "Installing Helm release 'e2e-test'..."; \
+		helm install e2e-test deployment/helm/k8s-gpu-mcp-server \
+			--namespace gpu-diagnostics \
+			--create-namespace \
+			--set agent.nvmlMode=mock \
+			--set gateway.enabled=true \
+			--set gpu.runtimeClass.enabled=false \
+			--set gpu.resourceRequest.enabled=false \
+			--wait --timeout 180s; \
+	else \
+		echo "Helm release 'e2e-test' already exists, skipping install"; \
+	fi
+	@echo "✓ E2E environment ready"
+
+test-e2e-teardown: ## Teardown Kind cluster
+	kind delete cluster --name e2e-gpu-mcp
+	@echo "✓ E2E environment cleaned up"
+
 ##@ Information
 
 info: ## Display build information
