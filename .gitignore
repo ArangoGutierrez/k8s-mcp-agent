@@ -86,3 +86,7 @@ npm/*.tgz
 docs/prompts/*.md
 !docs/prompts/README.md
 !docs/prompts/TEMPLATE.md
+
+# Report working files (keep README only)
+docs/reports/*.md
+!docs/reports/README.md
