@@ -26,6 +26,9 @@ const (
 	helmReleaseName = "e2e-test"
 )
 
+// Package-level state for E2E test infrastructure.
+// Written by TestMain before any tests run, read-only during test execution.
+// Safe: TestMain guarantees sequential initialization before parallel test execution.
 var (
 	// gatewayURL is the URL for accessing the gateway via port-forward.
 	gatewayURL string
@@ -189,6 +192,8 @@ func setupPortForward() error {
 
 	// Kill any existing port-forward for this specific service on port 18080
 	// Use a more specific pattern to avoid killing unrelated port-forwards
+	// Note: Intentionally uses exec.Command (not CommandContext) - this is fire-and-forget
+	// cleanup that should complete quickly regardless of test context state.
 	_ = exec.Command("pkill", "-f",
 		fmt.Sprintf("kubectl.*port-forward.*%s.*18080", serviceName)).Run()
 
@@ -214,6 +219,9 @@ func setupPortForward() error {
 			fmt.Println("Port-forward established successfully")
 			return nil
 		}
+		// Note: Using simple sleep rather than context-aware select.
+		// Bounded by loop iteration (max 15 iterations = 15s worst case).
+		// Context cancellation will be handled on next iteration's exec.CommandContext.
 		time.Sleep(time.Second)
 	}
 
