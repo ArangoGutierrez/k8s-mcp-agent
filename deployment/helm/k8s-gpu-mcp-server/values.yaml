@@ -11,6 +11,11 @@ agent:
   # -- Operation mode: read-only or operator
   mode: "read-only"
 
+  # -- NVML mode: real or mock
+  # Use "mock" for testing without GPU hardware (e.g., Kind clusters)
+  # When "mock", GPU access method validation is skipped
+  nvmlMode: "real"
+
   # RBAC configuration for agent DaemonSet
   rbac:
     # -- Create RBAC resources for agent

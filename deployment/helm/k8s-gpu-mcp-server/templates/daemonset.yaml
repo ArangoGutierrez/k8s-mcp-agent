@@ -81,7 +81,7 @@ spec:
         {{- /* HTTP mode: run agent with --port flag */}}
         command: ["/agent"]
         args:
-        - "--nvml-mode=real"
+        - "--nvml-mode={{ .Values.agent.nvmlMode }}"
         - "--port={{ .Values.transport.http.port }}"
         - "--addr={{ .Values.transport.http.addr }}"
         - "--mode={{ default "read-only" .Values.agent.mode }}"

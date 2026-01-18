@@ -78,8 +78,11 @@ Create the namespace name
 {{/*
 Validate GPU access configuration.
 Ensures only one GPU access method is enabled at a time.
+Skipped when agent.nvmlMode=mock (for testing without GPUs).
 */}}
 {{- define "k8s-gpu-mcp-server.validateGPUConfig" -}}
+{{- /* Skip validation in mock mode - no GPU access needed */}}
+{{- if ne .Values.agent.nvmlMode "mock" }}
 {{- $enabledCount := 0 }}
 {{- $enabledMethods := list }}
 {{- if .Values.gpu.runtimeClass.enabled }}
@@ -99,5 +102,6 @@ Ensures only one GPU access method is enabled at a time.
 {{- end }}
 {{- if eq $enabledCount 0 }}
   {{- fail "At least one GPU access method must be enabled: gpu.runtimeClass.enabled, gpu.resourceRequest.enabled, or gpu.resourceClaim.enabled" }}
+{{- end }}
 {{- end }}
 {{- end }}
