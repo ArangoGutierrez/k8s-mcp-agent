@@ -177,8 +177,10 @@ func splitPodNames(output string) []string {
 }
 
 // httpGet performs an HTTP GET and returns the response body.
+// Uses explicit timeout to avoid hanging if server is unresponsive.
 func httpGet(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}

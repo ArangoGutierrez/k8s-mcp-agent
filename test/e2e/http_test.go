@@ -16,8 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testClient provides HTTP client with timeout for E2E tests.
+// Using http.DefaultClient would hang indefinitely if server is unresponsive.
+var testClient = &http.Client{Timeout: 10 * time.Second}
+
 func TestHTTP_HealthzEndpoint(t *testing.T) {
-	resp, err := http.Get(gatewayURL + "/healthz")
+	resp, err := testClient.Get(gatewayURL + "/healthz")
 	require.NoError(t, err, "Failed to call /healthz")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -30,7 +34,7 @@ func TestHTTP_HealthzEndpoint(t *testing.T) {
 }
 
 func TestHTTP_ReadyzEndpoint(t *testing.T) {
-	resp, err := http.Get(gatewayURL + "/readyz")
+	resp, err := testClient.Get(gatewayURL + "/readyz")
 	require.NoError(t, err, "Failed to call /readyz")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -43,7 +47,7 @@ func TestHTTP_ReadyzEndpoint(t *testing.T) {
 }
 
 func TestHTTP_MetricsEndpoint(t *testing.T) {
-	resp, err := http.Get(gatewayURL + "/metrics")
+	resp, err := testClient.Get(gatewayURL + "/metrics")
 	require.NoError(t, err, "Failed to call /metrics")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -65,7 +69,7 @@ func TestHTTP_MetricsEndpoint(t *testing.T) {
 }
 
 func TestHTTP_VersionEndpoint(t *testing.T) {
-	resp, err := http.Get(gatewayURL + "/version")
+	resp, err := testClient.Get(gatewayURL + "/version")
 	require.NoError(t, err, "Failed to call /version")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -83,7 +87,7 @@ func TestHTTP_VersionEndpoint(t *testing.T) {
 
 func TestHTTP_ResponseTime(t *testing.T) {
 	start := time.Now()
-	resp, err := http.Get(gatewayURL + "/healthz")
+	resp, err := testClient.Get(gatewayURL + "/healthz")
 	elapsed := time.Since(start)
 
 	require.NoError(t, err, "Failed to call /healthz")
@@ -109,7 +113,7 @@ func TestHTTP_ContentTypeHeaders(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := http.Get(gatewayURL + tc.endpoint)
+			resp, err := testClient.Get(gatewayURL + tc.endpoint)
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
