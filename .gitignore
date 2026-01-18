@@ -81,3 +81,8 @@ npm/bin/*
 !npm/bin/k8s-gpu-mcp-server
 npm/node_modules/
 npm/*.tgz
+
+# Prompt working files (keep templates only)
+docs/prompts/*.md
+!docs/prompts/README.md
+!docs/prompts/TEMPLATE.md
